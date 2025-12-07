@@ -215,4 +215,50 @@ mod tests {
         assert!(LuaVersion::parse("Lua 5.2.4").is_err());
         assert!(LuaVersion::parse("Lua 6.0.0").is_err());
     }
+
+    #[test]
+    fn test_version_string() {
+        let v = LuaVersion::new(5, 4, 6);
+        assert_eq!(v.version_string(), "5.4.6");
+    }
+
+    #[test]
+    fn test_major_minor() {
+        let v = LuaVersion::new(5, 4, 6);
+        assert_eq!(v.major_minor(), "5.4");
+    }
+
+    #[test]
+    fn test_parse_version_minor_only() {
+        let v = LuaVersion::parse("5.4").unwrap();
+        assert_eq!(v.major, 5);
+        assert_eq!(v.minor, 4);
+        assert_eq!(v.patch, 0);
+    }
+
+    #[test]
+    fn test_parse_version_major_only() {
+        // Lua version "5" alone is not supported - must be 5.1, 5.3, or 5.4
+        assert!(LuaVersion::parse("5").is_err());
+    }
+
+    #[test]
+    fn test_parse_invalid_format() {
+        assert!(LuaVersion::parse("").is_err());
+        assert!(LuaVersion::parse("invalid").is_err());
+    }
+
+    #[test]
+    fn test_display() {
+        let v = LuaVersion::new(5, 4, 6);
+        assert_eq!(format!("{}", v), "5.4.6");
+    }
+
+    #[test]
+    fn test_parse_with_whitespace() {
+        let v = LuaVersion::parse("  Lua 5.4.6  ").unwrap();
+        assert_eq!(v.major, 5);
+        assert_eq!(v.minor, 4);
+        assert_eq!(v.patch, 6);
+    }
 }

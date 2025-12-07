@@ -241,3 +241,56 @@ fn print_dependency_tree(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lpm::package::manifest::PackageManifest;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_list_global_function_exists() {
+        // Test that list_global function exists and can be called
+        let _ = list_global;
+    }
+
+    #[test]
+    fn test_print_package_list_with_empty_deps() {
+        let temp = TempDir::new().unwrap();
+        let manifest = PackageManifest::default("test".to_string());
+        let lua_modules = temp.path().join("lua_modules");
+        fs::create_dir_all(&lua_modules).unwrap();
+
+        let result = print_package_list(&manifest, &None, &lua_modules);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_print_package_list_with_dependencies() {
+        let temp = TempDir::new().unwrap();
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest
+            .dependencies
+            .insert("test-pkg".to_string(), "1.0.0".to_string());
+        let lua_modules = temp.path().join("lua_modules");
+        fs::create_dir_all(&lua_modules).unwrap();
+
+        let result = print_package_list(&manifest, &None, &lua_modules);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_print_dependency_tree() {
+        let temp = TempDir::new().unwrap();
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest
+            .dependencies
+            .insert("test-pkg".to_string(), "1.0.0".to_string());
+        let lua_modules = temp.path().join("lua_modules");
+        fs::create_dir_all(&lua_modules).unwrap();
+
+        let result = print_dependency_tree(&manifest, &None, &lua_modules, "", true);
+        assert!(result.is_ok());
+    }
+}

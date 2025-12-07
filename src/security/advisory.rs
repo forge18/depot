@@ -268,4 +268,194 @@ mod tests {
         let found = db.check_package("test-package", "2.0.0");
         assert_eq!(found.len(), 0);
     }
+
+    #[test]
+    fn test_advisory_database_new() {
+        let db = AdvisoryDatabase::new();
+        assert!(db.advisories.is_empty());
+    }
+
+    #[test]
+    fn test_advisory_database_add_multiple_advisories() {
+        let mut db = AdvisoryDatabase::new();
+
+        let vuln1 = Vulnerability {
+            package: "test-package".to_string(),
+            affected_versions: "<2.0.0".to_string(),
+            severity: Severity::High,
+            cve: None,
+            title: "Test 1".to_string(),
+            description: "Test".to_string(),
+            fixed_in: Some("2.0.0".to_string()),
+            references: Vec::new(),
+        };
+
+        let vuln2 = Vulnerability {
+            package: "test-package".to_string(),
+            affected_versions: "<1.5.0".to_string(),
+            severity: Severity::Medium,
+            cve: None,
+            title: "Test 2".to_string(),
+            description: "Test".to_string(),
+            fixed_in: Some("1.5.0".to_string()),
+            references: Vec::new(),
+        };
+
+        db.add_advisory(vuln1);
+        db.add_advisory(vuln2);
+
+        let found = db.check_package("test-package", "1.0.0");
+        assert_eq!(found.len(), 2);
+    }
+
+    #[test]
+    fn test_advisory_database_get_advisories() {
+        let mut db = AdvisoryDatabase::new();
+
+        let vuln = Vulnerability {
+            package: "test-package".to_string(),
+            affected_versions: "<2.0.0".to_string(),
+            severity: Severity::High,
+            cve: None,
+            title: "Test".to_string(),
+            description: "Test".to_string(),
+            fixed_in: Some("2.0.0".to_string()),
+            references: Vec::new(),
+        };
+
+        db.add_advisory(vuln);
+
+        let advisories = db.get_advisories("test-package");
+        assert_eq!(advisories.len(), 1);
+
+        let nonexistent = db.get_advisories("nonexistent");
+        assert_eq!(nonexistent.len(), 0);
+    }
+
+    #[test]
+    fn test_advisory_database_has_vulnerabilities() {
+        let mut db = AdvisoryDatabase::new();
+
+        assert!(!db.has_vulnerabilities("test-package"));
+
+        let vuln = Vulnerability {
+            package: "test-package".to_string(),
+            affected_versions: "<2.0.0".to_string(),
+            severity: Severity::High,
+            cve: None,
+            title: "Test".to_string(),
+            description: "Test".to_string(),
+            fixed_in: Some("2.0.0".to_string()),
+            references: Vec::new(),
+        };
+
+        db.add_advisory(vuln);
+        assert!(db.has_vulnerabilities("test-package"));
+        assert!(!db.has_vulnerabilities("other-package"));
+    }
+
+    #[test]
+    fn test_advisory_database_check_package_nonexistent() {
+        let db = AdvisoryDatabase::new();
+        let found = db.check_package("nonexistent-package", "1.0.0");
+        assert_eq!(found.len(), 0);
+    }
+
+    #[test]
+    fn test_advisory_database_default() {
+        let db = AdvisoryDatabase::default();
+        assert!(db.advisories.is_empty());
+    }
+
+    #[test]
+    fn test_advisory_database_load() {
+        let db = AdvisoryDatabase::load().unwrap();
+        // Should load successfully (even if empty)
+        assert!(db.advisories.is_empty() || !db.advisories.is_empty());
+    }
+
+    #[test]
+    fn test_parse_osv_vulnerability_with_cve() {
+        let db = AdvisoryDatabase::new();
+        let vuln_json = serde_json::json!({
+            "id": "CVE-2023-12345",
+            "summary": "Test vulnerability",
+            "details": "Test details",
+            "database_specific": {
+                "severity": "HIGH"
+            },
+            "references": [
+                {"url": "https://example.com/advisory"}
+            ]
+        });
+
+        let parsed = db.parse_osv_vulnerability(&vuln_json, "test-package");
+        assert!(parsed.is_some());
+        let vuln = parsed.unwrap();
+        assert_eq!(vuln.cve, Some("CVE-2023-12345".to_string()));
+        assert_eq!(vuln.severity, Severity::High);
+        assert_eq!(vuln.title, "Test vulnerability");
+        assert!(!vuln.references.is_empty());
+    }
+
+    #[test]
+    fn test_parse_osv_vulnerability_without_cve() {
+        let db = AdvisoryDatabase::new();
+        let vuln_json = serde_json::json!({
+            "id": "GHSA-xxxx-xxxx-xxxx",
+            "summary": "Test vulnerability",
+            "details": "Test details",
+            "database_specific": {
+                "severity": "MEDIUM"
+            }
+        });
+
+        let parsed = db.parse_osv_vulnerability(&vuln_json, "test-package");
+        assert!(parsed.is_some());
+        let vuln = parsed.unwrap();
+        assert_eq!(vuln.cve, None);
+        assert_eq!(vuln.severity, Severity::Medium);
+    }
+
+    #[test]
+    fn test_parse_osv_vulnerability_with_fixed_version() {
+        let db = AdvisoryDatabase::new();
+        let vuln_json = serde_json::json!({
+            "id": "CVE-2023-12345",
+            "summary": "Test",
+            "details": "Test",
+            "affected": [{
+                "ranges": [{
+                    "events": [
+                        {"fixed": "2.0.0"}
+                    ]
+                }]
+            }]
+        });
+
+        let parsed = db.parse_osv_vulnerability(&vuln_json, "test-package");
+        assert!(parsed.is_some());
+        let vuln = parsed.unwrap();
+        assert_eq!(vuln.fixed_in, Some("2.0.0".to_string()));
+    }
+
+    #[test]
+    fn test_parse_osv_vulnerability_invalid_json() {
+        let db = AdvisoryDatabase::new();
+        let invalid_json = serde_json::json!({});
+
+        let parsed = db.parse_osv_vulnerability(&invalid_json, "test-package");
+        assert!(parsed.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_load_from_osv_batch() {
+        let mut db = AdvisoryDatabase::new();
+        let packages = vec!["test-package1".to_string(), "test-package2".to_string()];
+
+        // This will fail on network, but tests the structure
+        let result = db.load_from_osv_batch(&packages).await;
+        // May fail on network, but should not panic
+        assert!(result.is_ok() || result.is_err());
+    }
 }

@@ -58,8 +58,17 @@ impl ChecksumRecorder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cache::Cache;
     use std::fs;
     use tempfile::TempDir;
+
+    #[test]
+    fn test_checksum_recorder_new() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+        let _recorder = ChecksumRecorder::new(cache);
+        // Should create successfully
+    }
 
     #[test]
     fn test_calculate_for_file() {
@@ -71,6 +80,44 @@ mod tests {
         fs::write(&test_file, b"test data").unwrap();
 
         let checksum = recorder.calculate_for_file(&test_file).unwrap();
+        assert!(checksum.starts_with("sha256:"));
+    }
+
+    #[test]
+    fn test_calculate_for_file_nonexistent() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+        let recorder = ChecksumRecorder::new(cache);
+
+        let nonexistent = temp.path().join("nonexistent.txt");
+        let result = recorder.calculate_for_file(&nonexistent);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_calculate_for_source_nonexistent() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+        let recorder = ChecksumRecorder::new(cache);
+
+        let result = recorder.calculate_for_source("https://example.com/nonexistent.tar.gz");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_record_checksum() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+        cache.init().unwrap();
+        let recorder = ChecksumRecorder::new(cache.clone());
+
+        // Use a URL that would hash to a file
+        let url = "https://example.com/test.tar.gz";
+        let source_path = cache.source_path(url);
+        fs::create_dir_all(source_path.parent().unwrap()).unwrap();
+        fs::write(&source_path, b"test archive").unwrap();
+
+        let checksum = recorder.record_checksum("test-package", url).unwrap();
         assert!(checksum.starts_with("sha256:"));
     }
 }

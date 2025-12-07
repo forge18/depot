@@ -80,4 +80,103 @@ mod tests {
             .join("package.yaml");
         assert!(manifest_path.exists());
     }
+
+    #[test]
+    fn test_convert_rockspec_without_optional_fields() {
+        let temp = TempDir::new().unwrap();
+        let rockspec = Rockspec {
+            package: "test-package".to_string(),
+            version: "1.0.0".to_string(),
+            source: RockspecSource {
+                url: "https://example.com/test.tar.gz".to_string(),
+                tag: None,
+                branch: None,
+            },
+            dependencies: vec![],
+            build: RockspecBuild {
+                build_type: "builtin".to_string(),
+                modules: HashMap::new(),
+                install: InstallTable::default(),
+            },
+            description: None,
+            homepage: None,
+            license: None,
+            lua_version: None,
+            binary_urls: HashMap::new(),
+        };
+
+        let manifest =
+            convert_rockspec_to_manifest(&rockspec, temp.path(), "test-package").unwrap();
+        assert_eq!(manifest.name, "test-package");
+        assert_eq!(manifest.version, "1.0.0");
+    }
+
+    #[test]
+    fn test_convert_rockspec_with_dependencies() {
+        let temp = TempDir::new().unwrap();
+        let rockspec = Rockspec {
+            package: "test-package".to_string(),
+            version: "1.0.0".to_string(),
+            source: RockspecSource {
+                url: "https://example.com/test.tar.gz".to_string(),
+                tag: None,
+                branch: None,
+            },
+            dependencies: vec!["luasocket >= 3.0".to_string(), "penlight".to_string()],
+            build: RockspecBuild {
+                build_type: "builtin".to_string(),
+                modules: HashMap::new(),
+                install: InstallTable::default(),
+            },
+            description: None,
+            homepage: None,
+            license: None,
+            lua_version: None,
+            binary_urls: HashMap::new(),
+        };
+
+        let manifest =
+            convert_rockspec_to_manifest(&rockspec, temp.path(), "test-package").unwrap();
+        assert!(manifest.dependencies.contains_key("luasocket"));
+        assert!(manifest.dependencies.contains_key("penlight"));
+    }
+
+    #[test]
+    fn test_convert_rockspec_with_build_modules() {
+        let temp = TempDir::new().unwrap();
+        let mut modules = HashMap::new();
+        modules.insert("socket".to_string(), "src/socket.lua".to_string());
+        modules.insert("http".to_string(), "src/http.lua".to_string());
+        let rockspec = Rockspec {
+            package: "test-package".to_string(),
+            version: "1.0.0".to_string(),
+            source: RockspecSource {
+                url: "https://example.com/test.tar.gz".to_string(),
+                tag: None,
+                branch: None,
+            },
+            dependencies: vec![],
+            build: RockspecBuild {
+                build_type: "builtin".to_string(),
+                modules,
+                install: InstallTable::default(),
+            },
+            description: None,
+            homepage: None,
+            license: None,
+            lua_version: None,
+            binary_urls: HashMap::new(),
+        };
+        let manifest =
+            convert_rockspec_to_manifest(&rockspec, temp.path(), "test-package").unwrap();
+        assert_eq!(manifest.name, "test-package");
+        let manifest_path = temp
+            .path()
+            .join("lua_modules")
+            .join(".lpm")
+            .join("packages")
+            .join("test-package")
+            .join("package.yaml");
+        assert!(manifest_path.exists());
+    }
 }

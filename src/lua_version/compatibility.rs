@@ -87,4 +87,124 @@ mod tests {
             PackageCompatibility::check_package(&installed, Some("5.1 || 5.3 || 5.4")).unwrap()
         );
     }
+
+    #[test]
+    fn test_check_package_no_constraint() {
+        let installed = LuaVersion::new(5, 4, 0);
+        assert!(PackageCompatibility::check_package(&installed, None).unwrap());
+    }
+
+    #[test]
+    fn test_check_rockspec() {
+        use crate::luarocks::rockspec::{Rockspec, RockspecBuild, RockspecSource};
+        let installed = LuaVersion::new(5, 4, 0);
+        let rockspec = Rockspec {
+            package: "test".to_string(),
+            version: "1.0.0".to_string(),
+            source: RockspecSource {
+                url: "none".to_string(),
+                tag: None,
+                branch: None,
+            },
+            dependencies: vec![],
+            build: RockspecBuild {
+                build_type: "builtin".to_string(),
+                modules: std::collections::HashMap::new(),
+                install: Default::default(),
+            },
+            description: None,
+            homepage: None,
+            license: None,
+            lua_version: Some(">=5.1".to_string()),
+            binary_urls: std::collections::HashMap::new(),
+        };
+        assert!(PackageCompatibility::check_rockspec(&installed, &rockspec).unwrap());
+    }
+
+    #[test]
+    fn test_validate_project_constraint() {
+        let installed = LuaVersion::new(5, 4, 0);
+        assert!(PackageCompatibility::validate_project_constraint(&installed, ">=5.1").is_ok());
+        assert!(PackageCompatibility::validate_project_constraint(&installed, "5.4").is_ok());
+        assert!(PackageCompatibility::validate_project_constraint(&installed, "<5.3").is_err());
+    }
+
+    #[test]
+    fn test_filter_compatible_packages() {
+        let installed = LuaVersion::new(5, 4, 0);
+        let packages = vec![
+            ("pkg1".to_string(), Some(">=5.1".to_string())),
+            ("pkg2".to_string(), Some("<5.3".to_string())),
+            ("pkg3".to_string(), Some("5.4".to_string())),
+            ("pkg4".to_string(), None),
+        ];
+        let compatible = PackageCompatibility::filter_compatible_packages(&installed, &packages);
+        assert!(compatible.contains(&"pkg1".to_string()));
+        assert!(!compatible.contains(&"pkg2".to_string()));
+        assert!(compatible.contains(&"pkg3".to_string()));
+        assert!(compatible.contains(&"pkg4".to_string()));
+    }
+
+    #[test]
+    fn test_check_package_invalid_constraint() {
+        let installed = LuaVersion::new(5, 4, 0);
+        let result = PackageCompatibility::check_package(&installed, Some("invalid"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_check_rockspec_without_lua_version() {
+        use crate::luarocks::rockspec::{Rockspec, RockspecBuild, RockspecSource};
+        let installed = LuaVersion::new(5, 4, 0);
+        let rockspec = Rockspec {
+            package: "test".to_string(),
+            version: "1.0.0".to_string(),
+            source: RockspecSource {
+                url: "none".to_string(),
+                tag: None,
+                branch: None,
+            },
+            dependencies: vec![],
+            build: RockspecBuild {
+                build_type: "builtin".to_string(),
+                modules: std::collections::HashMap::new(),
+                install: Default::default(),
+            },
+            description: None,
+            homepage: None,
+            license: None,
+            lua_version: None,
+            binary_urls: std::collections::HashMap::new(),
+        };
+        assert!(PackageCompatibility::check_rockspec(&installed, &rockspec).unwrap());
+    }
+
+    #[test]
+    fn test_validate_project_constraint_invalid() {
+        let installed = LuaVersion::new(5, 4, 0);
+        let result = PackageCompatibility::validate_project_constraint(&installed, "invalid");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_filter_compatible_packages_with_errors() {
+        let installed = LuaVersion::new(5, 4, 0);
+        let packages = vec![
+            ("pkg1".to_string(), Some(">=5.1".to_string())),
+            ("pkg2".to_string(), Some("invalid-constraint".to_string())), // Should be skipped
+            ("pkg3".to_string(), None),
+        ];
+        let compatible = PackageCompatibility::filter_compatible_packages(&installed, &packages);
+        assert!(compatible.contains(&"pkg1".to_string()));
+        assert!(!compatible.contains(&"pkg2".to_string()));
+        assert!(compatible.contains(&"pkg3".to_string()));
+    }
+
+    #[test]
+    fn test_filter_compatible_packages_empty() {
+        let installed = LuaVersion::new(5, 4, 0);
+        let packages: Vec<(String, Option<String>)> = vec![];
+        let compatible = PackageCompatibility::filter_compatible_packages(&installed, &packages);
+        assert!(compatible.is_empty());
+    }
 }

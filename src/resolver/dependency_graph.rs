@@ -207,4 +207,89 @@ mod tests {
         assert!(cycles.is_ok());
         assert!(cycles.unwrap().is_empty());
     }
+
+    #[test]
+    fn test_add_dependency_nonexistent_package() {
+        let mut graph = DependencyGraph::new();
+        graph.add_node("package-a".to_string(), parse_constraint("^1.0.0").unwrap());
+
+        let result = graph.add_dependency("nonexistent", "package-b".to_string());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_get_node() {
+        let mut graph = DependencyGraph::new();
+        graph.add_node(
+            "test-package".to_string(),
+            parse_constraint("^1.0.0").unwrap(),
+        );
+
+        let node = graph.get_node("test-package");
+        assert!(node.is_some());
+        assert_eq!(node.unwrap().name, "test-package");
+
+        let none = graph.get_node("nonexistent");
+        assert!(none.is_none());
+    }
+
+    #[test]
+    fn test_set_resolved_version() {
+        let mut graph = DependencyGraph::new();
+        graph.add_node(
+            "test-package".to_string(),
+            parse_constraint("^1.0.0").unwrap(),
+        );
+
+        graph
+            .set_resolved_version("test-package", Version::new(2, 0, 0))
+            .unwrap();
+
+        let node = graph.get_node("test-package").unwrap();
+        assert_eq!(node.resolved_version, Some(Version::new(2, 0, 0)));
+    }
+
+    #[test]
+    fn test_set_resolved_version_nonexistent() {
+        let mut graph = DependencyGraph::new();
+        let result = graph.set_resolved_version("nonexistent", Version::new(1, 0, 0));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_get_all_dependencies() {
+        let mut graph = DependencyGraph::new();
+        graph.add_node("a".to_string(), parse_constraint("^1.0.0").unwrap());
+        graph.add_node("b".to_string(), parse_constraint("^1.0.0").unwrap());
+        graph.add_node("c".to_string(), parse_constraint("^1.0.0").unwrap());
+        graph.add_dependency("a", "b".to_string()).unwrap();
+        graph.add_dependency("b", "c".to_string()).unwrap();
+
+        let deps = graph.get_all_dependencies("a");
+        assert!(deps.contains("b"));
+        assert!(deps.contains("c"));
+        assert_eq!(deps.len(), 2);
+    }
+
+    #[test]
+    fn test_get_all_dependencies_nonexistent() {
+        let graph = DependencyGraph::new();
+        let deps = graph.get_all_dependencies("nonexistent");
+        assert!(deps.is_empty());
+    }
+
+    #[test]
+    fn test_get_all_dependencies_no_deps() {
+        let mut graph = DependencyGraph::new();
+        graph.add_node("a".to_string(), parse_constraint("^1.0.0").unwrap());
+
+        let deps = graph.get_all_dependencies("a");
+        assert!(deps.is_empty());
+    }
+
+    #[test]
+    fn test_dependency_graph_default() {
+        let graph = DependencyGraph::default();
+        assert!(graph.nodes.is_empty());
+    }
 }

@@ -146,4 +146,76 @@ mod tests {
         assert!(constraint.matches(&LuaVersion::new(5, 4, 0)));
         assert!(!constraint.matches(&LuaVersion::new(5, 2, 0)));
     }
+
+    #[test]
+    fn test_parse_less_than_or_equal() {
+        let constraint = parse_lua_version_constraint("<=5.3").unwrap();
+        assert!(matches!(constraint, LuaVersionConstraint::LessThan(_)));
+        assert!(constraint.matches(&LuaVersion::new(5, 1, 0)));
+        assert!(constraint.matches(&LuaVersion::new(5, 3, 0)));
+        assert!(!constraint.matches(&LuaVersion::new(5, 4, 0)));
+    }
+
+    #[test]
+    fn test_parse_greater_than() {
+        let constraint = parse_lua_version_constraint(">5.1").unwrap();
+        assert!(matches!(
+            constraint,
+            LuaVersionConstraint::GreaterOrEqual(_)
+        ));
+        // ">5.1" becomes ">=5.1.1" (next patch version)
+        // But matches() only compares major.minor, so 5.1.x all match
+        assert!(constraint.matches(&LuaVersion::new(5, 1, 0))); // Same major.minor matches
+        assert!(constraint.matches(&LuaVersion::new(5, 3, 0))); // Higher minor matches
+    }
+
+    #[test]
+    fn test_parse_multiple_empty() {
+        let result = parse_lua_version_constraint("||");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_invalid() {
+        let result = parse_lua_version_constraint("invalid");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_constraint_matches_exact() {
+        let constraint = LuaVersionConstraint::Exact(LuaVersion::new(5, 4, 0));
+        assert!(constraint.matches(&LuaVersion::new(5, 4, 0)));
+        assert!(constraint.matches(&LuaVersion::new(5, 4, 6))); // Patch doesn't matter
+        assert!(!constraint.matches(&LuaVersion::new(5, 3, 0)));
+    }
+
+    #[test]
+    fn test_constraint_matches_greater_or_equal() {
+        let constraint = LuaVersionConstraint::GreaterOrEqual(LuaVersion::new(5, 1, 0));
+        assert!(constraint.matches(&LuaVersion::new(5, 1, 0)));
+        assert!(constraint.matches(&LuaVersion::new(5, 3, 0)));
+        assert!(constraint.matches(&LuaVersion::new(5, 4, 0)));
+        assert!(!constraint.matches(&LuaVersion::new(4, 9, 0)));
+    }
+
+    #[test]
+    fn test_constraint_matches_less_than() {
+        let constraint = LuaVersionConstraint::LessThan(LuaVersion::new(5, 3, 0));
+        assert!(constraint.matches(&LuaVersion::new(5, 1, 0)));
+        assert!(!constraint.matches(&LuaVersion::new(5, 3, 0)));
+        assert!(!constraint.matches(&LuaVersion::new(5, 4, 0)));
+    }
+
+    #[test]
+    fn test_constraint_matches_multiple() {
+        let constraint = LuaVersionConstraint::Multiple(vec![
+            LuaVersion::new(5, 1, 0),
+            LuaVersion::new(5, 3, 0),
+            LuaVersion::new(5, 4, 0),
+        ]);
+        assert!(constraint.matches(&LuaVersion::new(5, 1, 0)));
+        assert!(constraint.matches(&LuaVersion::new(5, 3, 0)));
+        assert!(constraint.matches(&LuaVersion::new(5, 4, 0)));
+        assert!(!constraint.matches(&LuaVersion::new(5, 2, 0)));
+    }
 }

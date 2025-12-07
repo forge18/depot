@@ -1,0 +1,7 @@
+name: dev-deps-test
+version: 1.0.0
+dependencies:
+  penlight: "1.13.1"
+dev_dependencies:
+  busted: "2.0.0"
+

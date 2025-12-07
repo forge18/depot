@@ -1,0 +1,14 @@
+name: complex-test-package
+version: 1.0.0
+description: Complex test package with many dependencies
+dependencies:
+  penlight: "^1.13.0"
+  luasocket: "3.0.0"
+  luafilesystem: "^1.8.0"
+dev_dependencies:
+  busted: "^2.0.0"
+  luacheck: "^1.1.0"
+scripts:
+  test: "busted tests/"
+  lint: "luacheck src/"
+

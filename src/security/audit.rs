@@ -200,11 +200,295 @@ pub fn format_report(report: &VulnerabilityReport) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::security::advisory::AdvisoryDatabase;
+    use crate::security::vulnerability::{Severity, Vulnerability};
 
     #[test]
     fn test_format_empty_report() {
         let report = VulnerabilityReport::new();
         let output = format_report(&report);
         assert!(output.contains("No known vulnerabilities"));
+        assert!(output.contains("Checked 0 package(s)"));
+    }
+
+    #[test]
+    fn test_format_report_with_vulnerabilities() {
+        let mut report = VulnerabilityReport::new();
+        report.checked_packages = 5;
+        report.package_count = 5;
+
+        let vuln = Vulnerability {
+            package: "test-package".to_string(),
+            affected_versions: "<2.0.0".to_string(),
+            severity: Severity::Critical,
+            cve: Some("CVE-2024-1234".to_string()),
+            title: "Test Vulnerability".to_string(),
+            description: "A test vulnerability".to_string(),
+            fixed_in: Some("2.0.0".to_string()),
+            references: vec!["https://example.com/advisory".to_string()],
+        };
+        report.add(vuln);
+
+        let output = format_report(&report);
+        assert!(output.contains("Security Audit Results"));
+        assert!(output.contains("test-package"));
+        assert!(output.contains("Critical"));
+        assert!(output.contains("CVE-2024-1234"));
+        assert!(output.contains("Fixed in: 2.0.0"));
+    }
+
+    #[test]
+    fn test_security_auditor_check_package() {
+        let mut db = AdvisoryDatabase::new();
+        let vuln = Vulnerability {
+            package: "test-package".to_string(),
+            affected_versions: "<2.0.0".to_string(),
+            severity: Severity::High,
+            cve: None,
+            title: "Test".to_string(),
+            description: "Test".to_string(),
+            fixed_in: Some("2.0.0".to_string()),
+            references: Vec::new(),
+        };
+        db.add_advisory(vuln);
+
+        let auditor = SecurityAuditor { advisory_db: db };
+        let found = auditor.check_package("test-package", "1.0.0");
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].package, "test-package");
+
+        let not_found = auditor.check_package("test-package", "2.0.0");
+        assert_eq!(not_found.len(), 0);
+    }
+
+    #[test]
+    fn test_security_auditor_get_advisories() {
+        let mut db = AdvisoryDatabase::new();
+        let vuln1 = Vulnerability {
+            package: "test-package".to_string(),
+            affected_versions: "<2.0.0".to_string(),
+            severity: Severity::High,
+            cve: None,
+            title: "Test 1".to_string(),
+            description: "Test".to_string(),
+            fixed_in: Some("2.0.0".to_string()),
+            references: Vec::new(),
+        };
+        let vuln2 = Vulnerability {
+            package: "test-package".to_string(),
+            affected_versions: "<1.5.0".to_string(),
+            severity: Severity::Medium,
+            cve: None,
+            title: "Test 2".to_string(),
+            description: "Test".to_string(),
+            fixed_in: Some("1.5.0".to_string()),
+            references: Vec::new(),
+        };
+        db.add_advisory(vuln1);
+        db.add_advisory(vuln2);
+
+        let auditor = SecurityAuditor { advisory_db: db };
+        let advisories = auditor.get_advisories("test-package");
+        assert_eq!(advisories.len(), 2);
+    }
+
+    #[test]
+    fn test_security_auditor_get_advisories_nonexistent() {
+        let db = AdvisoryDatabase::new();
+        let auditor = SecurityAuditor { advisory_db: db };
+        let advisories = auditor.get_advisories("nonexistent-package");
+        assert_eq!(advisories.len(), 0);
+    }
+
+    #[test]
+    fn test_format_report_with_multiple_severities() {
+        let mut report = VulnerabilityReport::new();
+        report.checked_packages = 3;
+        report.package_count = 3;
+
+        let critical = Vulnerability {
+            package: "critical-pkg".to_string(),
+            affected_versions: "<1.0.0".to_string(),
+            severity: Severity::Critical,
+            cve: None,
+            title: "Critical".to_string(),
+            description: "Critical".to_string(),
+            fixed_in: None,
+            references: Vec::new(),
+        };
+        let high = Vulnerability {
+            package: "high-pkg".to_string(),
+            affected_versions: "<1.0.0".to_string(),
+            severity: Severity::High,
+            cve: None,
+            title: "High".to_string(),
+            description: "High".to_string(),
+            fixed_in: None,
+            references: Vec::new(),
+        };
+        let medium = Vulnerability {
+            package: "medium-pkg".to_string(),
+            affected_versions: "<1.0.0".to_string(),
+            severity: Severity::Medium,
+            cve: None,
+            title: "Medium".to_string(),
+            description: "Medium".to_string(),
+            fixed_in: None,
+            references: Vec::new(),
+        };
+
+        report.add(critical);
+        report.add(high);
+        report.add(medium);
+
+        let output = format_report(&report);
+        assert!(output.contains("Critical"));
+        assert!(output.contains("High"));
+        assert!(output.contains("Medium"));
+    }
+
+    #[test]
+    fn test_format_report_with_references() {
+        let mut report = VulnerabilityReport::new();
+        report.checked_packages = 1;
+        report.package_count = 1;
+
+        let vuln = Vulnerability {
+            package: "test-package".to_string(),
+            affected_versions: "<2.0.0".to_string(),
+            severity: Severity::High,
+            cve: Some("CVE-2024-1234".to_string()),
+            title: "Test Vulnerability".to_string(),
+            description: "A test vulnerability".to_string(),
+            fixed_in: Some("2.0.0".to_string()),
+            references: vec![
+                "https://example.com/advisory".to_string(),
+                "https://example.com/cve".to_string(),
+            ],
+        };
+        report.add(vuln);
+
+        let output = format_report(&report);
+        assert!(output.contains("References:"));
+        assert!(output.contains("https://example.com/advisory"));
+        assert!(output.contains("https://example.com/cve"));
+    }
+
+    #[test]
+    fn test_format_report_without_cve() {
+        let mut report = VulnerabilityReport::new();
+        report.checked_packages = 1;
+        report.package_count = 1;
+
+        let vuln = Vulnerability {
+            package: "test-package".to_string(),
+            affected_versions: "<2.0.0".to_string(),
+            severity: Severity::Medium,
+            cve: None,
+            title: "Test Vulnerability".to_string(),
+            description: "A test vulnerability".to_string(),
+            fixed_in: None,
+            references: Vec::new(),
+        };
+        report.add(vuln);
+
+        let output = format_report(&report);
+        assert!(!output.contains("CVE:"));
+    }
+
+    #[test]
+    fn test_format_report_recommendations_critical() {
+        let mut report = VulnerabilityReport::new();
+        report.checked_packages = 1;
+        report.package_count = 1;
+
+        let vuln = Vulnerability {
+            package: "test-package".to_string(),
+            affected_versions: "<2.0.0".to_string(),
+            severity: Severity::Critical,
+            cve: None,
+            title: "Test".to_string(),
+            description: "Test".to_string(),
+            fixed_in: None,
+            references: Vec::new(),
+        };
+        report.add(vuln);
+
+        let output = format_report(&report);
+        assert!(output.contains("Update vulnerable packages immediately"));
+        assert!(output.contains("Review and test updates"));
+    }
+
+    #[test]
+    fn test_format_report_recommendations_low() {
+        let mut report = VulnerabilityReport::new();
+        report.checked_packages = 1;
+        report.package_count = 1;
+
+        let vuln = Vulnerability {
+            package: "test-package".to_string(),
+            affected_versions: "<2.0.0".to_string(),
+            severity: Severity::Low,
+            cve: None,
+            title: "Test".to_string(),
+            description: "Test".to_string(),
+            fixed_in: None,
+            references: Vec::new(),
+        };
+        report.add(vuln);
+
+        let output = format_report(&report);
+        assert!(output.contains("Consider updating packages"));
+        assert!(output.contains("lpm outdated"));
+    }
+
+    #[tokio::test]
+    async fn test_audit_project_with_osv_no_lockfile() {
+        let temp = tempfile::TempDir::new().unwrap();
+        // No package.lock file
+        let result = SecurityAuditor::audit_project_with_osv(temp.path()).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("No package.lock"));
+    }
+
+    #[tokio::test]
+    async fn test_new_with_osv_empty_packages() {
+        let result = SecurityAuditor::new_with_osv(&[]).await;
+        assert!(result.is_ok());
+        let auditor = result.unwrap();
+        // Should have empty advisory database
+        let advisories = auditor.get_advisories("nonexistent");
+        assert!(advisories.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_new_with_osv_with_packages() {
+        // Test with mock packages (OSV API will be called)
+        let result = SecurityAuditor::new_with_osv(&["test-package".to_string()]).await;
+        // May succeed or fail depending on network, but tests the path
+        let _ = result;
+    }
+
+    #[test]
+    fn test_audit_project_no_lockfile() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let result = SecurityAuditor::audit_project(temp.path());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("No package.lock"));
+    }
+
+    #[test]
+    fn test_audit_with_empty_lockfile() {
+        let temp = tempfile::TempDir::new().unwrap();
+        // Create empty lockfile using Lockfile::new() to ensure proper structure
+        let lockfile = Lockfile::new();
+        lockfile.save(temp.path()).unwrap();
+
+        let auditor = SecurityAuditor::new().unwrap();
+        let result = auditor.audit(temp.path());
+        assert!(result.is_ok());
+        let report = result.unwrap();
+        assert!(report.is_empty());
+        assert_eq!(report.package_count, 0);
     }
 }

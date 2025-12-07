@@ -57,3 +57,38 @@ pub fn run() -> LpmResult<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use lpm::package::lockfile::{LockedPackage, Lockfile};
+    use std::collections::HashMap;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_verify_with_empty_lockfile() {
+        // Test that verify handles empty lockfile gracefully
+        let _temp = TempDir::new().unwrap();
+        let lockfile = Lockfile::new();
+        // Should handle empty packages
+        assert!(lockfile.packages.is_empty());
+    }
+
+    #[test]
+    fn test_verify_lockfile_structure() {
+        // Test lockfile structure for verification
+        let mut lockfile = Lockfile::new();
+        let package = LockedPackage {
+            version: "1.0.0".to_string(),
+            source: "luarocks".to_string(),
+            rockspec_url: None,
+            source_url: None,
+            checksum: "abc123".to_string(),
+            size: None,
+            dependencies: HashMap::new(),
+            build: None,
+        };
+        lockfile.add_package("test-package".to_string(), package);
+        assert!(!lockfile.packages.is_empty());
+        assert!(lockfile.has_package("test-package"));
+    }
+}

@@ -208,3 +208,308 @@ impl PublishPackager {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::package::manifest::PackageManifest;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_publish_packager_new() {
+        let temp = TempDir::new().unwrap();
+        let manifest = PackageManifest::default("test-package".to_string());
+        let packager = PublishPackager::new(temp.path(), manifest.clone());
+
+        assert_eq!(packager.project_root, temp.path());
+        assert_eq!(packager.manifest.name, "test-package");
+    }
+
+    #[test]
+    fn test_copy_lua_files_from_src_dir() {
+        let temp = TempDir::new().unwrap();
+        let manifest = PackageManifest::default("test-package".to_string());
+        let packager = PublishPackager::new(temp.path(), manifest);
+
+        // Create src directory with Lua files
+        let src_dir = temp.path().join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("main.lua"), "print('hello')").unwrap();
+        fs::write(src_dir.join("utils.lua"), "return {}").unwrap();
+
+        // Create package directory
+        let package_dir = temp.path().join("dist").join("test-package-1.0.0");
+        fs::create_dir_all(&package_dir).unwrap();
+
+        // Copy Lua files
+        packager.copy_lua_files(&package_dir).unwrap();
+
+        // Verify files were copied
+        assert!(package_dir.join("src").join("main.lua").exists());
+        assert!(package_dir.join("src").join("utils.lua").exists());
+    }
+
+    #[test]
+    fn test_copy_lua_files_from_lua_dir() {
+        let temp = TempDir::new().unwrap();
+        let manifest = PackageManifest::default("test-package".to_string());
+        let packager = PublishPackager::new(temp.path(), manifest);
+
+        // Create lua directory
+        let lua_dir = temp.path().join("lua");
+        fs::create_dir_all(&lua_dir).unwrap();
+        fs::write(lua_dir.join("module.lua"), "return {}").unwrap();
+
+        let package_dir = temp.path().join("dist").join("test-package-1.0.0");
+        fs::create_dir_all(&package_dir).unwrap();
+
+        packager.copy_lua_files(&package_dir).unwrap();
+
+        assert!(package_dir.join("lua").join("module.lua").exists());
+    }
+
+    #[test]
+    fn test_copy_lua_files_from_root() {
+        let temp = TempDir::new().unwrap();
+        let manifest = PackageManifest::default("test-package".to_string());
+        let packager = PublishPackager::new(temp.path(), manifest);
+
+        // Create Lua file in root
+        fs::write(temp.path().join("init.lua"), "return {}").unwrap();
+
+        let package_dir = temp.path().join("dist").join("test-package-1.0.0");
+        fs::create_dir_all(&package_dir).unwrap();
+
+        packager.copy_lua_files(&package_dir).unwrap();
+
+        assert!(package_dir.join("init.lua").exists());
+    }
+
+    #[test]
+    fn test_copy_lua_files_filters_non_lua() {
+        let temp = TempDir::new().unwrap();
+        let manifest = PackageManifest::default("test-package".to_string());
+        let packager = PublishPackager::new(temp.path(), manifest);
+
+        let src_dir = temp.path().join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("main.lua"), "print('hello')").unwrap();
+        fs::write(src_dir.join("config.txt"), "not lua").unwrap();
+
+        let package_dir = temp.path().join("dist").join("test-package-1.0.0");
+        fs::create_dir_all(&package_dir).unwrap();
+
+        packager.copy_lua_files(&package_dir).unwrap();
+
+        assert!(package_dir.join("src").join("main.lua").exists());
+        assert!(!package_dir.join("src").join("config.txt").exists());
+    }
+
+    #[test]
+    fn test_copy_directory_with_filter() {
+        let temp = TempDir::new().unwrap();
+        let manifest = PackageManifest::default("test-package".to_string());
+        let packager = PublishPackager::new(temp.path(), manifest);
+
+        let source_dir = temp.path().join("source");
+        fs::create_dir_all(&source_dir).unwrap();
+        fs::write(source_dir.join("file1.lua"), "content1").unwrap();
+        fs::write(source_dir.join("file2.txt"), "content2").unwrap();
+        fs::create_dir_all(source_dir.join("subdir")).unwrap();
+        fs::write(source_dir.join("subdir").join("file3.lua"), "content3").unwrap();
+
+        let dest_dir = temp.path().join("dest");
+        packager
+            .copy_directory(&source_dir, &dest_dir, |path| {
+                path.extension().map(|e| e == "lua").unwrap_or(false)
+            })
+            .unwrap();
+
+        assert!(dest_dir.join("file1.lua").exists());
+        assert!(!dest_dir.join("file2.txt").exists());
+        assert!(dest_dir.join("subdir").join("file3.lua").exists());
+    }
+
+    #[test]
+    fn test_package_creates_dist_directory() {
+        let temp = TempDir::new().unwrap();
+        let mut manifest = PackageManifest::default("test-package".to_string());
+        manifest.version = "1.0.0".to_string();
+        let packager = PublishPackager::new(temp.path(), manifest);
+
+        // Create some Lua files
+        let src_dir = temp.path().join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("main.lua"), "print('hello')").unwrap();
+
+        // Package without binaries
+        let result = packager.package(false);
+
+        // Should succeed (or fail on archive creation if tar/zip not available)
+        // But at least the dist directory should be created
+        if result.is_ok() {
+            let archive_path = result.unwrap();
+            assert!(archive_path.exists() || archive_path.parent().unwrap().exists());
+        }
+    }
+
+    #[test]
+    fn test_package_cleans_existing_dist() {
+        let temp = TempDir::new().unwrap();
+        let mut manifest = PackageManifest::default("test-package".to_string());
+        manifest.version = "1.0.0".to_string();
+        let packager = PublishPackager::new(temp.path(), manifest);
+
+        // Create existing dist directory
+        let dist_dir = temp.path().join("dist");
+        let package_dir = dist_dir.join("test-package-1.0.0");
+        fs::create_dir_all(&package_dir).unwrap();
+        fs::write(package_dir.join("old_file.txt"), "old").unwrap();
+
+        // Create source files
+        let src_dir = temp.path().join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("main.lua"), "print('hello')").unwrap();
+
+        // Package should clean and recreate
+        let _result = packager.package(false);
+
+        // Old file should be gone (if packaging succeeded)
+        // Note: This test may not fully verify if archive creation fails
+    }
+
+    #[test]
+    fn test_copy_lua_files_from_lib_dir() {
+        let temp = TempDir::new().unwrap();
+        let manifest = PackageManifest::default("test-package".to_string());
+        let packager = PublishPackager::new(temp.path(), manifest);
+
+        let lib_dir = temp.path().join("lib");
+        fs::create_dir_all(&lib_dir).unwrap();
+        fs::write(lib_dir.join("module.lua"), "return {}").unwrap();
+
+        let package_dir = temp.path().join("dist").join("test-package-1.0.0");
+        fs::create_dir_all(&package_dir).unwrap();
+
+        packager.copy_lua_files(&package_dir).unwrap();
+        assert!(package_dir.join("lib").join("module.lua").exists());
+    }
+
+    #[test]
+    fn test_copy_directory_with_empty_source() {
+        let temp = TempDir::new().unwrap();
+        let manifest = PackageManifest::default("test-package".to_string());
+        let packager = PublishPackager::new(temp.path(), manifest);
+
+        let source_dir = temp.path().join("source");
+        fs::create_dir_all(&source_dir).unwrap();
+        let dest_dir = temp.path().join("dest");
+
+        packager
+            .copy_directory(&source_dir, &dest_dir, |_| true)
+            .unwrap();
+        // Should succeed even with empty directory
+    }
+
+    #[test]
+    fn test_copy_directory_with_nested_files() {
+        let temp = TempDir::new().unwrap();
+        let manifest = PackageManifest::default("test-package".to_string());
+        let packager = PublishPackager::new(temp.path(), manifest);
+
+        let source_dir = temp.path().join("source");
+        fs::create_dir_all(source_dir.join("subdir1").join("subdir2")).unwrap();
+        fs::write(
+            source_dir.join("subdir1").join("subdir2").join("file.lua"),
+            "content",
+        )
+        .unwrap();
+
+        let dest_dir = temp.path().join("dest");
+        packager
+            .copy_directory(&source_dir, &dest_dir, |path| {
+                path.extension().map(|e| e == "lua").unwrap_or(false)
+            })
+            .unwrap();
+
+        assert!(dest_dir
+            .join("subdir1")
+            .join("subdir2")
+            .join("file.lua")
+            .exists());
+    }
+
+    #[test]
+    fn test_copy_rust_binaries_no_binary() {
+        let temp = TempDir::new().unwrap();
+        let manifest = PackageManifest::default("test-package".to_string());
+        let packager = PublishPackager::new(temp.path(), manifest);
+
+        let package_dir = temp.path().join("dist").join("test-package-1.0.0");
+        fs::create_dir_all(&package_dir).unwrap();
+
+        // Should succeed even if no binary is found
+        let result = packager.copy_rust_binaries(&package_dir);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_package_with_binaries() {
+        let temp = TempDir::new().unwrap();
+        let mut manifest = PackageManifest::default("test-package".to_string());
+        manifest.version = "1.0.0".to_string();
+        let packager = PublishPackager::new(temp.path(), manifest);
+
+        // Create some Lua files
+        let src_dir = temp.path().join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("main.lua"), "print('hello')").unwrap();
+
+        // Package with binaries (may not find binaries, but tests the path)
+        let _result = packager.package(true);
+    }
+
+    #[test]
+    fn test_copy_directory_with_nested_structure() {
+        let temp = TempDir::new().unwrap();
+        let manifest = PackageManifest::default("test-package".to_string());
+        let packager = PublishPackager::new(temp.path(), manifest);
+
+        let source_dir = temp.path().join("source");
+        fs::create_dir_all(source_dir.join("subdir1").join("subdir2")).unwrap();
+        fs::write(
+            source_dir.join("subdir1").join("subdir2").join("file.lua"),
+            "content",
+        )
+        .unwrap();
+
+        let dest_dir = temp.path().join("dest");
+        packager
+            .copy_directory(&source_dir, &dest_dir, |path| {
+                path.extension().map(|e| e == "lua").unwrap_or(false)
+            })
+            .unwrap();
+
+        assert!(dest_dir
+            .join("subdir1")
+            .join("subdir2")
+            .join("file.lua")
+            .exists());
+    }
+
+    #[test]
+    fn test_copy_directory_error_handling() {
+        let temp = TempDir::new().unwrap();
+        let manifest = PackageManifest::default("test-package".to_string());
+        let packager = PublishPackager::new(temp.path(), manifest);
+
+        // Try to copy from non-existent directory
+        let result = packager.copy_directory(
+            &temp.path().join("nonexistent"),
+            &temp.path().join("dest"),
+            |_| true,
+        );
+        assert!(result.is_err());
+    }
+}

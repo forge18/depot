@@ -144,10 +144,91 @@ cargo test
 
 ### Integration Tests
 
-Integration tests are in `tests/`:
+Integration tests are in `tests/integration/`:
 
 ```bash
 cargo test --test integration_tests
+```
+
+### E2E Tests
+
+End-to-end tests are in `tests/e2e/` and test the full CLI workflow:
+
+```bash
+# Run all E2E tests (fast tests only, network tests are ignored by default)
+cargo test --test e2e_tests
+
+# Run network tests (requires network access)
+cargo test --test e2e_tests -- --ignored
+
+# Run specific test module
+cargo test --test e2e_tests e2e::init
+
+# Run specific test
+cargo test --test e2e_tests e2e::init::init_creates_package_yaml
+```
+
+**Test Categories:**
+
+- **Fast tests**: Run by default, no network required
+- **Network tests**: Marked with `#[ignore = "requires network access"]`, use `--ignored` flag
+- **Interactive tests**: Marked with `#[ignore = "requires terminal interaction"]`, require TTY
+
+**Using the Test Runner Script:**
+
+```bash
+# Run all fast tests
+./scripts/test-all.sh
+
+# Run with network tests
+./scripts/test-all.sh --network
+
+# Run with interactive tests
+./scripts/test-all.sh --interactive
+
+# Run everything
+./scripts/test-all.sh --all
+```
+
+**Skipping Network/Interactive Tests:**
+
+Tests that require network access or terminal interaction are automatically skipped unless:
+- You use the `--ignored` flag: `cargo test --test e2e_tests -- --ignored`
+- You set environment variables:
+  - `SKIP_NETWORK_TESTS=1` - Skip network tests
+  - Tests check for TTY using `TestContext::require_tty()` which automatically skips in CI
+
+**Test Isolation Strategy:**
+
+Each test gets an isolated environment via `TestContext`:
+- Temporary directory for each test (automatically cleaned up)
+- Isolated LPM home directory (config and cache)
+- Platform-specific environment variable isolation
+- No shared state between tests
+
+This means:
+- Tests can run in parallel safely
+- No `#[serial]` attributes needed
+- Each test is completely independent
+
+Example:
+
+```rust
+use super::*;
+
+#[test]
+fn my_test() {
+    let ctx = TestContext::new(); // Isolated environment
+    
+    ctx.lpm()
+        .arg("init")
+        .arg("--yes")
+        .assert()
+        .success();
+    
+    // Test continues with isolated temp directory
+    // Automatically cleaned up when ctx is dropped
+}
 ```
 
 ### Security Tests

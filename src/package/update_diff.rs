@@ -440,4 +440,263 @@ mod tests {
         let diff = UpdateDiff::calculate(&Some(lockfile), &resolved, &resolved_dev);
         assert_eq!(diff.package_changes.len(), 2); // removed test-package + added dev-package
     }
+
+    #[test]
+    fn test_update_diff_calculate_dev_dependency_update() {
+        let mut lockfile = Lockfile::new();
+        let dev_package = LockedPackage {
+            version: "1.0.0".to_string(),
+            source: "luarocks".to_string(),
+            rockspec_url: None,
+            source_url: None,
+            checksum: "abc123".to_string(),
+            size: None,
+            dependencies: HashMap::new(),
+            build: None,
+        };
+        lockfile.add_package("dev-package".to_string(), dev_package);
+
+        let resolved = HashMap::new();
+        let resolved_dev = HashMap::from([("dev-package".to_string(), Version::new(2, 0, 0))]);
+
+        let diff = UpdateDiff::calculate(&Some(lockfile), &resolved, &resolved_dev);
+        assert_eq!(diff.package_changes.len(), 1);
+        match &diff.package_changes[0] {
+            PackageChange::Updated {
+                name,
+                current_version,
+                new_version,
+            } => {
+                assert!(name.contains("dev-package"));
+                assert_eq!(current_version, &Version::new(1, 0, 0));
+                assert_eq!(new_version, &Version::new(2, 0, 0));
+            }
+            _ => panic!("Expected Updated change for dev dependency"),
+        }
+    }
+
+    #[test]
+    fn test_update_diff_calculate_file_changes_for_added() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let mut diff = UpdateDiff::new();
+        diff.package_changes.push(PackageChange::Added {
+            name: "new-package".to_string(),
+            version: Version::new(1, 0, 0),
+        });
+
+        diff.calculate_file_changes(temp.path());
+
+        // Should have file changes for added package
+        assert!(!diff.file_changes.is_empty());
+        assert_eq!(diff.file_changes[0].package_name, "new-package");
+        assert!(!diff.file_changes[0].added.is_empty());
+    }
+
+    #[test]
+    fn test_update_diff_calculate_file_changes_for_updated() {
+        let temp = tempfile::TempDir::new().unwrap();
+
+        // Create existing package directory
+        use crate::core::path::lua_modules_dir;
+        let lua_modules = lua_modules_dir(temp.path());
+        let package_dir = lua_modules.join("updated-package");
+        std::fs::create_dir_all(&package_dir).unwrap();
+        std::fs::write(package_dir.join("file1.lua"), "content1").unwrap();
+        std::fs::write(package_dir.join("file2.lua"), "content2").unwrap();
+
+        let mut diff = UpdateDiff::new();
+        diff.package_changes.push(PackageChange::Updated {
+            name: "updated-package".to_string(),
+            current_version: Version::new(1, 0, 0),
+            new_version: Version::new(2, 0, 0),
+        });
+
+        diff.calculate_file_changes(temp.path());
+
+        // Should detect modified files
+        let file_change = diff
+            .file_changes
+            .iter()
+            .find(|fc| fc.package_name == "updated-package");
+        assert!(file_change.is_some());
+        let file_change = file_change.unwrap();
+        assert!(!file_change.modified.is_empty());
+    }
+
+    #[test]
+    fn test_update_diff_calculate_file_changes_for_removed() {
+        let temp = tempfile::TempDir::new().unwrap();
+
+        // Create existing package directory
+        use crate::core::path::lua_modules_dir;
+        let lua_modules = lua_modules_dir(temp.path());
+        let package_dir = lua_modules.join("removed-package");
+        std::fs::create_dir_all(&package_dir).unwrap();
+        std::fs::write(package_dir.join("file1.lua"), "content1").unwrap();
+
+        let mut diff = UpdateDiff::new();
+        diff.package_changes.push(PackageChange::Removed {
+            name: "removed-package".to_string(),
+            version: Version::new(1, 0, 0),
+        });
+
+        diff.calculate_file_changes(temp.path());
+
+        // Should detect deleted files
+        let file_change = diff
+            .file_changes
+            .iter()
+            .find(|fc| fc.package_name == "removed-package");
+        assert!(file_change.is_some());
+        let file_change = file_change.unwrap();
+        assert!(!file_change.deleted.is_empty());
+    }
+
+    #[test]
+    fn test_update_diff_display() {
+        let mut diff = UpdateDiff::new();
+        diff.package_changes.push(PackageChange::Updated {
+            name: "pkg1".to_string(),
+            current_version: Version::new(1, 0, 0),
+            new_version: Version::new(2, 0, 0),
+        });
+        diff.package_changes.push(PackageChange::Added {
+            name: "pkg2".to_string(),
+            version: Version::new(1, 0, 0),
+        });
+        diff.package_changes.push(PackageChange::Removed {
+            name: "pkg3".to_string(),
+            version: Version::new(1, 0, 0),
+        });
+        diff.package_changes.push(PackageChange::UpToDate {
+            name: "pkg4".to_string(),
+            version: Version::new(1, 0, 0),
+        });
+
+        // Should not panic
+        diff.display();
+    }
+
+    #[test]
+    fn test_update_diff_display_with_file_changes() {
+        let mut diff = UpdateDiff::new();
+        diff.package_changes.push(PackageChange::Updated {
+            name: "pkg1".to_string(),
+            current_version: Version::new(1, 0, 0),
+            new_version: Version::new(2, 0, 0),
+        });
+        diff.file_changes.push(PackageFileChanges {
+            package_name: "pkg1".to_string(),
+            added: vec!["new.lua".to_string()],
+            modified: vec!["existing.lua".to_string()],
+            deleted: vec!["old.lua".to_string()],
+        });
+
+        // Should not panic
+        diff.display();
+    }
+
+    #[test]
+    fn test_update_diff_default() {
+        let diff = UpdateDiff::default();
+        assert!(diff.package_changes.is_empty());
+        assert!(diff.file_changes.is_empty());
+    }
+
+    #[test]
+    fn test_update_diff_calculate_invalid_version() {
+        let mut lockfile = Lockfile::new();
+        let package = LockedPackage {
+            version: "invalid".to_string(),
+            source: "luarocks".to_string(),
+            rockspec_url: None,
+            source_url: None,
+            checksum: "abc123".to_string(),
+            size: None,
+            dependencies: HashMap::new(),
+            build: None,
+        };
+        lockfile.add_package("test-package".to_string(), package);
+        let resolved = HashMap::from([("test-package".to_string(), Version::new(2, 0, 0))]);
+        let diff = UpdateDiff::calculate(&Some(lockfile), &resolved, &HashMap::new());
+        assert_eq!(diff.package_changes.len(), 1);
+        match &diff.package_changes[0] {
+            PackageChange::Updated {
+                name,
+                current_version,
+                new_version,
+            } => {
+                assert_eq!(name, "test-package");
+                assert_eq!(current_version, &Version::new(0, 0, 0));
+                assert_eq!(new_version, &Version::new(2, 0, 0));
+            }
+            _ => panic!("Expected Updated change"),
+        }
+    }
+
+    #[test]
+    fn test_update_diff_calculate_file_changes_up_to_date() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let mut diff = UpdateDiff::new();
+        diff.package_changes.push(PackageChange::UpToDate {
+            name: "pkg".to_string(),
+            version: Version::new(1, 0, 0),
+        });
+        diff.calculate_file_changes(temp.path());
+        assert!(diff.file_changes.is_empty());
+    }
+
+    #[test]
+    fn test_update_diff_calculate_file_changes_removed_no_dir() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let mut diff = UpdateDiff::new();
+        diff.package_changes.push(PackageChange::Removed {
+            name: "nonexistent".to_string(),
+            version: Version::new(1, 0, 0),
+        });
+        diff.calculate_file_changes(temp.path());
+        assert!(diff.file_changes.is_empty());
+    }
+
+    #[test]
+    fn test_update_diff_display_empty() {
+        let diff = UpdateDiff::new();
+        diff.display(); // Should not panic
+    }
+
+    #[test]
+    fn test_update_diff_display_with_changes() {
+        let mut diff = UpdateDiff::new();
+        diff.package_changes.push(PackageChange::Updated {
+            name: "test-pkg".to_string(),
+            current_version: Version::new(1, 0, 0),
+            new_version: Version::new(2, 0, 0),
+        });
+        diff.package_changes.push(PackageChange::Added {
+            name: "new-pkg".to_string(),
+            version: Version::new(1, 0, 0),
+        });
+        diff.display(); // Should not panic
+    }
+
+    #[test]
+    fn test_update_diff_calculate_dev_dependency_up_to_date() {
+        let mut lockfile = Lockfile::new();
+        let package = LockedPackage {
+            version: "1.0.0".to_string(),
+            source: "luarocks".to_string(),
+            rockspec_url: None,
+            source_url: None,
+            checksum: "abc123".to_string(),
+            size: None,
+            dependencies: HashMap::new(),
+            build: None,
+        };
+        lockfile.add_package("dev-pkg".to_string(), package);
+        let resolved = HashMap::new();
+        let resolved_dev = HashMap::from([("dev-pkg".to_string(), Version::new(1, 0, 0))]);
+        let diff = UpdateDiff::calculate(&Some(lockfile), &resolved, &resolved_dev);
+        // Should not have changes for up-to-date dev dependency
+        assert!(!diff.has_changes());
+    }
 }

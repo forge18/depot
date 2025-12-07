@@ -303,4 +303,349 @@ packages:
         assert_eq!(config.name, "test-workspace");
         assert_eq!(config.packages.len(), 2);
     }
+
+    #[test]
+    fn test_workspace_config_packages() {
+        let mut config = WorkspaceConfig::default();
+        let initial_len = config.packages.len();
+        config.packages.push("test/*".to_string());
+        assert_eq!(config.packages.len(), initial_len + 1);
+    }
+
+    #[test]
+    fn test_workspace_load_config_missing_file() {
+        let temp = TempDir::new().unwrap();
+        // load_config returns default config when no files exist
+        let result = Workspace::load_config(temp.path());
+        assert!(result.is_ok()); // Returns default config, not an error
+        let config = result.unwrap();
+        assert_eq!(
+            config.name,
+            temp.path().file_name().unwrap().to_string_lossy()
+        );
+    }
+
+    #[test]
+    fn test_workspace_load_config_invalid_yaml() {
+        let temp = TempDir::new().unwrap();
+        let workspace_yaml = temp.path().join("workspace.yaml");
+        fs::write(&workspace_yaml, "invalid: yaml: content: [").unwrap();
+
+        let result = Workspace::load_config(temp.path());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_workspace_config_name() {
+        let config = WorkspaceConfig::default();
+        assert_eq!(config.name, "workspace");
+    }
+
+    #[test]
+    fn test_workspace_config_default_packages() {
+        let config = WorkspaceConfig::default();
+        // Default should have some packages
+        assert!(!config.packages.is_empty());
+    }
+
+    #[test]
+    fn test_workspace_find_packages_with_glob() {
+        let temp = TempDir::new().unwrap();
+
+        // Create packages directory structure
+        let packages_dir = temp.path().join("packages");
+        fs::create_dir_all(packages_dir.join("pkg1")).unwrap();
+        fs::create_dir_all(packages_dir.join("pkg2")).unwrap();
+
+        // Create package.yaml files
+        fs::write(
+            packages_dir.join("pkg1").join("package.yaml"),
+            r#"
+name: pkg1
+version: 1.0.0
+"#,
+        )
+        .unwrap();
+        fs::write(
+            packages_dir.join("pkg2").join("package.yaml"),
+            r#"
+name: pkg2
+version: 1.0.0
+"#,
+        )
+        .unwrap();
+
+        let config = WorkspaceConfig {
+            name: "test-workspace".to_string(),
+            packages: vec!["packages/*".to_string()],
+        };
+
+        let packages = Workspace::find_packages(temp.path(), &config).unwrap();
+        assert!(packages.len() >= 2);
+        assert!(packages.contains_key("pkg1"));
+        assert!(packages.contains_key("pkg2"));
+    }
+
+    #[test]
+    fn test_workspace_find_packages_with_direct_path() {
+        let temp = TempDir::new().unwrap();
+
+        let package_dir = temp.path().join("my-package");
+        fs::create_dir_all(&package_dir).unwrap();
+        fs::write(
+            package_dir.join("package.yaml"),
+            r#"
+name: my-package
+version: 1.0.0
+"#,
+        )
+        .unwrap();
+
+        let config = WorkspaceConfig {
+            name: "test-workspace".to_string(),
+            packages: vec!["my-package".to_string()],
+        };
+
+        let packages = Workspace::find_packages(temp.path(), &config).unwrap();
+        assert_eq!(packages.len(), 1);
+        assert!(packages.contains_key("my-package"));
+    }
+
+    #[test]
+    fn test_workspace_shared_dependencies() {
+        let temp = TempDir::new().unwrap();
+
+        let pkg1_dir = temp.path().join("packages").join("pkg1");
+        let pkg2_dir = temp.path().join("packages").join("pkg2");
+        fs::create_dir_all(&pkg1_dir).unwrap();
+        fs::create_dir_all(&pkg2_dir).unwrap();
+
+        // Both packages depend on "shared-dep"
+        fs::write(
+            pkg1_dir.join("package.yaml"),
+            r#"
+name: pkg1
+version: 1.0.0
+dependencies:
+  shared-dep: ">=1.0.0"
+"#,
+        )
+        .unwrap();
+        fs::write(
+            pkg2_dir.join("package.yaml"),
+            r#"
+name: pkg2
+version: 1.0.0
+dependencies:
+  shared-dep: ">=2.0.0"
+"#,
+        )
+        .unwrap();
+
+        let config = WorkspaceConfig {
+            name: "test-workspace".to_string(),
+            packages: vec!["packages/*".to_string()],
+        };
+
+        let workspace = Workspace {
+            root: temp.path().to_path_buf(),
+            config: config.clone(),
+            packages: Workspace::find_packages(temp.path(), &config).unwrap(),
+        };
+
+        let shared = workspace.shared_dependencies();
+        assert!(shared.contains_key("shared-dep"));
+        assert_eq!(shared.get("shared-dep").unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_workspace_shared_dependencies_with_dev() {
+        let temp = TempDir::new().unwrap();
+
+        let pkg1_dir = temp.path().join("packages").join("pkg1");
+        fs::create_dir_all(&pkg1_dir).unwrap();
+
+        fs::write(
+            pkg1_dir.join("package.yaml"),
+            r#"
+name: pkg1
+version: 1.0.0
+dependencies:
+  shared-dep: ">=1.0.0"
+dev_dependencies:
+  dev-dep: ">=1.0.0"
+"#,
+        )
+        .unwrap();
+
+        let config = WorkspaceConfig {
+            name: "test-workspace".to_string(),
+            packages: vec!["packages/*".to_string()],
+        };
+
+        let workspace = Workspace {
+            root: temp.path().to_path_buf(),
+            config: config.clone(),
+            packages: Workspace::find_packages(temp.path(), &config).unwrap(),
+        };
+
+        let shared = workspace.shared_dependencies();
+        // Dev dependencies used by only one package shouldn't be in shared
+        assert!(!shared.contains_key("dev-dep"));
+    }
+
+    #[test]
+    fn test_workspace_get_package() {
+        let temp = TempDir::new().unwrap();
+
+        let pkg_dir = temp.path().join("packages").join("pkg1");
+        fs::create_dir_all(&pkg_dir).unwrap();
+        fs::write(
+            pkg_dir.join("package.yaml"),
+            r#"
+name: pkg1
+version: 1.0.0
+"#,
+        )
+        .unwrap();
+
+        let config = WorkspaceConfig {
+            name: "test-workspace".to_string(),
+            packages: vec!["packages/*".to_string()],
+        };
+
+        let workspace = Workspace {
+            root: temp.path().to_path_buf(),
+            config: config.clone(),
+            packages: Workspace::find_packages(temp.path(), &config).unwrap(),
+        };
+
+        let pkg = workspace.get_package("pkg1");
+        assert!(pkg.is_some());
+        assert_eq!(pkg.unwrap().name, "pkg1");
+
+        let missing = workspace.get_package("nonexistent");
+        assert!(missing.is_none());
+    }
+
+    #[test]
+    fn test_workspace_package_names() {
+        let temp = TempDir::new().unwrap();
+
+        let pkg1_dir = temp.path().join("packages").join("pkg1");
+        let pkg2_dir = temp.path().join("packages").join("pkg2");
+        fs::create_dir_all(&pkg1_dir).unwrap();
+        fs::create_dir_all(&pkg2_dir).unwrap();
+
+        fs::write(
+            pkg1_dir.join("package.yaml"),
+            r#"
+name: pkg1
+version: 1.0.0
+"#,
+        )
+        .unwrap();
+        fs::write(
+            pkg2_dir.join("package.yaml"),
+            r#"
+name: pkg2
+version: 1.0.0
+"#,
+        )
+        .unwrap();
+
+        let config = WorkspaceConfig {
+            name: "test-workspace".to_string(),
+            packages: vec!["packages/*".to_string()],
+        };
+
+        let workspace = Workspace {
+            root: temp.path().to_path_buf(),
+            config: config.clone(),
+            packages: Workspace::find_packages(temp.path(), &config).unwrap(),
+        };
+
+        let names = workspace.package_names();
+        assert!(names.len() >= 2);
+        assert!(names.contains(&"pkg1".to_string()));
+        assert!(names.contains(&"pkg2".to_string()));
+    }
+
+    #[test]
+    fn test_workspace_is_workspace_with_workspace_yaml() {
+        let temp = TempDir::new().unwrap();
+        fs::write(
+            temp.path().join("workspace.yaml"),
+            r#"
+name: test-workspace
+packages:
+  - packages/*
+"#,
+        )
+        .unwrap();
+
+        assert!(Workspace::is_workspace(temp.path()));
+    }
+
+    #[test]
+    fn test_workspace_is_workspace_with_package_yaml() {
+        let temp = TempDir::new().unwrap();
+        fs::write(
+            temp.path().join("package.yaml"),
+            r#"
+name: test-workspace
+workspace:
+  packages:
+    - packages/*
+"#,
+        )
+        .unwrap();
+
+        assert!(Workspace::is_workspace(temp.path()));
+    }
+
+    #[test]
+    fn test_workspace_is_workspace_false() {
+        let temp = TempDir::new().unwrap();
+        // No workspace.yaml or package.yaml with workspace section
+        assert!(!Workspace::is_workspace(temp.path()));
+    }
+
+    #[test]
+    fn test_workspace_load_from_package_yaml() {
+        let temp = TempDir::new().unwrap();
+        fs::write(
+            temp.path().join("package.yaml"),
+            r#"
+name: test-workspace
+workspace:
+  packages:
+    - packages/*
+    - apps/*
+"#,
+        )
+        .unwrap();
+
+        let config = Workspace::load_config(temp.path()).unwrap();
+        assert_eq!(config.name, "test-workspace");
+        assert_eq!(config.packages.len(), 2);
+    }
+
+    #[test]
+    fn test_workspace_load_from_package_yaml_no_workspace_section() {
+        let temp = TempDir::new().unwrap();
+        fs::write(
+            temp.path().join("package.yaml"),
+            r#"
+name: test-package
+version: 1.0.0
+"#,
+        )
+        .unwrap();
+
+        // Should return default config when no workspace section
+        let config = Workspace::load_config(temp.path()).unwrap();
+        // Should have default packages
+        assert!(!config.packages.is_empty());
+    }
 }

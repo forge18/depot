@@ -249,4 +249,83 @@ mod tests {
             _ => panic!("Expected NotImplemented error"),
         }
     }
+
+    #[test]
+    fn test_manifest_parse_json_without_rockspec() {
+        let json = r#"{
+            "repository": {
+                "test-package": {
+                    "1.0.0": [{"arch": "src"}]
+                }
+            }
+        }"#;
+
+        let manifest = Manifest::parse_json(json).unwrap();
+        // Package without rockspec should not be included
+        assert!(!manifest.packages.contains_key("test-package"));
+    }
+
+    #[test]
+    fn test_manifest_parse_json_invalid_format() {
+        let json = r#"{"invalid": "json"}"#;
+        let result = Manifest::parse_json(json);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_manifest_parse_json_empty() {
+        let json = r#"{"repository": {}}"#;
+        let manifest = Manifest::parse_json(json).unwrap();
+        assert!(manifest.packages.is_empty());
+    }
+
+    #[test]
+    fn test_manifest_get_latest_version_nonexistent() {
+        let manifest = Manifest::default();
+        let latest = manifest.get_latest_version("nonexistent");
+        assert!(latest.is_none());
+    }
+
+    #[test]
+    fn test_manifest_get_package_versions_nonexistent() {
+        let manifest = Manifest::default();
+        let versions = manifest.get_package_versions("nonexistent");
+        assert!(versions.is_none());
+    }
+
+    #[test]
+    fn test_manifest_get_latest_version_single() {
+        let mut manifest = Manifest::default();
+        let versions = vec![PackageVersion {
+            version: "1.0.0".to_string(),
+            rockspec_url: "https://example.com/test-1.0.0.rockspec".to_string(),
+            archive_url: None,
+        }];
+        manifest
+            .packages
+            .insert("test-package".to_string(), versions);
+
+        let latest = manifest.get_latest_version("test-package");
+        assert!(latest.is_some());
+        assert_eq!(latest.unwrap().version, "1.0.0");
+    }
+
+    #[test]
+    fn test_manifest_parse_json_multiple_packages() {
+        let json = r#"{
+            "repository": {
+                "package1": {
+                    "1.0.0": [{"arch": "rockspec"}]
+                },
+                "package2": {
+                    "2.0.0": [{"arch": "rockspec"}]
+                }
+            }
+        }"#;
+
+        let manifest = Manifest::parse_json(json).unwrap();
+        assert_eq!(manifest.packages.len(), 2);
+        assert!(manifest.packages.contains_key("package1"));
+        assert!(manifest.packages.contains_key("package2"));
+    }
 }

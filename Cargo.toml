@@ -86,6 +86,13 @@ tempfile = "3.8"
 criterion = { version = "0.5", features = ["html_reports"] }
 rusty-hook = "0.11.2"
 
+# E2E testing dependencies
+assert_cmd = "2.0"      # Test CLI binaries
+assert_fs = "1.0"       # Temporary file systems
+predicates = "3.0"      # Flexible assertions
+rexpect = "0.5"         # Terminal interaction testing
+wiremock = "0.6"        # Mock HTTP server (optional, for offline tests)
+
 [[bench]]
 name = "performance_benchmarks"
 harness = false

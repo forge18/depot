@@ -1,0 +1,6 @@
+name: simple-test-package
+version: 1.0.0
+description: A simple test package
+dependencies:
+  penlight: "1.13.1"
+

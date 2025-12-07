@@ -70,4 +70,67 @@ mod tests {
         assert_eq!(v.minor, 0);
         assert_eq!(v.patch, 0);
     }
+
+    #[test]
+    fn test_normalize_luarocks_version_invalid() {
+        assert!(normalize_luarocks_version("").is_err());
+        assert!(normalize_luarocks_version("invalid").is_err());
+    }
+
+    #[test]
+    fn test_normalize_luarocks_version_with_revision() {
+        let v = normalize_luarocks_version("2.5-3").unwrap();
+        assert_eq!(v.major, 2);
+        assert_eq!(v.minor, 5);
+        assert_eq!(v.patch, 3);
+    }
+
+    #[test]
+    fn test_to_luarocks_version() {
+        let v = Version::new(3, 0, 1);
+        assert_eq!(to_luarocks_version(&v), "3.0-1");
+
+        let v = Version::new(1, 13, 0);
+        assert_eq!(to_luarocks_version(&v), "1.13");
+
+        let v = Version::new(2, 5, 9);
+        assert_eq!(to_luarocks_version(&v), "2.5-9");
+
+        let v = Version::new(1, 0, 10);
+        assert_eq!(to_luarocks_version(&v), "1.0"); // patch >= 10, no revision
+    }
+
+    #[test]
+    fn test_to_luarocks_version_edge_cases() {
+        let v = Version::new(0, 0, 0);
+        assert_eq!(to_luarocks_version(&v), "0.0");
+
+        let v = Version::new(0, 0, 5);
+        assert_eq!(to_luarocks_version(&v), "0.0-5");
+
+        let v = Version::new(10, 20, 15);
+        assert_eq!(to_luarocks_version(&v), "10.20"); // patch >= 10
+
+        let v = Version::new(1, 2, 9);
+        assert_eq!(to_luarocks_version(&v), "1.2-9");
+    }
+
+    #[test]
+    fn test_normalize_luarocks_version_edge_cases() {
+        // Test with large revision
+        let v = normalize_luarocks_version("1.0-100").unwrap();
+        assert_eq!(v.patch, 100);
+
+        // Test with no dash (no revision)
+        let v = normalize_luarocks_version("2.3").unwrap();
+        assert_eq!(v.major, 2);
+        assert_eq!(v.minor, 3);
+        assert_eq!(v.patch, 0);
+
+        // Test with invalid revision (should default to 0)
+        let v = normalize_luarocks_version("1.0-invalid").unwrap();
+        assert_eq!(v.major, 1);
+        assert_eq!(v.minor, 0);
+        assert_eq!(v.patch, 0); // Invalid revision defaults to 0
+    }
 }

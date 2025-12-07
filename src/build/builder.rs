@@ -372,4 +372,505 @@ mod tests {
         let builder = RustBuilder::new(temp.path(), &manifest);
         assert!(builder.is_err());
     }
+
+    #[test]
+    fn test_rust_builder_wrong_build_type() {
+        let temp = TempDir::new().unwrap();
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest.build = Some(BuildConfig {
+            build_type: "make".to_string(),
+            manifest: None,
+            modules: std::collections::HashMap::new(),
+            features: vec![],
+            profile: None,
+        });
+
+        let builder = RustBuilder::new(temp.path(), &manifest);
+        assert!(builder.is_err());
+        match builder {
+            Err(LpmError::Package(msg)) => {
+                assert!(msg.contains("not supported") || msg.contains("rust"));
+            }
+            _ => panic!("Expected Package error"),
+        }
+    }
+
+    #[test]
+    fn test_rust_builder_with_features() {
+        let temp = TempDir::new().unwrap();
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest.build = Some(BuildConfig {
+            build_type: "rust".to_string(),
+            manifest: Some("Cargo.toml".to_string()),
+            modules: std::collections::HashMap::new(),
+            features: vec!["feature1".to_string(), "feature2".to_string()],
+            profile: Some("release".to_string()),
+        });
+
+        let builder = RustBuilder::new(temp.path(), &manifest);
+        assert!(builder.is_ok());
+        let builder = builder.unwrap();
+        assert_eq!(builder.build_config.features.len(), 2);
+        assert_eq!(builder.build_config.profile, Some("release".to_string()));
+    }
+
+    #[test]
+    fn test_rust_builder_detect_lua_version() {
+        let result = RustBuilder::detect_lua_version();
+        // Should either succeed or fail gracefully
+        let _ = result;
+    }
+
+    #[test]
+    fn test_rust_builder_get_mlua_features() {
+        let result = RustBuilder::get_mlua_features();
+        // Should either succeed or fail gracefully
+        let _ = result;
+    }
+
+    #[test]
+    fn test_rust_builder_new_with_manifest_path() {
+        let temp = TempDir::new().unwrap();
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest.build = Some(BuildConfig {
+            build_type: "rust".to_string(),
+            manifest: Some("custom.toml".to_string()),
+            modules: std::collections::HashMap::new(),
+            features: vec![],
+            profile: None,
+        });
+
+        let builder = RustBuilder::new(temp.path(), &manifest);
+        assert!(builder.is_ok());
+        let builder = builder.unwrap();
+        assert_eq!(
+            builder.build_config.manifest,
+            Some("custom.toml".to_string())
+        );
+    }
+
+    #[test]
+    fn test_rust_builder_build_with_zigbuild_error_no_cargo_toml() {
+        // Test error path when Cargo.toml doesn't exist (line 155-160)
+        let temp = TempDir::new().unwrap();
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest.build = Some(BuildConfig {
+            build_type: "rust".to_string(),
+            manifest: Some("nonexistent.toml".to_string()),
+            modules: std::collections::HashMap::new(),
+            features: vec![],
+            profile: None,
+        });
+
+        let builder = RustBuilder::new(temp.path(), &manifest).unwrap();
+        let target = Target::default_target();
+        let result = builder.build_with_zigbuild(&target);
+        // Should fail - Cargo.toml not found
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not found"));
+    }
+
+    #[test]
+    fn test_rust_builder_build_with_cargo_error_no_cargo_toml() {
+        // Test error path when Cargo.toml doesn't exist (line 215-220)
+        let temp = TempDir::new().unwrap();
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest.build = Some(BuildConfig {
+            build_type: "rust".to_string(),
+            manifest: Some("nonexistent.toml".to_string()),
+            modules: std::collections::HashMap::new(),
+            features: vec![],
+            profile: None,
+        });
+
+        let builder = RustBuilder::new(temp.path(), &manifest).unwrap();
+        let result = builder.build_with_cargo();
+        // Should fail - Cargo.toml not found
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not found"));
+    }
+
+    #[test]
+    fn test_rust_builder_build_with_cargo_uses_default_manifest() {
+        // Test that build_with_cargo uses default Cargo.toml when manifest not specified
+        let temp = TempDir::new().unwrap();
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest.build = Some(BuildConfig {
+            build_type: "rust".to_string(),
+            manifest: None, // Should default to Cargo.toml
+            modules: std::collections::HashMap::new(),
+            features: vec![],
+            profile: None,
+        });
+
+        let builder = RustBuilder::new(temp.path(), &manifest).unwrap();
+        let result = builder.build_with_cargo();
+        // Should fail - Cargo.toml not found (we didn't create it)
+        assert!(result.is_err());
+        // But should have checked for Cargo.toml in project root
+        assert!(result.unwrap_err().to_string().contains("Cargo.toml"));
+    }
+
+    #[test]
+    fn test_rust_builder_build_with_zigbuild_uses_default_manifest() {
+        // Test that build_with_zigbuild uses default Cargo.toml when manifest not specified
+        let temp = TempDir::new().unwrap();
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest.build = Some(BuildConfig {
+            build_type: "rust".to_string(),
+            manifest: None, // Should default to Cargo.toml
+            modules: std::collections::HashMap::new(),
+            features: vec![],
+            profile: None,
+        });
+
+        let builder = RustBuilder::new(temp.path(), &manifest).unwrap();
+        let target = Target::default_target();
+        let result = builder.build_with_zigbuild(&target);
+        // Should fail - Cargo.toml not found (we didn't create it)
+        assert!(result.is_err());
+        // But should have checked for Cargo.toml in project root
+        assert!(result.unwrap_err().to_string().contains("Cargo.toml"));
+    }
+
+    #[tokio::test]
+    async fn test_rust_builder_build_error_paths() {
+        // Test error paths in build() method
+        let temp = TempDir::new().unwrap();
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest.build = Some(BuildConfig {
+            build_type: "rust".to_string(),
+            manifest: Some("nonexistent.toml".to_string()),
+            modules: std::collections::HashMap::new(),
+            features: vec![],
+            profile: None,
+        });
+
+        let builder = RustBuilder::new(temp.path(), &manifest).unwrap();
+        let result = builder.build(None).await;
+        // Should fail - various reasons (no Cargo.toml, no cargo, etc.)
+        // But tests the code paths
+        let _ = result;
+    }
+
+    #[tokio::test]
+    async fn test_rust_builder_build_all_targets() {
+        // Test build_all_targets method (line 302-332)
+        let temp = TempDir::new().unwrap();
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest.build = Some(BuildConfig {
+            build_type: "rust".to_string(),
+            manifest: Some("Cargo.toml".to_string()),
+            modules: std::collections::HashMap::new(),
+            features: vec![],
+            profile: None,
+        });
+
+        let builder = RustBuilder::new(temp.path(), &manifest).unwrap();
+        let result = builder.build_all_targets().await;
+        // May fail on actual build, but tests the code path
+        let _ = result;
+    }
+
+    #[test]
+    fn test_rust_builder_find_built_library_error_no_modules() {
+        // Test error path when no modules found (line 292-295)
+        let temp = TempDir::new().unwrap();
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest.build = Some(BuildConfig {
+            build_type: "rust".to_string(),
+            manifest: Some("Cargo.toml".to_string()),
+            modules: std::collections::HashMap::new(), // Empty modules
+            features: vec![],
+            profile: None,
+        });
+
+        let builder = RustBuilder::new(temp.path(), &manifest).unwrap();
+        let target = Target::default_target();
+        let result = builder.find_built_library(&target);
+        // Should fail - no modules configured
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Could not find built library"));
+    }
+
+    #[test]
+    fn test_rust_builder_find_built_library_with_modules() {
+        // Test find_built_library with modules configured (line 272-290)
+        let temp = TempDir::new().unwrap();
+        let mut modules = std::collections::HashMap::new();
+        modules.insert("mymodule".to_string(), "lib/mymodule.so".to_string());
+
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest.build = Some(BuildConfig {
+            build_type: "rust".to_string(),
+            manifest: Some("Cargo.toml".to_string()),
+            modules,
+            features: vec![],
+            profile: None,
+        });
+
+        let builder = RustBuilder::new(temp.path(), &manifest).unwrap();
+        let target = Target::default_target();
+        // Create the module file to test the path where it exists
+        let module_path = temp.path().join("lib").join("mymodule.so");
+        std::fs::create_dir_all(module_path.parent().unwrap()).unwrap();
+        std::fs::write(&module_path, b"fake library").unwrap();
+
+        let result = builder.find_built_library(&target);
+        // Should succeed - module file exists
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), module_path);
+    }
+
+    #[test]
+    fn test_rust_builder_find_built_library_target_dir() {
+        // Test find_built_library checking target directory (line 278-282)
+        let temp = TempDir::new().unwrap();
+        let mut modules = std::collections::HashMap::new();
+        modules.insert("mymodule".to_string(), "lib/mymodule.so".to_string());
+
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest.build = Some(BuildConfig {
+            build_type: "rust".to_string(),
+            manifest: Some("Cargo.toml".to_string()),
+            modules,
+            features: vec![],
+            profile: None,
+        });
+
+        let builder = RustBuilder::new(temp.path(), &manifest).unwrap();
+        let target = Target::default_target();
+        // Create the module file in target directory
+        let target_dir = temp.path().join("target").join("release");
+        let module_path = target_dir.join("lib").join("mymodule.so");
+        std::fs::create_dir_all(module_path.parent().unwrap()).unwrap();
+        std::fs::write(&module_path, b"fake library").unwrap();
+
+        let result = builder.find_built_library(&target);
+        // Should succeed - module file exists in target directory
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), module_path);
+    }
+
+    #[test]
+    fn test_rust_builder_find_built_library_by_name() {
+        // Test find_built_library finding library by name (line 284-289)
+        let temp = TempDir::new().unwrap();
+        let mut modules = std::collections::HashMap::new();
+        modules.insert("mymodule".to_string(), "lib/mymodule.so".to_string());
+
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest.build = Some(BuildConfig {
+            build_type: "rust".to_string(),
+            manifest: Some("Cargo.toml".to_string()),
+            modules,
+            features: vec![],
+            profile: None,
+        });
+
+        let builder = RustBuilder::new(temp.path(), &manifest).unwrap();
+        let target = Target::default_target();
+        // Create the library file by name in target directory
+        let target_dir = temp.path().join("target").join("release");
+        let lib_name = format!("libmymodule{}", target.module_extension());
+        let lib_path = target_dir.join(&lib_name);
+        std::fs::create_dir_all(lib_path.parent().unwrap()).unwrap();
+        std::fs::write(&lib_path, b"fake library").unwrap();
+
+        let result = builder.find_built_library(&target);
+        // Should succeed - library found by name
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), lib_path);
+    }
+
+    #[test]
+    fn test_rust_builder_build_with_zigbuild_profile_path() {
+        // Test build_with_zigbuild with profile specified (line 179-182)
+        let temp = TempDir::new().unwrap();
+        std::fs::write(
+            temp.path().join("Cargo.toml"),
+            "[package]\nname = \"test\"\nversion = \"0.1.0\"\n",
+        )
+        .unwrap();
+
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest.build = Some(BuildConfig {
+            build_type: "rust".to_string(),
+            manifest: None,
+            modules: std::collections::HashMap::new(),
+            features: vec![],
+            profile: Some("dev".to_string()), // Custom profile
+        });
+
+        let builder = RustBuilder::new(temp.path(), &manifest).unwrap();
+        let target = Target::default_target();
+        let result = builder.build_with_zigbuild(&target);
+        // May fail on actual build, but tests the profile path (line 179-182)
+        let _ = result;
+    }
+
+    #[test]
+    fn test_rust_builder_build_with_zigbuild_release_path() {
+        // Test build_with_zigbuild without profile (uses --release, line 184)
+        let temp = TempDir::new().unwrap();
+        std::fs::write(
+            temp.path().join("Cargo.toml"),
+            "[package]\nname = \"test\"\nversion = \"0.1.0\"\n",
+        )
+        .unwrap();
+
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest.build = Some(BuildConfig {
+            build_type: "rust".to_string(),
+            manifest: None,
+            modules: std::collections::HashMap::new(),
+            features: vec![],
+            profile: None, // Should use --release
+        });
+
+        let builder = RustBuilder::new(temp.path(), &manifest).unwrap();
+        let target = Target::default_target();
+        let result = builder.build_with_zigbuild(&target);
+        // May fail on actual build, but tests the --release path (line 184)
+        let _ = result;
+    }
+
+    #[test]
+    fn test_rust_builder_build_with_zigbuild_features_path() {
+        // Test build_with_zigbuild with features (line 188-198)
+        let temp = TempDir::new().unwrap();
+        std::fs::write(
+            temp.path().join("Cargo.toml"),
+            "[package]\nname = \"test\"\nversion = \"0.1.0\"\n",
+        )
+        .unwrap();
+
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest.build = Some(BuildConfig {
+            build_type: "rust".to_string(),
+            manifest: None,
+            modules: std::collections::HashMap::new(),
+            features: vec!["feature1".to_string(), "feature2".to_string()],
+            profile: None,
+        });
+
+        let builder = RustBuilder::new(temp.path(), &manifest).unwrap();
+        let target = Target::default_target();
+        let result = builder.build_with_zigbuild(&target);
+        // May fail on actual build, but tests the features path (line 188-198)
+        let _ = result;
+    }
+
+    #[test]
+    fn test_rust_builder_build_with_cargo_profile_path() {
+        // Test build_with_cargo with profile specified (line 235-237)
+        let temp = TempDir::new().unwrap();
+        std::fs::write(
+            temp.path().join("Cargo.toml"),
+            "[package]\nname = \"test\"\nversion = \"0.1.0\"\n",
+        )
+        .unwrap();
+
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest.build = Some(BuildConfig {
+            build_type: "rust".to_string(),
+            manifest: None,
+            modules: std::collections::HashMap::new(),
+            features: vec![],
+            profile: Some("dev".to_string()), // Custom profile
+        });
+
+        let builder = RustBuilder::new(temp.path(), &manifest).unwrap();
+        let result = builder.build_with_cargo();
+        // May fail on actual build, but tests the profile path (line 235-237)
+        let _ = result;
+    }
+
+    #[test]
+    fn test_rust_builder_build_with_cargo_release_path() {
+        // Test build_with_cargo without profile (uses --release, line 239)
+        let temp = TempDir::new().unwrap();
+        std::fs::write(
+            temp.path().join("Cargo.toml"),
+            "[package]\nname = \"test\"\nversion = \"0.1.0\"\n",
+        )
+        .unwrap();
+
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest.build = Some(BuildConfig {
+            build_type: "rust".to_string(),
+            manifest: None,
+            modules: std::collections::HashMap::new(),
+            features: vec![],
+            profile: None, // Should use --release
+        });
+
+        let builder = RustBuilder::new(temp.path(), &manifest).unwrap();
+        let result = builder.build_with_cargo();
+        // May fail on actual build, but tests the --release path (line 239)
+        let _ = result;
+    }
+
+    #[test]
+    fn test_rust_builder_build_with_cargo_features_path() {
+        // Test build_with_cargo with features (line 243-253)
+        let temp = TempDir::new().unwrap();
+        std::fs::write(
+            temp.path().join("Cargo.toml"),
+            "[package]\nname = \"test\"\nversion = \"0.1.0\"\n",
+        )
+        .unwrap();
+
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest.build = Some(BuildConfig {
+            build_type: "rust".to_string(),
+            manifest: None,
+            modules: std::collections::HashMap::new(),
+            features: vec!["feature1".to_string(), "feature2".to_string()],
+            profile: None,
+        });
+
+        let builder = RustBuilder::new(temp.path(), &manifest).unwrap();
+        let result = builder.build_with_cargo();
+        // May fail on actual build, but tests the features path (line 243-253)
+        let _ = result;
+    }
+
+    #[test]
+    fn test_rust_builder_find_built_library_cross_compile_target_dir() {
+        // Test find_built_library with cross-compilation target (line 267-269)
+        let temp = TempDir::new().unwrap();
+        let mut modules = std::collections::HashMap::new();
+        modules.insert("mymodule".to_string(), "lib/mymodule.so".to_string());
+
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest.build = Some(BuildConfig {
+            build_type: "rust".to_string(),
+            manifest: Some("Cargo.toml".to_string()),
+            modules,
+            features: vec![],
+            profile: None,
+        });
+
+        let builder = RustBuilder::new(temp.path(), &manifest).unwrap();
+        // Use a cross-compilation target
+        let target = Target::new("x86_64-unknown-linux-gnu").unwrap();
+        // Create the module file in cross-compile target directory
+        let target_dir = temp
+            .path()
+            .join("target")
+            .join("x86_64-unknown-linux-gnu")
+            .join("release");
+        let module_path = target_dir.join("lib").join("mymodule.so");
+        std::fs::create_dir_all(module_path.parent().unwrap()).unwrap();
+        std::fs::write(&module_path, b"fake library").unwrap();
+
+        let result = builder.find_built_library(&target);
+        // Should succeed - module file exists in cross-compile target directory
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), module_path);
+    }
 }

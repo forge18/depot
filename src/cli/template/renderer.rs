@@ -106,3 +106,64 @@ impl TemplateRenderer {
         result
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_template_renderer_new() {
+        let temp = TempDir::new().unwrap();
+        let template_dir = temp.path();
+
+        // Create template.yaml
+        let metadata = r#"
+name: test-template
+description: Test template
+variables: []
+"#;
+        fs::write(template_dir.join("template.yaml"), metadata).unwrap();
+
+        let renderer = TemplateRenderer::new(template_dir.to_path_buf()).unwrap();
+        assert_eq!(renderer.template_dir, template_dir);
+    }
+
+    #[test]
+    fn test_template_renderer_missing_metadata() {
+        let temp = TempDir::new().unwrap();
+        let template_dir = temp.path();
+
+        // No template.yaml
+        let result = TemplateRenderer::new(template_dir.to_path_buf());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_template_renderer_missing_required_variable() {
+        let temp = TempDir::new().unwrap();
+        let template_dir = temp.path();
+
+        let metadata = r#"
+name: test-template
+description: Test template
+variables:
+  - name: required_var
+    required: true
+"#;
+        fs::write(template_dir.join("template.yaml"), metadata).unwrap();
+
+        let renderer = TemplateRenderer::new(template_dir.to_path_buf()).unwrap();
+        let target_dir = temp.path().join("output");
+        let variables = HashMap::new(); // Missing required variable
+
+        let result = renderer.render(&target_dir, &variables);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Required template variable"));
+    }
+}

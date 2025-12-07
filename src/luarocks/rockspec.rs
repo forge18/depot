@@ -124,3 +124,151 @@ impl Rockspec {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_install_table_is_empty() {
+        let table = InstallTable::default();
+        assert!(table.is_empty());
+    }
+
+    #[test]
+    fn test_install_table_not_empty_with_bin() {
+        let mut table = InstallTable::default();
+        table
+            .bin
+            .insert("myapp".to_string(), "bin/myapp".to_string());
+        assert!(!table.is_empty());
+    }
+
+    #[test]
+    fn test_install_table_not_empty_with_lua() {
+        let mut table = InstallTable::default();
+        table
+            .lua
+            .insert("mymodule".to_string(), "src/mymodule.lua".to_string());
+        assert!(!table.is_empty());
+    }
+
+    #[test]
+    fn test_rockspec_to_package_manifest() {
+        let rockspec = Rockspec {
+            package: "test-package".to_string(),
+            version: "1.0.0".to_string(),
+            source: RockspecSource {
+                url: "https://example.com/test.tar.gz".to_string(),
+                tag: None,
+                branch: None,
+            },
+            dependencies: vec!["luasocket ~> 3.0".to_string()],
+            build: RockspecBuild {
+                build_type: "builtin".to_string(),
+                modules: HashMap::new(),
+                install: Default::default(),
+            },
+            description: Some("Test package".to_string()),
+            homepage: Some("https://example.com".to_string()),
+            license: Some("MIT".to_string()),
+            lua_version: Some(">=5.1".to_string()),
+            binary_urls: HashMap::new(),
+        };
+
+        let manifest = rockspec.to_package_manifest();
+        assert_eq!(manifest.name, "test-package");
+        assert_eq!(manifest.version, "1.0.0");
+        assert_eq!(manifest.description, Some("Test package".to_string()));
+        assert!(manifest.dependencies.contains_key("luasocket"));
+        // Should convert ~> to ^
+        assert!(manifest
+            .dependencies
+            .get("luasocket")
+            .unwrap()
+            .starts_with("^"));
+    }
+
+    #[test]
+    fn test_rockspec_to_package_manifest_without_version() {
+        let rockspec = Rockspec {
+            package: "test-package".to_string(),
+            version: "1.0.0".to_string(),
+            source: RockspecSource {
+                url: "https://example.com/test.tar.gz".to_string(),
+                tag: None,
+                branch: None,
+            },
+            dependencies: vec!["luasocket".to_string()],
+            build: RockspecBuild {
+                build_type: "builtin".to_string(),
+                modules: HashMap::new(),
+                install: Default::default(),
+            },
+            description: None,
+            homepage: None,
+            license: None,
+            lua_version: None,
+            binary_urls: HashMap::new(),
+        };
+
+        let manifest = rockspec.to_package_manifest();
+        assert!(manifest.dependencies.contains_key("luasocket"));
+        assert_eq!(manifest.dependencies.get("luasocket").unwrap(), "*");
+    }
+
+    #[test]
+    fn test_rockspec_to_package_manifest_rust_build() {
+        let rockspec = Rockspec {
+            package: "test-package".to_string(),
+            version: "1.0.0".to_string(),
+            source: RockspecSource {
+                url: "https://example.com/test.tar.gz".to_string(),
+                tag: None,
+                branch: None,
+            },
+            dependencies: vec![],
+            build: RockspecBuild {
+                build_type: "rust".to_string(),
+                modules: HashMap::new(),
+                install: Default::default(),
+            },
+            description: None,
+            homepage: None,
+            license: None,
+            lua_version: None,
+            binary_urls: HashMap::new(),
+        };
+
+        let manifest = rockspec.to_package_manifest();
+        assert!(manifest.build.is_some());
+        assert_eq!(manifest.build.as_ref().unwrap().build_type, "rust");
+    }
+
+    #[test]
+    fn test_rockspec_to_package_manifest_builtin_no_build() {
+        let rockspec = Rockspec {
+            package: "test-package".to_string(),
+            version: "1.0.0".to_string(),
+            source: RockspecSource {
+                url: "https://example.com/test.tar.gz".to_string(),
+                tag: None,
+                branch: None,
+            },
+            dependencies: vec![],
+            build: RockspecBuild {
+                build_type: "builtin".to_string(),
+                modules: HashMap::new(),
+                install: Default::default(),
+            },
+            description: None,
+            homepage: None,
+            license: None,
+            lua_version: None,
+            binary_urls: HashMap::new(),
+        };
+
+        let manifest = rockspec.to_package_manifest();
+        assert!(manifest.build.is_none());
+    }
+}

@@ -261,3 +261,135 @@ fn is_executable(path: &PathBuf) -> bool {
         path.exists()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lpm_core::core::path::lpm_home;
+    use std::fs;
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
+    use tempfile::TempDir;
+
+    fn setup_plugin_test_env() -> TempDir {
+        let temp = TempDir::new().unwrap();
+        // Mock lpm_home to point to our temp directory
+        std::env::set_var("LPM_HOME", temp.path());
+        temp
+    }
+
+    #[test]
+    fn test_find_plugin_found() {
+        let _temp = setup_plugin_test_env();
+        let bin_dir = lpm_home().unwrap().join("bin");
+        fs::create_dir_all(&bin_dir).unwrap();
+        let plugin_file = bin_dir.join("lpm-test-plugin");
+        fs::write(&plugin_file, "echo hello").unwrap();
+        #[cfg(unix)]
+        {
+            // Ensure file exists before setting permissions
+            assert!(plugin_file.exists());
+            fs::set_permissions(&plugin_file, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+
+        let plugin_path = find_plugin("test-plugin").unwrap();
+        assert!(plugin_path.exists());
+    }
+
+    #[test]
+    fn test_find_plugin_not_found() {
+        let _temp = setup_plugin_test_env();
+        assert!(find_plugin("nonexistent-plugin").is_none());
+    }
+
+    #[test]
+    fn test_find_plugin_legacy_path() {
+        let temp = setup_plugin_test_env();
+        let legacy_bin = temp.path().join(".lpm").join("bin");
+        fs::create_dir_all(&legacy_bin).unwrap();
+        fs::write(legacy_bin.join("lpm-legacy-plugin"), "echo hello").unwrap();
+        #[cfg(unix)]
+        fs::set_permissions(
+            legacy_bin.join("lpm-legacy-plugin"),
+            fs::Permissions::from_mode(0o755),
+        )
+        .unwrap();
+
+        // Set HOME to temp directory
+        std::env::set_var("HOME", temp.path());
+
+        let plugin_path = find_plugin("legacy-plugin").unwrap();
+        assert!(plugin_path.exists());
+    }
+
+    #[test]
+    fn test_list_plugins_empty() {
+        let _temp = setup_plugin_test_env();
+        // Ensure bin directory doesn't exist or is empty
+        let bin_dir = lpm_home().unwrap().join("bin");
+        if bin_dir.exists() {
+            // Remove any existing plugins in test environment
+            std::fs::remove_dir_all(&bin_dir).ok();
+        }
+        let plugins = list_plugins().unwrap();
+        // May not be empty if plugins exist in PATH or legacy location, so just verify it doesn't panic
+        let _ = plugins;
+    }
+
+    #[test]
+    fn test_is_executable_unix() {
+        #[cfg(unix)]
+        {
+            let temp = TempDir::new().unwrap();
+            let test_file = temp.path().join("test");
+            fs::write(&test_file, "test").unwrap();
+
+            // Initially not executable
+            assert!(!is_executable(&test_file));
+
+            // Make executable
+            fs::set_permissions(&test_file, fs::Permissions::from_mode(0o755)).unwrap();
+            assert!(is_executable(&test_file));
+        }
+    }
+
+    #[test]
+    fn test_is_executable_nonexistent() {
+        let nonexistent = PathBuf::from("/nonexistent/path");
+        assert!(!is_executable(&nonexistent));
+    }
+
+    #[test]
+    fn test_run_plugin_not_found() {
+        let _temp = setup_plugin_test_env();
+        let result = run_plugin("nonexistent-plugin", vec![]);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Plugin 'nonexistent-plugin' not found"));
+    }
+
+    #[test]
+    fn test_find_plugin_in_path() {
+        // This test depends on PATH, so we just verify it doesn't panic
+        let _ = find_plugin("nonexistent");
+    }
+
+    #[test]
+    fn test_list_plugins_with_plugins() {
+        let _temp = setup_plugin_test_env();
+        let bin_dir = lpm_home().unwrap().join("bin");
+        fs::create_dir_all(&bin_dir).unwrap();
+        fs::write(bin_dir.join("lpm-test-plugin"), "echo hello").unwrap();
+        #[cfg(unix)]
+        fs::set_permissions(
+            bin_dir.join("lpm-test-plugin"),
+            fs::Permissions::from_mode(0o755),
+        )
+        .unwrap();
+        let plugins = list_plugins().unwrap();
+        // May or may not find plugins depending on test environment
+        let _ = plugins;
+    }
+}

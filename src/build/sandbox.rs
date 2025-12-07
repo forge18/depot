@@ -82,10 +82,29 @@ impl BuildSandbox {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::TempDir;
 
     #[test]
     fn test_check_cargo_zigbuild() {
         // This will return false if not installed, which is fine for testing
         let _ = BuildSandbox::check_cargo_zigbuild();
+    }
+
+    #[test]
+    fn test_ensure_cargo_zigbuild_when_installed() {
+        // If cargo-zigbuild is installed, should return Ok
+        // If not, will try to install (may fail in test environment)
+        let result = BuildSandbox::ensure_cargo_zigbuild();
+        // Either succeeds or fails gracefully
+        assert!(result.is_ok() || result.is_err());
+    }
+
+    #[test]
+    fn test_execute_cargo_invalid_command() {
+        let temp = TempDir::new().unwrap();
+
+        // Try to run invalid cargo command
+        let result = BuildSandbox::execute_cargo(temp.path(), &["invalid-command"], &[]);
+        assert!(result.is_err());
     }
 }

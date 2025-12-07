@@ -132,6 +132,64 @@ impl TemplateDiscovery {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_user_templates_dir() {
+        // Test that user_templates_dir returns a valid path
+        let result = TemplateDiscovery::user_templates_dir();
+        // May fail if lpm_home() fails, but tests the function exists
+        let _ = result;
+    }
+
+    #[test]
+    fn test_builtin_templates_dir() {
+        // Test that builtin_templates_dir returns a path
+        let dir = TemplateDiscovery::builtin_templates_dir();
+        // Should always return a path (may not exist)
+        assert!(!dir.as_os_str().is_empty());
+    }
+
+    #[test]
+    fn test_discover_in_dir() {
+        let temp = TempDir::new().unwrap();
+        let template_dir = temp.path().join("test-template");
+        fs::create_dir_all(&template_dir).unwrap();
+
+        // Create template.yaml
+        let metadata = r#"
+name: test-template
+description: Test template
+variables: []
+"#;
+        fs::write(template_dir.join("template.yaml"), metadata).unwrap();
+
+        // Discover templates in the directory
+        let templates =
+            TemplateDiscovery::discover_in_dir(temp.path(), TemplateSource::Builtin).unwrap();
+
+        assert_eq!(templates.len(), 1);
+        assert_eq!(templates[0].name, "test-template");
+    }
+
+    #[test]
+    fn test_discover_in_dir_no_metadata() {
+        let temp = TempDir::new().unwrap();
+        let template_dir = temp.path().join("no-metadata");
+        fs::create_dir_all(&template_dir).unwrap();
+
+        // No template.yaml, should skip
+        let templates =
+            TemplateDiscovery::discover_in_dir(temp.path(), TemplateSource::Builtin).unwrap();
+
+        assert!(templates.is_empty());
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct TemplateInfo {
     pub name: String,

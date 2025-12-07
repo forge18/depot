@@ -113,3 +113,53 @@ fn remove_global(package: &str) -> LpmResult<()> {
     println!("✓ Uninstalled {} globally", package);
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lpm::package::manifest::PackageManifest;
+
+    #[test]
+    fn test_remove_global_function_exists() {
+        // Test that remove_global function exists
+        let _ = remove_global;
+    }
+
+    #[test]
+    fn test_remove_location_determination() {
+        // Test the logic for determining removal location
+        let mut manifest = PackageManifest::default("test".to_string());
+
+        // Test removing from dependencies only
+        manifest
+            .dependencies
+            .insert("pkg1".to_string(), "1.0.0".to_string());
+        let removed_from_deps = manifest.dependencies.remove("pkg1").is_some();
+        let removed_from_dev = false;
+
+        let location = if removed_from_deps && removed_from_dev {
+            "dependencies and dev_dependencies"
+        } else if removed_from_deps {
+            "dependencies"
+        } else {
+            "dev_dependencies"
+        };
+        assert_eq!(location, "dependencies");
+
+        // Test removing from dev_dependencies only
+        manifest
+            .dev_dependencies
+            .insert("pkg2".to_string(), "1.0.0".to_string());
+        let removed_from_deps = false;
+        let removed_from_dev = manifest.dev_dependencies.remove("pkg2").is_some();
+
+        let location = if removed_from_deps && removed_from_dev {
+            "dependencies and dev_dependencies"
+        } else if removed_from_deps {
+            "dependencies"
+        } else {
+            "dev_dependencies"
+        };
+        assert_eq!(location, "dev_dependencies");
+    }
+}

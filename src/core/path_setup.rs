@@ -220,4 +220,45 @@ mod tests {
         let profile = get_shell_profile("bash");
         assert!(profile.contains("bashrc"));
     }
+
+    #[test]
+    fn test_get_shell_profile_fish() {
+        let profile = get_shell_profile("fish");
+        assert!(profile.contains("fish"));
+    }
+
+    #[test]
+    fn test_get_shell_profile_default() {
+        let profile = get_shell_profile("unknown");
+        assert!(profile.contains("profile"));
+    }
+
+    #[test]
+    fn test_expand_path_vars_tilde() {
+        let home = env::var("HOME").unwrap();
+        let expanded = expand_path_vars("~/test");
+        assert_eq!(expanded, format!("{}/test", home));
+    }
+
+    #[test]
+    fn test_expand_path_vars_home_var() {
+        let home = env::var("HOME").unwrap();
+        let expanded = expand_path_vars("$HOME/test");
+        assert_eq!(expanded, format!("{}/test", home));
+    }
+
+    #[test]
+    fn test_expand_path_vars_no_expansion() {
+        let path = "/usr/bin";
+        let expanded = expand_path_vars(path);
+        assert_eq!(expanded, path);
+    }
+
+    #[test]
+    fn test_get_cargo_bin_dir_windows() {
+        // This test will work on both platforms, just checks the structure
+        let cargo_bin = get_cargo_bin_dir().unwrap();
+        assert!(cargo_bin.to_string_lossy().contains("cargo"));
+        assert!(cargo_bin.to_string_lossy().contains("bin"));
+    }
 }

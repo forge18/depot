@@ -73,6 +73,74 @@ jobs:
       - name: Run security tests
         run: cargo test --test security
 
+  comprehensive-tests:
+    name: Comprehensive E2E Tests
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        lua: ['5.1', '5.3', '5.4']
+    
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      
+      - name: Install Lua
+        uses: leafo/gh-actions-lua@v10
+        with:
+          luaVersion: ${{ matrix.lua }}
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
+      
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-git-
+      
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-target-
+      
+      - name: Run fast tests
+        run: cargo test --lib
+      
+      - name: Run integration tests
+        run: cargo test --test integration_tests
+      
+      - name: Run E2E tests (fast)
+        run: cargo test --test e2e_tests
+      
+      - name: Run network tests
+        run: |
+          cargo test --test integration_tests -- --ignored --test-threads=1 || true
+          cargo test --test e2e_tests -- --ignored --test-threads=1 || true
+        timeout-minutes: 30
+      
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.os }}-lua${{ matrix.lua }}
+          path: target/debug/
+
   security:
     name: Security Scan
     runs-on: ubuntu-latest

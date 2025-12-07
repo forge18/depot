@@ -244,4 +244,65 @@ mod tests {
         let result = PublishValidator::validate(&manifest, temp.path());
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_validate_has_lua_files_in_src() {
+        let manifest = create_test_manifest();
+        let temp = TempDir::new().unwrap();
+        fs::create_dir_all(temp.path().join("src")).unwrap();
+        fs::write(temp.path().join("src").join("module.lua"), "return {}").unwrap();
+        let result = PublishValidator::validate(&manifest, temp.path());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_has_lua_files_in_lua() {
+        let manifest = create_test_manifest();
+        let temp = TempDir::new().unwrap();
+        fs::create_dir_all(temp.path().join("lua")).unwrap();
+        fs::write(temp.path().join("lua").join("module.lua"), "return {}").unwrap();
+        let result = PublishValidator::validate(&manifest, temp.path());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_rust_build_with_cargo_toml() {
+        let mut manifest = create_test_manifest();
+        manifest.build = Some(crate::package::manifest::BuildConfig {
+            build_type: "rust".to_string(),
+            manifest: None,
+            modules: vec![("test".to_string(), "lib.rs".to_string())]
+                .into_iter()
+                .collect(),
+            features: Vec::new(),
+            profile: None,
+        });
+        let temp = TempDir::new().unwrap();
+        fs::write(temp.path().join("test.lua"), "print('test')").unwrap();
+        fs::write(temp.path().join("Cargo.toml"), "[package]").unwrap();
+        let result = PublishValidator::validate(&manifest, temp.path());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_metadata_no_description() {
+        let mut manifest = create_test_manifest();
+        manifest.description = None;
+        let temp = TempDir::new().unwrap();
+        fs::write(temp.path().join("test.lua"), "print('test')").unwrap();
+        // Should warn but not fail
+        let result = PublishValidator::validate(&manifest, temp.path());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_metadata_no_license() {
+        let mut manifest = create_test_manifest();
+        manifest.license = None;
+        let temp = TempDir::new().unwrap();
+        fs::write(temp.path().join("test.lua"), "print('test')").unwrap();
+        // Should warn but not fail
+        let result = PublishValidator::validate(&manifest, temp.path());
+        assert!(result.is_ok());
+    }
 }

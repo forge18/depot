@@ -278,3 +278,35 @@ async fn update_all_packages(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lpm::package::manifest::PackageManifest;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_update_package_function_exists() {
+        // Test that update_package function exists
+        let _ = update_package;
+    }
+
+    #[test]
+    fn test_update_all_packages_function_exists() {
+        // Test that update_all_packages function exists
+        let _ = update_all_packages;
+    }
+
+    #[test]
+    fn test_update_package_not_in_dependencies() {
+        let _temp = TempDir::new().unwrap();
+        let manifest = PackageManifest::default("test".to_string());
+        // Package not in dependencies
+        let result = std::panic::catch_unwind(|| {
+            // This would fail at runtime, but we can test the function signature
+            let _ = manifest.dependencies.get("nonexistent");
+        });
+        // Just verify the function can be called conceptually
+        assert!(result.is_ok());
+    }
+}

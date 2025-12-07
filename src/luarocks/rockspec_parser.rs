@@ -282,4 +282,300 @@ build = {
         assert_eq!(rockspec.build.build_type, "builtin");
         assert_eq!(rockspec.build.modules.len(), 1);
     }
+
+    #[test]
+    fn test_parse_rockspec_with_optional_fields() {
+        let content = r#"
+package = "test-package"
+version = "1.0.0"
+
+source = {
+   url = "https://example.com/test.tar.gz"
+}
+
+dependencies = {}
+
+build = {
+   type = "builtin"
+}
+
+description = "Test package"
+homepage = "https://example.com"
+license = "MIT"
+lua_version = ">=5.1"
+"#;
+
+        let rockspec = parse_rockspec(content).unwrap();
+        assert_eq!(rockspec.package, "test-package");
+        assert_eq!(rockspec.description, Some("Test package".to_string()));
+        assert_eq!(rockspec.homepage, Some("https://example.com".to_string()));
+        assert_eq!(rockspec.license, Some("MIT".to_string()));
+        assert_eq!(rockspec.lua_version, Some(">=5.1".to_string()));
+    }
+
+    #[test]
+    fn test_parse_rockspec_with_install_table() {
+        let content = r#"
+package = "test-package"
+version = "1.0.0"
+
+source = {
+   url = "https://example.com/test.tar.gz"
+}
+
+dependencies = {}
+
+build = {
+   type = "builtin",
+   install = {
+      bin = {
+         ["test"] = "bin/test"
+      },
+      lua = {
+         ["test"] = "src/test.lua"
+      }
+   }
+}
+"#;
+
+        let rockspec = parse_rockspec(content).unwrap();
+        assert!(!rockspec.build.install.bin.is_empty());
+        assert!(!rockspec.build.install.lua.is_empty());
+    }
+
+    #[test]
+    fn test_parse_rockspec_missing_required_fields() {
+        let content = r#"
+version = "1.0.0"
+source = {
+   url = "https://example.com/test.tar.gz"
+}
+"#;
+
+        let result = parse_rockspec(content);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_extract_string_field() {
+        let content = r#"package = "test-package""#;
+        let result = extract_string_field(content, r#"package\s*=\s*"([^"]+)""#);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "test-package");
+    }
+
+    #[test]
+    fn test_extract_string_field_not_found() {
+        let content = r#"version = "1.0.0""#;
+        let result = extract_string_field(content, r#"package\s*=\s*"([^"]+)""#);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_source() {
+        let content = r#"
+source = {
+   url = "https://example.com/test.tar.gz",
+   tag = "v1.0.0",
+   branch = "main"
+}
+"#;
+
+        let source = parse_source(content).unwrap();
+        assert_eq!(source.url, "https://example.com/test.tar.gz");
+        assert_eq!(source.tag, Some("v1.0.0".to_string()));
+        assert_eq!(source.branch, Some("main".to_string()));
+    }
+
+    #[test]
+    fn test_parse_source_minimal() {
+        let content = r#"
+source = {
+   url = "https://example.com/test.tar.gz"
+}
+"#;
+
+        let source = parse_source(content).unwrap();
+        assert_eq!(source.url, "https://example.com/test.tar.gz");
+        assert!(source.tag.is_none());
+        assert!(source.branch.is_none());
+    }
+
+    #[test]
+    fn test_parse_dependencies() {
+        let content = r#"
+dependencies = {
+   "luasocket >= 3.0",
+   "penlight",
+   "lua >= 5.1"
+}
+"#;
+
+        let deps = parse_dependencies(content).unwrap();
+        assert_eq!(deps.len(), 3);
+        assert!(deps.contains(&"luasocket >= 3.0".to_string()));
+        assert!(deps.contains(&"penlight".to_string()));
+    }
+
+    #[test]
+    fn test_parse_dependencies_empty() {
+        let content = r#"
+dependencies = {}
+"#;
+
+        let deps = parse_dependencies(content).unwrap();
+        assert!(deps.is_empty());
+    }
+
+    #[test]
+    fn test_parse_build() {
+        let content = r#"
+build = {
+   type = "make",
+   modules = {
+      test = "src/test.lua"
+   }
+}
+"#;
+
+        let build = parse_build(content).unwrap();
+        assert_eq!(build.build_type, "make");
+        assert_eq!(build.modules.len(), 1);
+    }
+
+    #[test]
+    fn test_extract_table_block() {
+        let content = r#"
+test = {
+   field1 = "value1",
+   field2 = "value2"
+}
+"#;
+
+        let result = extract_table_block(content, "test");
+        assert!(result.is_ok());
+        let block = result.unwrap();
+        assert!(block.contains("field1"));
+        assert!(block.contains("field2"));
+    }
+
+    #[test]
+    fn test_extract_table_block_not_found() {
+        let content = r#"other = {}"#;
+        let result = extract_table_block(content, "test");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_extract_table_block_unclosed() {
+        let content = r#"
+test = {
+   field = "value"
+"#;
+
+        let result = extract_table_block(content, "test");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_rockspec_with_binary_urls() {
+        let content = r#"
+package = "test-package"
+version = "1.0.0"
+source = { url = "https://example.com/test.tar.gz" }
+dependencies = {}
+build = { type = "builtin" }
+binary_urls = {
+   ["5.4-x86_64-unknown-linux-gnu"] = "https://example.com/binary.so"
+}
+"#;
+        let rockspec = parse_rockspec(content).unwrap();
+        assert!(rockspec
+            .binary_urls
+            .contains_key("5.4-x86_64-unknown-linux-gnu"));
+    }
+
+    #[test]
+    fn test_parse_rockspec_with_binary_urls_in_metadata() {
+        let content = r#"
+package = "test-package"
+version = "1.0.0"
+source = { url = "https://example.com/test.tar.gz" }
+dependencies = {}
+build = { type = "builtin" }
+metadata = {
+   binary_urls = {
+      ["5.4-x86_64-unknown-linux-gnu"] = "https://example.com/binary.so"
+   }
+}
+"#;
+        let rockspec = parse_rockspec(content).unwrap();
+        assert!(rockspec
+            .binary_urls
+            .contains_key("5.4-x86_64-unknown-linux-gnu"));
+    }
+
+    #[test]
+    fn test_parse_install_table_with_bin() {
+        let content = r#"
+build = {
+   type = "builtin",
+   install = {
+      bin = {
+         ["my-script"] = "bin/script.lua"
+      }
+   }
+}
+"#;
+        let build = parse_build(content).unwrap();
+        assert!(build.install.bin.contains_key("my-script"));
+    }
+
+    #[test]
+    fn test_parse_install_table_with_lua() {
+        let content = r#"
+build = {
+   type = "builtin",
+   install = {
+      lua = {
+         ["my-module"] = "src/module.lua"
+      }
+   }
+}
+"#;
+        let build = parse_build(content).unwrap();
+        assert!(build.install.lua.contains_key("my-module"));
+    }
+
+    #[test]
+    fn test_parse_install_table_with_lib() {
+        let content = r#"
+build = {
+   type = "builtin",
+   install = {
+      lib = {
+         ["mylib"] = "lib/lib.so"
+      }
+   }
+}
+"#;
+        let build = parse_build(content).unwrap();
+        assert!(build.install.lib.contains_key("mylib"));
+    }
+
+    #[test]
+    fn test_parse_install_table_with_conf() {
+        let content = r#"
+build = {
+   type = "builtin",
+   install = {
+      conf = {
+         ["config"] = "conf/config.lua"
+      }
+   }
+}
+"#;
+        let build = parse_build(content).unwrap();
+        assert!(build.install.conf.contains_key("config"));
+    }
 }

@@ -358,4 +358,171 @@ mod tests {
         let read_data = cache.read(&test_path).unwrap();
         assert_eq!(read_data, data);
     }
+
+    #[test]
+    fn test_cache_new() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+        assert_eq!(cache.root, temp.path());
+    }
+
+    #[test]
+    fn test_cache_directory_paths() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+
+        assert!(cache.luarocks_dir().ends_with("luarocks"));
+        assert!(cache.rockspecs_dir().ends_with("rockspecs"));
+        assert!(cache.sources_dir().ends_with("sources"));
+        assert!(cache.rust_builds_dir().ends_with("rust-builds"));
+    }
+
+    #[test]
+    fn test_cache_rockspec_path() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+
+        let path = cache.rockspec_path("test-package", "1.0.0");
+        assert!(path.ends_with("test-package-1.0.0.rockspec"));
+    }
+
+    #[test]
+    fn test_cache_source_path() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+
+        let url = "https://example.com/test.tar.gz";
+        let path = cache.source_path(url);
+        assert!(path.parent().unwrap().ends_with("sources"));
+        // The extension might be extracted as "gz" not "tar.gz" depending on implementation
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+        assert!(ext == "tar.gz" || ext == "gz" || path.to_string_lossy().contains("tar.gz"));
+    }
+
+    #[test]
+    fn test_cache_checksum() {
+        let temp = TempDir::new().unwrap();
+        let test_file = temp.path().join("test.txt");
+        std::fs::write(&test_file, b"test data").unwrap();
+
+        let checksum = Cache::checksum(&test_file).unwrap();
+        assert!(checksum.starts_with("sha256:"));
+        assert_eq!(checksum.len(), 71); // "sha256:" + 64 hex chars
+    }
+
+    #[test]
+    fn test_cache_checksum_same_content() {
+        let temp = TempDir::new().unwrap();
+        let test_file1 = temp.path().join("test1.txt");
+        let test_file2 = temp.path().join("test2.txt");
+        std::fs::write(&test_file1, b"test data").unwrap();
+        std::fs::write(&test_file2, b"test data").unwrap();
+
+        let checksum1 = Cache::checksum(&test_file1).unwrap();
+        let checksum2 = Cache::checksum(&test_file2).unwrap();
+        assert_eq!(checksum1, checksum2);
+    }
+
+    #[test]
+    fn test_cache_checksum_different_content() {
+        let temp = TempDir::new().unwrap();
+        let test_file1 = temp.path().join("test1.txt");
+        let test_file2 = temp.path().join("test2.txt");
+        std::fs::write(&test_file1, b"test data 1").unwrap();
+        std::fs::write(&test_file2, b"test data 2").unwrap();
+
+        let checksum1 = Cache::checksum(&test_file1).unwrap();
+        let checksum2 = Cache::checksum(&test_file2).unwrap();
+        assert_ne!(checksum1, checksum2);
+    }
+
+    #[test]
+    fn test_cache_rust_build_path() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+
+        let path =
+            cache.rust_build_path("test-package", "1.0.0", "5.4", "x86_64-unknown-linux-gnu");
+        assert!(path.to_string_lossy().contains("test-package"));
+        assert!(path.to_string_lossy().contains("1.0.0"));
+        assert!(path.to_string_lossy().contains("5.4"));
+        assert!(path.to_string_lossy().contains("x86_64-unknown-linux-gnu"));
+    }
+
+    #[test]
+    fn test_cache_has_rust_build() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+
+        assert!(!cache.has_rust_build("test-package", "1.0.0", "5.4", "x86_64-unknown-linux-gnu"));
+    }
+
+    #[test]
+    fn test_cache_read_nonexistent() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+
+        let nonexistent = temp.path().join("nonexistent.txt");
+        let result = cache.read(&nonexistent);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cache_exists() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+
+        let existing = temp.path().join("existing.txt");
+        std::fs::write(&existing, b"test").unwrap();
+
+        assert!(cache.exists(&existing));
+        assert!(!cache.exists(&temp.path().join("nonexistent.txt")));
+    }
+
+    #[test]
+    fn test_cache_write_read() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+        let test_file = temp.path().join("test.txt");
+        let data = b"test data";
+        cache.write(&test_file, data).unwrap();
+        let read_data = cache.read(&test_file).unwrap();
+        assert_eq!(read_data, data);
+    }
+
+    #[test]
+    fn test_cache_url_hash() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+        let url1 = "https://example.com/test.tar.gz";
+        let url2 = "https://example.com/test2.tar.gz";
+        let hash1 = cache.source_path(url1);
+        let hash2 = cache.source_path(url2);
+        // Different URLs should produce different hashes
+        assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_cache_store_rust_build() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+        let artifact = temp.path().join("artifact.so");
+        fs::write(&artifact, b"fake binary").unwrap();
+        let result = cache.store_rust_build(
+            "test-pkg",
+            "1.0.0",
+            "5.4",
+            "x86_64-unknown-linux-gnu",
+            &artifact,
+        );
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_cache_clean_empty() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+        let result = cache.clean(30, 100);
+        assert!(result.is_ok());
+    }
 }

@@ -329,3 +329,37 @@ fn run_non_interactive(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_run_non_interactive() {
+        let temp = TempDir::new().unwrap();
+        let result = run_non_interactive(temp.path(), "test-project", None);
+        assert!(result.is_ok());
+        assert!(temp.path().join("package.yaml").exists());
+    }
+
+    #[test]
+    fn test_run_non_interactive_with_template() {
+        let temp = TempDir::new().unwrap();
+        // Template discovery might fail, but that's ok
+        let _ = run_non_interactive(temp.path(), "test-project", Some("nonexistent".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_run_already_in_project() {
+        let temp = TempDir::new().unwrap();
+        fs::write(temp.path().join("package.yaml"), "name: test").unwrap();
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(temp.path()).unwrap();
+        let result = run(None, false).await;
+        std::env::set_current_dir(original_dir).unwrap();
+        // This will fail because we're in a project
+        assert!(result.is_err());
+    }
+}

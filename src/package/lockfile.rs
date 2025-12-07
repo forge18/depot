@@ -251,4 +251,46 @@ mod tests {
         assert!(package.build.is_some());
         assert_eq!(package.build.as_ref().unwrap().build_type, "rust");
     }
+
+    #[test]
+    fn test_lockfile_load_invalid_yaml() {
+        let temp = TempDir::new().unwrap();
+        let lockfile_path = temp.path().join("package.lock");
+        fs::write(&lockfile_path, "invalid: yaml: [").unwrap();
+
+        let result = Lockfile::load(temp.path());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("parse"));
+    }
+
+    #[test]
+    fn test_lockfile_save_io_error() {
+        let temp = TempDir::new().unwrap();
+        let lockfile = Lockfile::new();
+
+        // Try to save to a non-existent parent directory
+        let invalid_path = temp.path().join("nonexistent").join("subdir");
+        let result = lockfile.save(&invalid_path);
+        // May succeed if parent is created, or fail on write
+        let _ = result;
+    }
+
+    #[test]
+    fn test_lockfile_default() {
+        let lockfile = Lockfile::default();
+        assert_eq!(lockfile.version, 1);
+        assert!(lockfile.packages.is_empty());
+    }
+
+    #[test]
+    fn test_lockfile_get_package_nonexistent() {
+        let lockfile = Lockfile::new();
+        assert!(lockfile.get_package("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_lockfile_has_package_false() {
+        let lockfile = Lockfile::new();
+        assert!(!lockfile.has_package("nonexistent"));
+    }
 }

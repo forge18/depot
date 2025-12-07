@@ -158,4 +158,157 @@ mod tests {
         assert!(json.contains("1.0.0"));
         assert!(json.contains("LuaRocks"));
     }
+
+    #[tokio::test]
+    async fn test_query_package_no_vulnerabilities() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+
+        // Mock successful response with no vulnerabilities
+        Mock::given(method("POST"))
+            .and(path("/v1/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "vulns": []
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let mut api = OsvApi::new();
+        api.base_url = mock_server.uri();
+
+        let result = api.query_package("test-package", "1.0.0").await.unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_query_package_with_vulnerabilities() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+
+        // Mock response with vulnerabilities
+        Mock::given(method("POST"))
+            .and(path("/v1/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "vulns": [
+                    {
+                        "id": "CVE-2023-12345",
+                        "summary": "Test vulnerability",
+                        "details": "Test details",
+                        "severity": [
+                            {
+                                "type": "CVSS_V3",
+                                "score": "9.5"
+                            }
+                        ]
+                    }
+                ]
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let mut api = OsvApi::new();
+        api.base_url = mock_server.uri();
+
+        let result = api.query_package("test-package", "1.0.0").await.unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].cve, Some("CVE-2023-12345".to_string()));
+        assert_eq!(result[0].severity, Severity::Critical);
+    }
+
+    #[tokio::test]
+    async fn test_query_package_severity_levels() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let test_cases = vec![
+            (9.5, Severity::Critical),
+            (8.0, Severity::High),
+            (5.0, Severity::Medium),
+            (2.0, Severity::Low),
+        ];
+
+        for (score, expected_severity) in test_cases {
+            let mock_server = MockServer::start().await;
+
+            Mock::given(method("POST"))
+                .and(path("/v1/query"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "vulns": [
+                        {
+                            "id": "TEST-001",
+                            "summary": "Test",
+                            "details": "Test",
+                            "severity": [
+                                {
+                                    "type": "CVSS_V3",
+                                    "score": score.to_string()
+                                }
+                            ]
+                        }
+                    ]
+                })))
+                .mount(&mock_server)
+                .await;
+
+            let mut api = OsvApi::new();
+            api.base_url = mock_server.uri();
+
+            let result = api.query_package("test", "1.0.0").await.unwrap();
+            assert_eq!(result[0].severity, expected_severity, "Score: {}", score);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_query_package_non_200_response() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+
+        // Mock 404 response (should return empty vector, not error)
+        Mock::given(method("POST"))
+            .and(path("/v1/query"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&mock_server)
+            .await;
+
+        let mut api = OsvApi::new();
+        api.base_url = mock_server.uri();
+
+        let result = api.query_package("test-package", "1.0.0").await.unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_query_package_no_severity() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+
+        // Mock response without severity (should default to Medium)
+        Mock::given(method("POST"))
+            .and(path("/v1/query"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "vulns": [
+                    {
+                        "id": "TEST-001",
+                        "summary": "Test",
+                        "details": "Test"
+                    }
+                ]
+            })))
+            .mount(&mock_server)
+            .await;
+
+        let mut api = OsvApi::new();
+        api.base_url = mock_server.uri();
+
+        let result = api.query_package("test", "1.0.0").await.unwrap();
+        assert_eq!(result[0].severity, Severity::Medium);
+    }
 }

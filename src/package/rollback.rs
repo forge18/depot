@@ -115,4 +115,148 @@ mod tests {
         let rollback = RollbackManager::new(temp.path()).unwrap();
         assert!(rollback.has_backup());
     }
+
+    #[test]
+    fn test_rollback_manager_without_files() {
+        let temp = TempDir::new().unwrap();
+        let rollback = RollbackManager::new(temp.path()).unwrap();
+        // Should still create manager even without files
+        let _ = rollback;
+    }
+
+    #[test]
+    fn test_rollback_rollback() {
+        let temp = TempDir::new().unwrap();
+        let manifest = PackageManifest::default("test".to_string());
+        manifest.save(temp.path()).unwrap();
+
+        let rollback = RollbackManager::new(temp.path()).unwrap();
+
+        // Modify manifest
+        let modified = PackageManifest::default("modified".to_string());
+        modified.save(temp.path()).unwrap();
+
+        // Rollback
+        rollback.rollback(temp.path()).unwrap();
+
+        // Verify it was restored
+        let restored = PackageManifest::load(temp.path()).unwrap();
+        assert_eq!(restored.name, "test");
+    }
+
+    #[test]
+    fn test_with_rollback_success() {
+        let temp = TempDir::new().unwrap();
+        let result = with_rollback(temp.path(), || Ok::<(), crate::core::LpmError>(()));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_with_rollback_failure() {
+        let temp = TempDir::new().unwrap();
+        let manifest = PackageManifest::default("test".to_string());
+        manifest.save(temp.path()).unwrap();
+
+        let result = with_rollback(temp.path(), || {
+            Err::<(), crate::core::LpmError>(crate::core::LpmError::Package(
+                "test error".to_string(),
+            ))
+        });
+        assert!(result.is_err());
+
+        // Verify rollback happened
+        let restored = PackageManifest::load(temp.path()).unwrap();
+        assert_eq!(restored.name, "test");
+    }
+
+    #[test]
+    fn test_rollback_manager_has_backup_with_lockfile() {
+        use crate::package::lockfile::Lockfile;
+        let temp = TempDir::new().unwrap();
+        let lockfile = Lockfile::new();
+        lockfile.save(temp.path()).unwrap();
+
+        let rollback = RollbackManager::new(temp.path()).unwrap();
+        assert!(rollback.has_backup());
+    }
+
+    #[test]
+    fn test_rollback_manager_has_backup_with_manifest_only() {
+        let temp = TempDir::new().unwrap();
+        let manifest = PackageManifest::default("test".to_string());
+        manifest.save(temp.path()).unwrap();
+
+        let rollback = RollbackManager::new(temp.path()).unwrap();
+        assert!(rollback.has_backup());
+    }
+
+    #[test]
+    fn test_rollback_manager_has_backup_false() {
+        let temp = TempDir::new().unwrap();
+        let rollback = RollbackManager::new(temp.path()).unwrap();
+        assert!(!rollback.has_backup());
+    }
+
+    #[test]
+    fn test_rollback_with_lockfile() {
+        use crate::package::lockfile::{LockedPackage, Lockfile};
+        use std::collections::HashMap;
+        let temp = TempDir::new().unwrap();
+
+        let mut lockfile = Lockfile::new();
+        let package = LockedPackage {
+            version: "1.0.0".to_string(),
+            source: "luarocks".to_string(),
+            rockspec_url: None,
+            source_url: None,
+            checksum: "abc123".to_string(),
+            size: None,
+            dependencies: HashMap::new(),
+            build: None,
+        };
+        lockfile.add_package("test-package".to_string(), package);
+        lockfile.save(temp.path()).unwrap();
+
+        let rollback = RollbackManager::new(temp.path()).unwrap();
+
+        // Modify lockfile
+        let new_lockfile = Lockfile::new();
+        new_lockfile.save(temp.path()).unwrap();
+
+        // Rollback
+        rollback.rollback(temp.path()).unwrap();
+
+        // Verify it was restored
+        let restored = Lockfile::load(temp.path()).unwrap().unwrap();
+        assert!(restored.has_package("test-package"));
+    }
+
+    #[tokio::test]
+    async fn test_with_rollback_async_success() {
+        let temp = TempDir::new().unwrap();
+        let result = with_rollback_async(temp.path(), || async {
+            Ok::<(), crate::core::LpmError>(())
+        })
+        .await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_with_rollback_async_failure() {
+        let temp = TempDir::new().unwrap();
+        let manifest = PackageManifest::default("test".to_string());
+        manifest.save(temp.path()).unwrap();
+
+        let result = with_rollback_async(temp.path(), || async {
+            Err::<(), crate::core::LpmError>(crate::core::LpmError::Package(
+                "test error".to_string(),
+            ))
+        })
+        .await;
+        assert!(result.is_err());
+
+        // Verify rollback happened
+        let restored = PackageManifest::load(temp.path()).unwrap();
+        assert_eq!(restored.name, "test");
+    }
 }

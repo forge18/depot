@@ -232,4 +232,225 @@ mod tests {
         assert!(ManifestValidator::validate_version_format("1.2.3.4").is_err());
         assert!(ManifestValidator::validate_version_format("1.2.x").is_err());
     }
+
+    #[test]
+    fn test_validate_lua_version() {
+        assert!(ManifestValidator::validate_lua_version("5.4").is_ok());
+        assert!(ManifestValidator::validate_lua_version(">=5.1").is_ok());
+        assert!(ManifestValidator::validate_lua_version("").is_err());
+        // Test too long constraint
+        let long_constraint = ">=".to_string() + &"5".repeat(101);
+        assert!(ManifestValidator::validate_lua_version(&long_constraint).is_err());
+    }
+
+    #[test]
+    fn test_validate_dependencies() {
+        use std::collections::HashMap;
+        let mut deps = HashMap::new();
+        deps.insert("test-pkg".to_string(), "^1.0.0".to_string());
+        assert!(ManifestValidator::validate_dependencies(&deps).is_ok());
+
+        // Test duplicate
+        let mut deps_dup = HashMap::new();
+        deps_dup.insert("test-pkg".to_string(), "^1.0.0".to_string());
+        deps_dup.insert("test-pkg".to_string(), "^2.0.0".to_string());
+        // HashMap doesn't allow duplicates, so this test is for the logic
+        assert!(ManifestValidator::validate_dependencies(&deps_dup).is_ok());
+
+        // Test invalid constraint
+        let mut deps_invalid = HashMap::new();
+        deps_invalid.insert("test-pkg".to_string(), "invalid-constraint".to_string());
+        assert!(ManifestValidator::validate_dependencies(&deps_invalid).is_err());
+    }
+
+    #[test]
+    fn test_validate_build_config() {
+        use crate::package::manifest::BuildConfig;
+        let build = BuildConfig {
+            build_type: "rust".to_string(),
+            manifest: Some("Cargo.toml".to_string()),
+            modules: {
+                let mut m = std::collections::HashMap::new();
+                m.insert("mymodule".to_string(), "libmymodule.so".to_string());
+                m
+            },
+            features: Vec::new(),
+            profile: None,
+        };
+        assert!(ManifestValidator::validate_build_config(&Some(build)).is_ok());
+
+        // Test invalid build type
+        let build_invalid = BuildConfig {
+            build_type: "invalid".to_string(),
+            manifest: None,
+            modules: std::collections::HashMap::new(),
+            features: Vec::new(),
+            profile: None,
+        };
+        assert!(ManifestValidator::validate_build_config(&Some(build_invalid)).is_err());
+
+        // Test rust build without modules
+        let build_no_modules = BuildConfig {
+            build_type: "rust".to_string(),
+            manifest: Some("Cargo.toml".to_string()),
+            modules: std::collections::HashMap::new(),
+            features: Vec::new(),
+            profile: None,
+        };
+        assert!(ManifestValidator::validate_build_config(&Some(build_no_modules)).is_err());
+    }
+
+    #[test]
+    fn test_validate_scripts() {
+        use std::collections::HashMap;
+        let mut scripts = HashMap::new();
+        scripts.insert("test-script".to_string(), "lua test.lua".to_string());
+        assert!(ManifestValidator::validate_scripts(&scripts).is_ok());
+
+        // Test empty script name
+        let mut scripts_empty_name = HashMap::new();
+        scripts_empty_name.insert("".to_string(), "command".to_string());
+        assert!(ManifestValidator::validate_scripts(&scripts_empty_name).is_err());
+
+        // Test empty command
+        let mut scripts_empty_cmd = HashMap::new();
+        scripts_empty_cmd.insert("script".to_string(), "".to_string());
+        assert!(ManifestValidator::validate_scripts(&scripts_empty_cmd).is_err());
+
+        // Test reserved name
+        let mut scripts_reserved = HashMap::new();
+        scripts_reserved.insert("install".to_string(), "command".to_string());
+        assert!(ManifestValidator::validate_scripts(&scripts_reserved).is_err());
+    }
+
+    #[test]
+    fn test_validate_manifest_comprehensive() {
+        let mut manifest = PackageManifest::default("test-package".to_string());
+        manifest.version = "1.0.0".to_string();
+        manifest.lua_version = "5.4".to_string();
+        let mut deps = std::collections::HashMap::new();
+        deps.insert("test-dep".to_string(), "^1.0.0".to_string());
+        manifest.dependencies = deps;
+        assert!(ManifestValidator::validate(&manifest).is_ok());
+    }
+
+    #[test]
+    fn test_validate_name_starts_with_hyphen() {
+        assert!(ManifestValidator::validate_name("-invalid").is_err());
+    }
+
+    #[test]
+    fn test_validate_name_starts_with_underscore() {
+        assert!(ManifestValidator::validate_name("_invalid").is_err());
+    }
+
+    #[test]
+    fn test_validate_version_format_one_part() {
+        assert!(ManifestValidator::validate_version_format("1").is_ok());
+    }
+
+    #[test]
+    fn test_validate_version_format_two_parts() {
+        assert!(ManifestValidator::validate_version_format("1.2").is_ok());
+    }
+
+    #[test]
+    fn test_validate_lua_version_long() {
+        let long = ">=".to_string() + &"5".repeat(101);
+        assert!(ManifestValidator::validate_lua_version(&long).is_err());
+    }
+
+    #[test]
+    fn test_validate_build_config_builtin() {
+        use crate::package::manifest::BuildConfig;
+        let build = BuildConfig {
+            build_type: "builtin".to_string(),
+            manifest: None,
+            modules: std::collections::HashMap::new(),
+            features: Vec::new(),
+            profile: None,
+        };
+        assert!(ManifestValidator::validate_build_config(&Some(build)).is_ok());
+    }
+
+    #[test]
+    fn test_validate_build_config_none() {
+        use crate::package::manifest::BuildConfig;
+        let build = BuildConfig {
+            build_type: "none".to_string(),
+            manifest: None,
+            modules: std::collections::HashMap::new(),
+            features: Vec::new(),
+            profile: None,
+        };
+        assert!(ManifestValidator::validate_build_config(&Some(build)).is_ok());
+    }
+
+    #[test]
+    fn test_validate_build_config_rust_without_manifest() {
+        use crate::package::manifest::BuildConfig;
+        let mut modules = std::collections::HashMap::new();
+        modules.insert("mymodule".to_string(), "libmymodule.so".to_string());
+        let build = BuildConfig {
+            build_type: "rust".to_string(),
+            manifest: None,
+            modules,
+            features: Vec::new(),
+            profile: None,
+        };
+        // Should be ok even without manifest path
+        assert!(ManifestValidator::validate_build_config(&Some(build)).is_ok());
+    }
+
+    #[test]
+    fn test_validate_build_config_rust_wrong_manifest() {
+        use crate::package::manifest::BuildConfig;
+        let mut modules = std::collections::HashMap::new();
+        modules.insert("mymodule".to_string(), "libmymodule.so".to_string());
+        let build = BuildConfig {
+            build_type: "rust".to_string(),
+            manifest: Some("wrong.toml".to_string()),
+            modules,
+            features: Vec::new(),
+            profile: None,
+        };
+        assert!(ManifestValidator::validate_build_config(&Some(build)).is_err());
+    }
+
+    #[test]
+    fn test_validate_scripts_reserved_prepublish() {
+        use std::collections::HashMap;
+        let mut scripts_reserved = HashMap::new();
+        scripts_reserved.insert("prepublish".to_string(), "command".to_string());
+        assert!(ManifestValidator::validate_scripts(&scripts_reserved).is_err());
+    }
+
+    #[test]
+    fn test_validate_scripts_reserved_postinstall() {
+        use std::collections::HashMap;
+        let mut scripts_reserved = HashMap::new();
+        scripts_reserved.insert("postinstall".to_string(), "command".to_string());
+        assert!(ManifestValidator::validate_scripts(&scripts_reserved).is_err());
+    }
+
+    #[test]
+    fn test_validate_version_format_invalid_v2() {
+        assert!(ManifestValidator::validate_version_format("1.2.3.4.5").is_err());
+        assert!(ManifestValidator::validate_version_format("a.b.c").is_err());
+    }
+
+    #[test]
+    fn test_validate_dependencies_invalid_name_v2() {
+        use std::collections::HashMap;
+        let mut deps = HashMap::new();
+        deps.insert("-invalid".to_string(), "1.0.0".to_string());
+        assert!(ManifestValidator::validate_dependencies(&deps).is_err());
+    }
+
+    #[test]
+    fn test_validate_lua_version_valid_constraints() {
+        assert!(ManifestValidator::validate_lua_version(">=5.1").is_ok());
+        assert!(ManifestValidator::validate_lua_version(">5.1").is_ok());
+        assert!(ManifestValidator::validate_lua_version("~5.1").is_ok());
+    }
 }
