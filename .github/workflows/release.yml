@@ -197,13 +197,22 @@ jobs:
           find .output -name "${{ matrix.artifact_name }}.*" || echo "No matching files found"
 
       - name: Upload artifact
+        shell: bash
+        run: |
+          ARTIFACT_FILE=$(find .output -name "${{ matrix.artifact_name }}.*" | head -1)
+          if [ -z "$ARTIFACT_FILE" ]; then
+            echo "Error: No artifact file found for ${{ matrix.artifact_name }}"
+            ls -la .output/
+            exit 1
+          fi
+          echo "ARTIFACT_FILE=$ARTIFACT_FILE" >> $GITHUB_ENV
+          echo "Found artifact: $ARTIFACT_FILE"
+
+      - name: Upload artifact file
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: |
-            .output/${{ matrix.artifact_name }}.tar.gz
-            .output/${{ matrix.artifact_name }}.zip
-            .output/${{ matrix.artifact_name }}.pkg
+          path: ${{ env.ARTIFACT_FILE }}
           if-no-files-found: error
 
   release:
