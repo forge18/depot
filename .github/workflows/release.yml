@@ -108,11 +108,17 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
+          set -e
+          echo "Building for target: ${{ matrix.target }}"
           cargo zigbuild --release --target ${{ matrix.target }}
-          if [ ! -f "target/${{ matrix.target }}/release/lpm" ]; then
-            echo "Error: Binary not found"
+          BINARY="target/${{ matrix.target }}/release/lpm"
+          if [ ! -f "$BINARY" ]; then
+            echo "ERROR: Binary not found at $BINARY"
+            echo "Contents of target/${{ matrix.target }}/release/:"
+            ls -la "target/${{ matrix.target }}/release/" || echo "Directory does not exist"
             exit 1
           fi
+          echo "✓ Build successful: $BINARY ($(du -h "$BINARY" | cut -f1))"
 
       - name: Package binary (Windows)
         if: matrix.os == 'windows-latest'
@@ -205,72 +211,11 @@ jobs:
           echo "Artifact size: $(du -h "$ARTIFACT" | cut -f1)"
           ls -lh .output/
 
-      - name: List artifacts before upload (Linux/macOS)
-        if: always() && matrix.os != 'windows-latest'
-        shell: bash
-        run: |
-          echo "Artifacts in .output/:"
-          ls -lah .output/ || echo "No .output directory"
-          echo ""
-          echo "Looking for: ${{ matrix.artifact_name }}.*"
-          find .output -name "${{ matrix.artifact_name }}.*" || echo "No matching files found"
-
-      - name: List artifacts before upload (Windows)
-        if: always() && matrix.os == 'windows-latest'
-        shell: pwsh
-        run: |
-          Write-Host "Artifacts in .output/:"
-          if (Test-Path .output) {
-            Get-ChildItem .output/ | Format-Table
-          } else {
-            Write-Host "No .output directory"
-          }
-          Write-Host ""
-          Write-Host "Looking for: ${{ matrix.artifact_name }}.*"
-          $files = Get-ChildItem .output -Filter "${{ matrix.artifact_name }}.*" -ErrorAction SilentlyContinue
-          if ($files) {
-            $files | ForEach-Object { Write-Host "Found: $($_.FullName)" }
-          } else {
-            Write-Host "No matching files found"
-          }
-
-      - name: Upload artifact (Linux/macOS)
-        if: matrix.os != 'windows-latest'
-        shell: bash
-        run: |
-          ARTIFACT_FILE=$(find .output -name "${{ matrix.artifact_name }}.*" | head -1)
-          if [ -z "$ARTIFACT_FILE" ]; then
-            echo "Error: No artifact file found for ${{ matrix.artifact_name }}"
-            echo "Contents of .output/:"
-            ls -la .output/ || echo ".output directory does not exist"
-            exit 1
-          fi
-          echo "ARTIFACT_FILE=$ARTIFACT_FILE" >> $GITHUB_ENV
-          echo "Found artifact: $ARTIFACT_FILE"
-
-      - name: Upload artifact (Windows)
-        if: matrix.os == 'windows-latest'
-        shell: pwsh
-        run: |
-          $artifactFile = Get-ChildItem .output -Filter "${{ matrix.artifact_name }}.*" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $artifactFile) {
-            Write-Host "Error: No artifact file found for ${{ matrix.artifact_name }}"
-            Write-Host "Contents of .output/:"
-            if (Test-Path .output) {
-              Get-ChildItem .output/
-            } else {
-              Write-Host ".output directory does not exist"
-            }
-            exit 1
-          }
-          Write-Host "ARTIFACT_FILE=$($artifactFile.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          Write-Host "Found artifact: $($artifactFile.FullName)"
-
-      - name: Upload artifact file
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: ${{ env.ARTIFACT_FILE }}
+          path: .output/${{ matrix.artifact_name }}.*
           if-no-files-found: error
 
   release:
