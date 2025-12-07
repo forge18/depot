@@ -925,7 +925,7 @@ build = {{
         // Test the dependency parsing logic that handles no whitespace (mimics build_lockfile logic)
         let dep = "test-pkg";
         if let Some(_pos) = dep.find(char::is_whitespace) {
-            assert!(false, "Should not have whitespace");
+            panic!("Should not have whitespace");
         } else {
             let dep_name = dep.trim().to_string();
             assert_eq!(dep_name, "test-pkg");

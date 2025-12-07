@@ -426,8 +426,7 @@ mod tests {
         // Should succeed because there's a root directory
         let result = extractor.extract_targz(&archive_path);
         // May fail if tar format is incorrect, but tests the code path
-        if result.is_ok() {
-            let root = result.unwrap();
+        if let Ok(root) = result {
             assert!(root.ends_with("package"));
         }
     }

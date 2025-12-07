@@ -348,8 +348,7 @@ mod tests {
 
         // Should succeed (or fail on archive creation if tar/zip not available)
         // But at least the dist directory should be created
-        if result.is_ok() {
-            let archive_path = result.unwrap();
+        if let Ok(archive_path) = result {
             assert!(archive_path.exists() || archive_path.parent().unwrap().exists());
         }
     }
