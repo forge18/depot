@@ -5,6 +5,16 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Status: Alpha](https://img.shields.io/badge/Status-Alpha-orange)](https://github.com/yourusername/lpm)
 
+> **⚠️ Alpha Release Disclaimer**
+> 
+> LPM is currently in **alpha** status. This means:
+> - The software may contain bugs and unexpected behavior
+> - APIs and command-line interfaces may change without notice
+> - Features may be incomplete or experimental
+> - Not recommended for production use
+> 
+> Use at your own risk. We welcome feedback and bug reports!
+
 LPM provides local, project-scoped package management for Lua, similar to npm, cargo, or bundler. It solves the problem of global package installations that cause dependency conflicts and make CI/CD difficult.
 
 ## Features
