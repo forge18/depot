@@ -109,10 +109,24 @@ git push origin plugins/v0.1.0
 - Wiki must be enabled for the repository
 
 **Setup:**
-1. Generate a Personal Access Token: https://github.com/settings/tokens
-2. Add it as a repository secret: Settings → Secrets → New repository secret
-3. Name: `GH_PERSONAL_ACCESS_TOKEN`
-4. Value: Your token
+1. Generate a Personal Access Token:
+   - Go to: https://github.com/settings/tokens
+   - Click "Generate new token" → "Generate new token (classic)"
+   - Name: `LPM Wiki Sync`
+   - Expiration: Choose your preference (or no expiration)
+   - Scopes: Check `repo` (full control of private repositories)
+   - Click "Generate token"
+   - Copy the token immediately (you won't see it again!)
+
+2. Add it as a repository secret:
+   - Go to your repository on GitHub
+   - Settings → Secrets and variables → Actions
+   - Click "New repository secret"
+   - Name: `GH_PERSONAL_ACCESS_TOKEN`
+   - Value: Paste your token
+   - Click "Add secret"
+
+**Note:** If the token is not set, the workflow will skip wiki sync with a helpful message. This is not an error - wiki sync is optional.
 
 **View:** [Actions Tab → Wiki Sync](https://github.com/yourusername/lpm/actions/workflows/wiki-sync.yml)
 

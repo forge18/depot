@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- RustyHook integration for pre-commit checks
+- Plugin release workflow for automated plugin builds
+- Enhanced GitHub Actions workflows with better error handling
+- Comprehensive documentation for releases and workflows
+
+### Changed
+- Updated CodeQL Action to v4 (from deprecated v3)
+- Improved wiki sync workflow to handle missing tokens gracefully
+- Enhanced release workflow with manual trigger support
+
+### Fixed
+- Fixed git hooks PATH issue for RustyHook
+- Fixed wiki sync workflow to not fail on missing tokens
+
+## [0.1.0] - 2024-12-06
+
+### Added
 - Initial release of LPM
 - Local package installation to `./lua_modules/`
 - Lockfile support (`package.lock`) for reproducible builds
@@ -34,21 +51,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Project templates system (built-in and user-defined)
 - Plugin management commands (`lpm plugin list`, `lpm plugin info`, `lpm plugin update`, etc.)
 - Plugin configuration system
-
-### Changed
-
-### Deprecated
-
-### Removed
-
-### Fixed
-
-### Security
-
-## [0.1.0] - YYYY-MM-DD
-
-### Added
-- Initial release
 
 [Unreleased]: https://github.com/yourusername/lpm/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/yourusername/lpm/releases/tag/v0.1.0
