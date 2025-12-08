@@ -94,7 +94,7 @@ impl PublishPackager {
                 return Ok(());
             }
         };
-        
+
         let prebuilt_manager = match PrebuiltBinaryManager::new() {
             Ok(manager) => manager,
             Err(_) => {
@@ -102,7 +102,7 @@ impl PublishPackager {
                 return Ok(());
             }
         };
-        
+
         let default_target = Target::default_target();
 
         // Try to get pre-built binary for current platform
