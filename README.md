@@ -4,6 +4,8 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Status: Alpha](https://img.shields.io/badge/Status-Alpha-orange)](https://github.com/yourusername/lpm)
+[![Build Status](https://github.com/forge18/lpm/actions/workflows/ci.yml/badge.svg)](https://github.com/forge18/lpm/actions/workflows/ci.yml)
+[![Code Coverage](https://img.shields.io/badge/Code%20Coverage-Coming%20Soon-blue)](https://github.com/forge18/lpm/tree/main/coverage)
 
 > **⚠️ Alpha Release Disclaimer**
 > 
