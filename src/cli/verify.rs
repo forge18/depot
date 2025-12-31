@@ -237,13 +237,13 @@ mod tests {
         lockfile.save(temp.path()).unwrap();
 
         // Save current dir and change to temp dir
-        let original_dir = env::current_dir().unwrap();
-        env::set_current_dir(temp.path()).unwrap();
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(temp.path()).unwrap();
 
         let result = run();
 
         // Restore original dir
-        env::set_current_dir(original_dir).unwrap();
+        std::env::set_current_dir(&original_dir).unwrap();
 
         // Should succeed with empty lockfile
         assert!(result.is_ok());
