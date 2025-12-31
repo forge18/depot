@@ -197,9 +197,15 @@ jobs:
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
-    
+    # Only run on push to main, not on PRs (to avoid permission issues)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
