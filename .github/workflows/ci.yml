@@ -227,7 +227,7 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Generate coverage
-        run: cargo tarpaulin --out Lcov --output-dir coverage --timeout 300 --all-features
+        run: cargo tarpaulin --out Lcov --output-dir coverage --timeout 300 --all-features --engine llvm --exclude-files "*/tests/*" --exclude-files "*/test_*"
 
       - name: Update coverage badge
         run: bash scripts/update-coverage-badge.sh
