@@ -283,4 +283,65 @@ mod tests {
         // Just test that it doesn't panic
         let _ = result;
     }
+
+    #[tokio::test]
+    async fn test_get_or_download_with_cached() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+        let manager = PrebuiltBinaryManager { cache };
+
+        let lua_version = LuaVersion::new(5, 4, 0);
+        let target = Target::default_target();
+
+        // Create a fake cached binary
+        let lua_version_str = lua_version.major_minor();
+        let cache_path = manager.cache.rust_build_path(
+            "test-pkg",
+            "1.0.0",
+            &lua_version_str,
+            &target.triple,
+        );
+        if let Some(parent) = cache_path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        std::fs::write(&cache_path, b"fake binary").unwrap();
+
+        // Should return cached path even with URL provided
+        let result = manager
+            .get_or_download(
+                "test-pkg",
+                "1.0.0",
+                &lua_version,
+                &target,
+                Some("https://example.com/binary.so"),
+            )
+            .await;
+        assert!(result.is_ok());
+        let path_opt = result.unwrap();
+        assert!(path_opt.is_some());
+        assert_eq!(path_opt.unwrap(), cache_path);
+    }
+
+    #[test]
+    fn test_find_binary_url_with_multiple_targets() {
+        let mut binary_urls = std::collections::HashMap::new();
+        binary_urls.insert(
+            "5.4-x86_64-unknown-linux-gnu".to_string(),
+            "https://example.com/linux.so".to_string(),
+        );
+        binary_urls.insert(
+            "5.4-x86_64-apple-darwin".to_string(),
+            "https://example.com/darwin.dylib".to_string(),
+        );
+        binary_urls.insert(
+            "5.4-aarch64-apple-darwin".to_string(),
+            "https://example.com/darwin-arm.dylib".to_string(),
+        );
+
+        let target_darwin = Target::new("x86_64-apple-darwin").unwrap();
+        let lua_version = LuaVersion::new(5, 4, 0);
+
+        let url = PrebuiltBinaryManager::find_binary_url(&binary_urls, &target_darwin, &lua_version);
+        assert_eq!(url, Some("https://example.com/darwin.dylib".to_string()));
+    }
 }

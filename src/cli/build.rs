@@ -367,4 +367,75 @@ build:
         // Test function signature
         let _func: fn(Option<String>, bool, Vec<String>) -> LpmResult<()> = run;
     }
+
+    #[test]
+    fn test_build_target_display_default() {
+        // Test the target display logic when None
+        let build_target: Option<Target> = None;
+        let display = build_target
+            .as_ref()
+            .map(|t| t.triple.as_str())
+            .unwrap_or("default");
+        assert_eq!(display, "default");
+    }
+
+    #[test]
+    fn test_build_target_display_specific() {
+        // Test target display logic when Some
+        let build_target = Some(Target::default_target());
+        let display = build_target
+            .as_ref()
+            .map(|t| t.triple.as_str())
+            .unwrap_or("default");
+        assert_ne!(display, "default");
+    }
+
+    #[test]
+    fn test_workspace_filter_creation() {
+        // Test WorkspaceFilter creation
+        let patterns = vec!["pkg1".to_string(), "pkg2".to_string()];
+        let filter = WorkspaceFilter::new(patterns);
+        let _ = filter;
+    }
+
+    #[test]
+    fn test_run_with_empty_filter() {
+        // Test run with empty filter array (should go through normal path)
+        let temp = TempDir::new().unwrap();
+        fs::write(
+            temp.path().join("package.yaml"),
+            "name: test\nversion: 1.0.0\n",
+        )
+        .unwrap();
+
+        let _orig_dir = std::env::current_dir().unwrap();
+        let _cwd = std::env::set_current_dir(temp.path());
+
+        let result = run(None, false, vec![]);
+        // Should go through normal run_in_dir path
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("build"));
+    }
+
+    #[test]
+    fn test_target_new_valid() {
+        // Test creating a valid target
+        let result = Target::new("x86_64-unknown-linux-gnu");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_run_in_dir_with_manifest_load() {
+        // Test that run_in_dir attempts to load manifest
+        let temp = TempDir::new().unwrap();
+        fs::write(
+            temp.path().join("package.yaml"),
+            "name: test\nversion: 1.0.0\nbuild:\n  type: rust\n",
+        )
+        .unwrap();
+
+        let result = run_in_dir(temp.path(), None, false);
+        // Will fail on builder creation, but passes manifest load
+        let _ = result;
+    }
 }

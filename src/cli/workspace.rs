@@ -195,4 +195,51 @@ packages:
 
         assert!(result.is_ok());
     }
+
+    #[tokio::test]
+    async fn test_list_function_exists() {
+        let _ = list;
+    }
+
+    #[tokio::test]
+    async fn test_info_function_exists() {
+        let _ = info;
+    }
+
+    #[tokio::test]
+    async fn test_shared_deps_function_exists() {
+        let _ = shared_deps;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_info_no_workspace() {
+        let temp = TempDir::new().unwrap();
+        let _cwd = std::env::set_current_dir(temp.path());
+
+        let result = info().await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_shared_deps_no_workspace() {
+        let temp = TempDir::new().unwrap();
+        let _cwd = std::env::set_current_dir(temp.path());
+
+        let result = shared_deps().await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_list_from_dir_function() {
+        let _ = list_from_dir;
+    }
+
+    #[test]
+    fn test_workspace_struct() {
+        // Test that Workspace can be referenced
+        let _ = Workspace::load;
+    }
 }

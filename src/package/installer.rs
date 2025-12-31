@@ -5936,4 +5936,18 @@ mod tests {
         assert!(installer.lua_modules.exists());
         assert!(installer.metadata_dir.exists());
     }
+
+    #[test]
+    fn test_package_installer_new_constructor() {
+        let temp = TempDir::new().unwrap();
+        let project_root = temp.path();
+
+        // Test the new() constructor which uses ServiceContainer
+        let result = PackageInstaller::new(project_root);
+        assert!(result.is_ok());
+
+        let installer = result.unwrap();
+        assert_eq!(installer.project_root, project_root);
+        assert!(installer.lua_modules.ends_with("lua_modules"));
+    }
 }

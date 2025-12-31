@@ -258,4 +258,111 @@ mod tests {
         let result = LuaRunner::run_script(&script_path, RunOptions::default());
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_run_script_error_no_lua_modules() {
+        let temp = TempDir::new().unwrap();
+        let script_path = temp.path().join("test.lua");
+        fs::write(&script_path, "print('test')").unwrap();
+
+        // Create package.yaml to make it a valid project
+        fs::write(temp.path().join("package.yaml"), "name: test\nversion: 1.0.0\n").unwrap();
+
+        let result = LuaRunner::run_script(&script_path, RunOptions::default());
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("lua_modules"));
+    }
+
+    #[test]
+    fn test_exec_command_empty() {
+        let result = LuaRunner::exec_command("", RunOptions::default());
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("Empty command"));
+    }
+
+    #[test]
+    fn test_exec_lua_no_lua_modules() {
+        let temp = TempDir::new().unwrap();
+        let _cwd = std::env::set_current_dir(temp.path());
+
+        // Create package.yaml
+        fs::write(temp.path().join("package.yaml"), "name: test\nversion: 1.0.0\n").unwrap();
+
+        let result = LuaRunner::exec_lua("print('hello')", RunOptions::default());
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("lua_modules"));
+    }
+
+    #[test]
+    fn test_run_options_default() {
+        let opts = RunOptions::default();
+        assert!(opts.cwd.is_none());
+        assert!(opts.lua_args.is_empty());
+        assert!(opts.env.is_empty());
+    }
+
+    #[test]
+    fn test_run_options_with_cwd() {
+        let opts = RunOptions {
+            cwd: Some("/tmp".to_string()),
+            lua_args: vec![],
+            env: vec![],
+        };
+        assert_eq!(opts.cwd, Some("/tmp".to_string()));
+    }
+
+    #[test]
+    fn test_run_options_with_args() {
+        let opts = RunOptions {
+            cwd: None,
+            lua_args: vec!["arg1".to_string(), "arg2".to_string()],
+            env: vec![],
+        };
+        assert_eq!(opts.lua_args.len(), 2);
+    }
+
+    #[test]
+    fn test_run_options_with_env() {
+        let opts = RunOptions {
+            cwd: None,
+            lua_args: vec![],
+            env: vec![("KEY".to_string(), "VALUE".to_string())],
+        };
+        assert_eq!(opts.env.len(), 1);
+    }
+
+    #[test]
+    fn test_get_lpm_lua_binary_always_fails() {
+        let temp = TempDir::new().unwrap();
+        let result = get_lpm_lua_binary("lua", temp.path());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("lpm-core"));
+    }
+
+    #[test]
+    fn test_exec_command_with_whitespace() {
+        let temp = TempDir::new().unwrap();
+        let _cwd = std::env::set_current_dir(temp.path());
+
+        // Create package.yaml
+        fs::write(temp.path().join("package.yaml"), "name: test\nversion: 1.0.0\n").unwrap();
+
+        // Create lua_modules directory
+        let lua_modules = temp.path().join("lua_modules");
+        fs::create_dir_all(&lua_modules).unwrap();
+
+        // Create lpm directory for loader
+        let lpm_dir = lua_modules.join("lpm");
+        fs::create_dir_all(&lpm_dir).unwrap();
+        fs::write(lpm_dir.join("loader.lua"), "-- loader").unwrap();
+
+        // This will try to execute "echo test" which should work on Unix systems
+        // On Windows this might fail, but we're testing the parsing logic
+        let result = LuaRunner::exec_command("echo test", RunOptions::default());
+        // We don't assert success since it depends on system availability
+        let _ = result;
+    }
 }

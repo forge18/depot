@@ -1,0 +1,27 @@
+[report]
+# Output formats
+out = ["Lcov"]
+
+[run]
+# Timeout for test execution (5 minutes)
+timeout = "300s"
+
+# Use all features when running tests
+all-features = true
+
+# Use LLVM engine for better accuracy
+engine = "llvm"
+
+# Exclude #[cfg(test)] modules and #[test] functions from coverage
+# This ensures test code within source files doesn't count as uncovered lines
+ignore-tests = true
+
+# Exclude test files from coverage calculation
+# This ensures we measure production code coverage, not test code coverage
+exclude-files = [
+    "*/tests/*",
+    "*/test_*",
+]
+
+# Output directory for coverage reports
+output-dir = "coverage"

@@ -132,4 +132,75 @@ mod tests {
         assert!(CredentialStore::delete(test_key).is_ok());
         assert!(!CredentialStore::exists(test_key));
     }
+
+    #[test]
+    fn test_credential_store_exists_nonexistent() {
+        // Test exists() with a key that definitely doesn't exist
+        let nonexistent_key = "nonexistent_key_12345_abcdef";
+        let _ = CredentialStore::delete(nonexistent_key);
+        assert!(!CredentialStore::exists(nonexistent_key));
+    }
+
+    #[test]
+    fn test_credential_store_retrieve_nonexistent() {
+        // Test retrieve() with a key that doesn't exist
+        let result = CredentialStore::retrieve("definitely_nonexistent_key_xyz");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_credential_store_delete_nonexistent() {
+        // Test delete() with a key that doesn't exist
+        let result = CredentialStore::delete("definitely_nonexistent_key_delete_test");
+        // Deleting nonexistent might succeed or fail depending on keyring impl
+        let _ = result;
+    }
+
+    #[test]
+    fn test_keyring_service_constant() {
+        assert_eq!(KEYRING_SERVICE, "lpm");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_set_secure_permissions_unix() {
+        use tempfile::TempDir;
+        use std::fs;
+
+        let temp = TempDir::new().unwrap();
+        let test_file = temp.path().join("test.txt");
+        fs::write(&test_file, "test").unwrap();
+
+        let result = CredentialStore::set_secure_permissions(&test_file);
+        assert!(result.is_ok());
+
+        // Verify permissions were set
+        use std::os::unix::fs::PermissionsExt;
+        let metadata = fs::metadata(&test_file).unwrap();
+        let mode = metadata.permissions().mode();
+        assert_eq!(mode & 0o777, 0o600);
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn test_set_secure_permissions_windows() {
+        use tempfile::TempDir;
+        use std::fs;
+
+        let temp = TempDir::new().unwrap();
+        let test_file = temp.path().join("test.txt");
+        fs::write(&test_file, "test").unwrap();
+
+        // On Windows, this should be a no-op
+        let result = CredentialStore::set_secure_permissions(&test_file);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_set_secure_permissions_nonexistent() {
+        use std::path::PathBuf;
+        let nonexistent = PathBuf::from("/nonexistent/path/file.txt");
+        let result = CredentialStore::set_secure_permissions(&nonexistent);
+        assert!(result.is_err());
+    }
 }
