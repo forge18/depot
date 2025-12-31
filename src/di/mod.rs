@@ -17,7 +17,7 @@
 //! ```
 //!
 //! # Example (Testing)
-//! ```ignore
+//! ```
 //! use lpm::di::{ServiceContainer, mocks::*};
 //! use std::sync::Arc;
 //!
@@ -32,7 +32,6 @@
 //! ```
 
 pub mod container;
-#[cfg(test)]
 pub mod mocks;
 pub mod traits;
 
