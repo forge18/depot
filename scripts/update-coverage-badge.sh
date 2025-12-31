@@ -26,7 +26,7 @@ COVERAGE=$((LINES_HIT * 100 / LINES_FOUND))
 echo "Code Coverage: $COVERAGE% ($LINES_HIT / $LINES_FOUND lines)"
 
 # Determine badge color based on coverage
-if [ "$COVERAGE" -ge 80 ]; then
+if [ "$COVERAGE" -ge 70 ]; then
     COLOR="brightgreen"
 elif [ "$COVERAGE" -ge 60 ]; then
     COLOR="yellow"
