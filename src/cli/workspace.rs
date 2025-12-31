@@ -1,11 +1,21 @@
 use lpm::core::{LpmError, LpmResult};
 use lpm::workspace::Workspace;
 use std::env;
+use std::path::Path;
 
 /// List all packages in the workspace
 pub async fn list() -> LpmResult<()> {
-    let current_dir = env::current_dir()
-        .map_err(|e| LpmError::Path(format!("Failed to get current directory: {}", e)))?;
+    list_from_dir(None).await
+}
+
+/// List all packages in the workspace from a specific directory
+/// Used internally for testing
+async fn list_from_dir(dir: Option<&Path>) -> LpmResult<()> {
+    let current_dir = match dir {
+        Some(path) => path.to_path_buf(),
+        None => env::current_dir()
+            .map_err(|e| LpmError::Path(format!("Failed to get current directory: {}", e)))?,
+    };
 
     let workspace = Workspace::load(&current_dir)?;
 
@@ -160,27 +170,7 @@ mod tests {
     use super::*;
     use serial_test::serial;
     use std::fs;
-    use std::path::PathBuf;
     use tempfile::TempDir;
-
-    /// Guard that restores the current directory when dropped
-    struct DirGuard {
-        original_dir: PathBuf,
-    }
-
-    impl DirGuard {
-        fn new(new_dir: &std::path::Path) -> std::io::Result<Self> {
-            let original_dir = env::current_dir()?;
-            env::set_current_dir(new_dir)?;
-            Ok(Self { original_dir })
-        }
-    }
-
-    impl Drop for DirGuard {
-        fn drop(&mut self) {
-            let _ = env::set_current_dir(&self.original_dir);
-        }
-    }
 
     #[tokio::test]
     #[serial]
@@ -201,9 +191,7 @@ packages:
         // Create packages directory (even though it's empty)
         fs::create_dir_all(temp.path().join("packages")).unwrap();
 
-        let _guard = DirGuard::new(temp.path()).unwrap();
-
-        let result = list().await;
+        let result = list_from_dir(Some(temp.path())).await;
 
         assert!(result.is_ok());
     }
