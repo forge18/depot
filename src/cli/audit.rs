@@ -5,12 +5,16 @@ use lpm::security::audit::format_report;
 use lpm::security::osv::OsvApi;
 use lpm::security::vulnerability::VulnerabilityReport;
 use std::env;
+use std::path::Path;
 
 pub async fn run() -> LpmResult<()> {
     let current_dir = env::current_dir()
         .map_err(|e| LpmError::Path(format!("Failed to get current directory: {}", e)))?;
+    run_in_dir(&current_dir).await
+}
 
-    let project_root = find_project_root(&current_dir)?;
+pub async fn run_in_dir(dir: &Path) -> LpmResult<()> {
+    let project_root = find_project_root(dir)?;
 
     // Load lockfile
     let lockfile = Lockfile::load(&project_root)?
@@ -83,6 +87,14 @@ mod tests {
     #[ignore] // Requires network access
     async fn test_audit_run_with_mock_lockfile() {
         let temp = TempDir::new().unwrap();
+
+        // Create package.yaml to make it a valid project
+        std::fs::write(
+            temp.path().join("package.yaml"),
+            "name: test\nversion: 1.0.0\n",
+        )
+        .unwrap();
+
         let mut lockfile = Lockfile::new();
         let locked_pkg = LockedPackage {
             version: "1.0.0".to_string(),
@@ -97,11 +109,8 @@ mod tests {
         lockfile.add_package("test-pkg".to_string(), locked_pkg);
         lockfile.save(temp.path()).unwrap();
 
-        // Change to temp dir
-        std::env::set_current_dir(temp.path()).unwrap();
-
         // This will fail without network, but tests the structure
-        let _ = run().await;
+        let _ = run_in_dir(temp.path()).await;
     }
 
     #[test]
@@ -119,13 +128,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_error_no_lockfile() {
-        // Test error path when lockfile doesn't exist (line 16-17)
-        // Note: This test changes directory which can cause issues with tarpaulin
-        // Skip if running under coverage tool
-        if std::env::var("CARGO_TARPAULIN").is_ok() {
-            return;
-        }
-
+        // Test error path when lockfile doesn't exist
         let temp = TempDir::new().unwrap();
         // Create package.yaml to make it a project, but no lockfile
         std::fs::write(
@@ -134,11 +137,7 @@ mod tests {
         )
         .unwrap();
 
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(temp.path()).unwrap();
-
-        let result = run().await;
-        std::env::set_current_dir(original_dir).unwrap();
+        let result = run_in_dir(temp.path()).await;
 
         // Should fail with "No lockfile" error
         assert!(result.is_err());
@@ -147,17 +146,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_error_no_project_root() {
-        // Test error path when not in a project (line 13)
+        // Test error path when not in a project
         // Create a temp dir that's not a project
         let temp = TempDir::new().unwrap();
         let subdir = temp.path().join("subdir");
         std::fs::create_dir_all(&subdir).unwrap();
 
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(&subdir).unwrap();
-
-        let result = run().await;
-        std::env::set_current_dir(original_dir).unwrap();
+        let result = run_in_dir(&subdir).await;
 
         // Should fail - no project root found
         assert!(result.is_err());

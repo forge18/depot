@@ -1287,8 +1287,7 @@ build = {{
         // This should execute the dependency parsing path for "dep1" (no whitespace -> wildcard)
         let result = builder.build_lockfile(&manifest, temp.path(), false).await;
         // May fail on dependency resolution, but executes the parsing path
-        if result.is_ok() {
-            let lockfile = result.unwrap();
+        if let Ok(lockfile) = result {
             let pkg = lockfile.get_package("testpkg");
             if let Some(pkg) = pkg {
                 // Should have dep1 with "*" version and dep2 with ">= 1.0.0"
@@ -1364,8 +1363,7 @@ build = {{
         // This should execute the lua runtime skip path (line 146-152)
         let result = builder.build_lockfile(&manifest, temp.path(), false).await;
         // May fail on dependency resolution, but executes the skip path
-        if result.is_ok() {
-            let lockfile = result.unwrap();
+        if let Ok(lockfile) = result {
             let pkg = lockfile.get_package("testpkg");
             if let Some(pkg) = pkg {
                 // Should have dep1 but not lua

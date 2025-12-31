@@ -4,12 +4,16 @@ use lpm::core::path::find_project_root;
 use lpm::core::{LpmError, LpmResult};
 use lpm::package::manifest::PackageManifest;
 use std::env;
+use std::path::Path;
 
 pub fn run(target: Option<String>, all_targets: bool) -> LpmResult<()> {
     let current_dir = env::current_dir()
         .map_err(|e| LpmError::Path(format!("Failed to get current directory: {}", e)))?;
+    run_in_dir(&current_dir, target, all_targets)
+}
 
-    let project_root = find_project_root(&current_dir)?;
+pub fn run_in_dir(dir: &Path, target: Option<String>, all_targets: bool) -> LpmResult<()> {
+    let project_root = find_project_root(dir)?;
     let manifest = PackageManifest::load(&project_root)?;
 
     // Check if project has Rust build configuration
@@ -91,7 +95,7 @@ mod tests {
 
     #[test]
     fn test_build_run_error_no_build_config() {
-        // Test error path when no build config (line 16-21)
+        // Test error path when no build config
         let temp = TempDir::new().unwrap();
         fs::write(
             temp.path().join("package.yaml"),
@@ -99,17 +103,7 @@ mod tests {
         )
         .unwrap();
 
-        // Note: This test changes directory which can cause issues with tarpaulin
-        // Skip if running under coverage tool
-        if std::env::var("CARGO_TARPAULIN").is_ok() {
-            return;
-        }
-
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(temp.path()).unwrap();
-
-        let result = run(None, false);
-        std::env::set_current_dir(original_dir).unwrap();
+        let result = run_in_dir(temp.path(), None, false);
 
         // Should fail - no build config
         assert!(result.is_err());
@@ -122,21 +116,11 @@ mod tests {
     #[test]
     fn test_build_run_error_no_project_root() {
         // Test error path when not in a project
-        // Note: This test changes directory which can cause issues with tarpaulin
-        // Skip if running under coverage tool
-        if std::env::var("CARGO_TARPAULIN").is_ok() {
-            return;
-        }
-
         let temp = TempDir::new().unwrap();
         let subdir = temp.path().join("subdir");
         std::fs::create_dir_all(&subdir).unwrap();
 
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(&subdir).unwrap();
-
-        let result = run(None, false);
-        std::env::set_current_dir(original_dir).unwrap();
+        let result = run_in_dir(&subdir, None, false);
 
         // Should fail - no project root
         assert!(result.is_err());
@@ -144,7 +128,7 @@ mod tests {
 
     #[test]
     fn test_build_run_all_targets_path() {
-        // Test the all_targets path (line 25-57)
+        // Test the all_targets path
         let temp = TempDir::new().unwrap();
         let manifest_content = r#"name: test
 version: 1.0.0
@@ -153,17 +137,7 @@ build:
 "#;
         fs::write(temp.path().join("package.yaml"), manifest_content).unwrap();
 
-        // Note: This test changes directory which can cause issues with tarpaulin
-        // Skip if running under coverage tool
-        if std::env::var("CARGO_TARPAULIN").is_ok() {
-            return;
-        }
-
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(temp.path()).unwrap();
-
-        let result = run(None, true); // all_targets = true
-        std::env::set_current_dir(original_dir).unwrap();
+        let result = run_in_dir(temp.path(), None, true); // all_targets = true
 
         // May fail on actual build, but tests the all_targets code path
         let _ = result;
@@ -171,7 +145,7 @@ build:
 
     #[test]
     fn test_build_run_specific_target_path() {
-        // Test the specific target path (line 58-75)
+        // Test the specific target path
         let temp = TempDir::new().unwrap();
         let manifest_content = r#"name: test
 version: 1.0.0
@@ -180,17 +154,11 @@ build:
 "#;
         fs::write(temp.path().join("package.yaml"), manifest_content).unwrap();
 
-        // Note: This test changes directory which can cause issues with tarpaulin
-        // Skip if running under coverage tool
-        if std::env::var("CARGO_TARPAULIN").is_ok() {
-            return;
-        }
-
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(temp.path()).unwrap();
-
-        let result = run(Some("x86_64-unknown-linux-gnu".to_string()), false);
-        std::env::set_current_dir(original_dir).unwrap();
+        let result = run_in_dir(
+            temp.path(),
+            Some("x86_64-unknown-linux-gnu".to_string()),
+            false,
+        );
 
         // May fail on actual build, but tests the specific target code path
         let _ = result;
@@ -198,7 +166,7 @@ build:
 
     #[test]
     fn test_build_run_default_target_path() {
-        // Test the default target path (line 60-75)
+        // Test the default target path
         let temp = TempDir::new().unwrap();
         let manifest_content = r#"name: test
 version: 1.0.0
@@ -207,17 +175,7 @@ build:
 "#;
         fs::write(temp.path().join("package.yaml"), manifest_content).unwrap();
 
-        // Note: This test changes directory which can cause issues with tarpaulin
-        // Skip if running under coverage tool
-        if std::env::var("CARGO_TARPAULIN").is_ok() {
-            return;
-        }
-
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(temp.path()).unwrap();
-
-        let result = run(None, false); // No target specified, uses default
-        std::env::set_current_dir(original_dir).unwrap();
+        let result = run_in_dir(temp.path(), None, false); // No target specified, uses default
 
         // May fail on actual build, but tests the default target code path
         let _ = result;

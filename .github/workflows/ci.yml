@@ -71,6 +71,10 @@ jobs:
         run: cargo test --all-features --lib
         timeout-minutes: 15
 
+      - name: Run bin tests
+        run: cargo test --all-features --bin lpm
+        timeout-minutes: 15
+
       - name: Run integration tests
         run: cargo test --all-features --test integration_tests
         timeout-minutes: 15
@@ -133,10 +137,13 @@ jobs:
       
       - name: Run fast tests
         run: cargo test --all-features --lib
-      
+
+      - name: Run bin tests
+        run: cargo test --all-features --bin lpm
+
       - name: Run integration tests
         run: cargo test --all-features --test integration_tests
-      
+
       - name: Run E2E tests (fast)
         run: cargo test --all-features --test e2e_tests
       

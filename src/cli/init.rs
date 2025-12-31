@@ -11,16 +11,19 @@ use std::path::Path;
 pub async fn run(template: Option<String>, yes: bool) -> LpmResult<()> {
     let current_dir = env::current_dir()
         .map_err(|e| LpmError::Path(format!("Failed to get current directory: {}", e)))?;
+    run_in_dir(&current_dir, template, yes).await
+}
 
+pub async fn run_in_dir(dir: &Path, template: Option<String>, yes: bool) -> LpmResult<()> {
     // Check if we're already in a project
-    if find_project_root(&current_dir).is_ok() {
+    if find_project_root(dir).is_ok() {
         return Err(LpmError::Package(
             "Already in an LPM project (package.yaml exists)".to_string(),
         ));
     }
 
     // Get project name from directory
-    let default_project_name = current_dir
+    let default_project_name = dir
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("my-project")
@@ -28,11 +31,11 @@ pub async fn run(template: Option<String>, yes: bool) -> LpmResult<()> {
 
     if yes {
         // Non-interactive mode: use defaults
-        return run_non_interactive(&current_dir, &default_project_name, template);
+        return run_non_interactive(dir, &default_project_name, template);
     }
 
     // Interactive wizard mode
-    run_wizard(&current_dir, &default_project_name, template).await
+    run_wizard(dir, &default_project_name, template).await
 }
 
 async fn run_wizard(
@@ -355,11 +358,14 @@ mod tests {
     async fn test_run_already_in_project() {
         let temp = TempDir::new().unwrap();
         fs::write(temp.path().join("package.yaml"), "name: test").unwrap();
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(temp.path()).unwrap();
-        let result = run(None, false).await;
-        std::env::set_current_dir(original_dir).unwrap();
+
+        let result = run_in_dir(temp.path(), None, false).await;
+
         // This will fail because we're in a project
         assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Already in an LPM project"));
     }
 }

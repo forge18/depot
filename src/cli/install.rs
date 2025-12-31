@@ -34,6 +34,13 @@ pub async fn run(
     global: bool,
     interactive: bool,
 ) -> LpmResult<()> {
+    // Validate conflicting flags early, before any other operations.
+    if no_dev && dev_only {
+        return Err(LpmError::Package(
+            "Cannot use both --no-dev and --dev-only flags".to_string(),
+        ));
+    }
+
     // Handle global installation (install to system-wide location).
     if global {
         if package.is_none() {
@@ -71,7 +78,41 @@ pub async fn run(
 
         let mut manifest = PackageManifest::load(install_root)?;
 
-        // Detect and validate Lua version
+        // Handle path-based installation early (doesn't need Lua detection)
+        if let Some(ref local_path) = path {
+            if package.is_some() {
+                return Err(LpmError::Package(
+                    "Cannot specify both package and --path".to_string(),
+                ));
+            }
+            install_from_path(local_path, dev, &mut manifest)?;
+            manifest.save(&project_root)?;
+            return Ok(());
+        }
+
+        // Validate package version constraint early if installing a specific package
+        if let Some(ref pkg_spec) = package {
+            if let Some(at_pos) = pkg_spec.find('@') {
+                let version = &pkg_spec[at_pos + 1..];
+                parse_constraint(version).map_err(|e| {
+                    LpmError::Version(format!("Invalid version constraint '{}': {}", version, e))
+                })?;
+            }
+        }
+
+        // Check if there are any dependencies to install (for no-args case)
+        if package.is_none() {
+            let has_deps = !manifest.dependencies.is_empty()
+                || (!no_dev && !manifest.dev_dependencies.is_empty())
+                || (dev_only && !manifest.dev_dependencies.is_empty());
+
+            if !has_deps {
+                println!("No dependencies to install");
+                return Ok(());
+            }
+        }
+
+        // For operations that require Lua, detect and validate Lua version
         let installed_lua = LuaVersionDetector::detect()?;
         println!("Detected Lua version: {}", installed_lua.version_string());
 
@@ -86,17 +127,13 @@ pub async fn run(
             return run_interactive(&project_root, dev, &mut manifest).await;
         }
 
-        match (package, path) {
-            // Install from local path
-            (None, Some(local_path)) => {
-                install_from_path(&local_path, dev, &mut manifest)?;
-            }
+        match package {
             // Install specific package
-            (Some(pkg_spec), None) => {
+            Some(pkg_spec) => {
                 install_package(&project_root, &pkg_spec, dev, &mut manifest).await?;
             }
             // Install all dependencies
-            (None, None) => {
+            None => {
                 if let Some(ref ws) = workspace {
                     // Install workspace dependencies (shared + all packages)
                     install_workspace_dependencies(install_root, ws, no_dev, dev_only).await?;
@@ -108,12 +145,6 @@ pub async fn run(
                 PathSetup::install_loader(&project_root)?;
                 // Generate lockfile
                 generate_lockfile(install_root, &manifest, no_dev).await?;
-            }
-            // Invalid combination
-            (Some(_), Some(_)) => {
-                return Err(LpmError::Package(
-                    "Cannot specify both package and --path".to_string(),
-                ));
             }
         }
 
@@ -510,11 +541,7 @@ async fn install_all_dependencies(
     no_dev: bool,
     dev_only: bool,
 ) -> LpmResult<()> {
-    if no_dev && dev_only {
-        return Err(LpmError::Package(
-            "Cannot use both --no-dev and --dev-only flags".to_string(),
-        ));
-    }
+    // Note: no_dev && dev_only conflict is checked early in run() function
 
     println!("Installing dependencies...");
 
