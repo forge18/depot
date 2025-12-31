@@ -1,6 +1,8 @@
+use async_trait::async_trait;
 use crate::cache::Cache;
 use crate::config::Config;
 use crate::core::{LpmError, LpmResult};
+use crate::di::PackageClient;
 use crate::luarocks::manifest::Manifest;
 use crate::luarocks::rockspec::Rockspec;
 use reqwest::Client;
@@ -110,6 +112,26 @@ impl LuaRocksClient {
         self.cache.write(&cache_path, &bytes)?;
 
         Ok(cache_path)
+    }
+}
+
+// Implement PackageClient trait
+#[async_trait]
+impl PackageClient for LuaRocksClient {
+    async fn fetch_manifest(&self) -> LpmResult<Manifest> {
+        self.fetch_manifest().await
+    }
+
+    async fn download_rockspec(&self, url: &str) -> LpmResult<String> {
+        self.download_rockspec(url).await
+    }
+
+    fn parse_rockspec(&self, content: &str) -> LpmResult<Rockspec> {
+        self.parse_rockspec(content)
+    }
+
+    async fn download_source(&self, url: &str) -> LpmResult<PathBuf> {
+        self.download_source(url).await
     }
 }
 

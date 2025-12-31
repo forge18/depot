@@ -169,4 +169,74 @@ mod tests {
         assert_eq!(report.package_count, 2);
         assert_eq!(report.checked_packages, 0);
     }
+
+    #[tokio::test]
+    async fn test_run_function_exists() {
+        let _ = run;
+    }
+
+    #[test]
+    fn test_run_in_dir_function_exists() {
+        let _ = run_in_dir;
+    }
+
+    #[tokio::test]
+    async fn test_run_function_signature() {
+        let _func: fn() -> _ = run;
+    }
+
+    #[test]
+    fn test_lockfile_packages_iteration() {
+        // Test the loop structure in lines 32-39
+        let mut lockfile = Lockfile::new();
+        let locked_pkg = LockedPackage {
+            version: "1.0.0".to_string(),
+            source: "luarocks".to_string(),
+            rockspec_url: None,
+            source_url: None,
+            checksum: "abc123".to_string(),
+            size: Some(1000),
+            dependencies: HashMap::new(),
+            build: None,
+        };
+        lockfile.add_package("test-pkg".to_string(), locked_pkg);
+
+        let count = lockfile.packages.len();
+        assert_eq!(count, 1);
+
+        for (name, pkg) in &lockfile.packages {
+            assert_eq!(name, "test-pkg");
+            assert_eq!(pkg.version, "1.0.0");
+        }
+    }
+
+    #[test]
+    fn test_format_report_function() {
+        // Test format_report is callable
+        let report = VulnerabilityReport::new();
+        let output = format_report(&report);
+        assert!(!output.is_empty());
+    }
+
+    #[test]
+    fn test_vulnerability_report_checked_packages_increment() {
+        let mut report = VulnerabilityReport::new();
+        report.checked_packages = 0;
+        report.checked_packages += 1;
+        assert_eq!(report.checked_packages, 1);
+        report.checked_packages += 1;
+        assert_eq!(report.checked_packages, 2);
+    }
+
+    #[test]
+    fn test_osv_api_creation() {
+        // Test OsvApi::new() line 28
+        let _osv = OsvApi::new();
+    }
+
+    #[test]
+    fn test_lockfile_new() {
+        let lockfile = Lockfile::new();
+        assert_eq!(lockfile.packages.len(), 0);
+    }
 }

@@ -59,3 +59,6 @@ pub mod lua_manager;
 
 /// Publishing packages.
 pub mod publish;
+
+/// Dependency injection infrastructure.
+pub mod di;

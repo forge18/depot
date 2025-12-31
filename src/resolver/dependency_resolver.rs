@@ -1,13 +1,11 @@
-use crate::cache::Cache;
-use crate::config::Config;
 use crate::core::version::{Version, VersionConstraint};
 use crate::core::{LpmError, LpmResult};
-use crate::luarocks::client::LuaRocksClient;
+use crate::di::{PackageClient, SearchProvider, ServiceContainer};
 use crate::luarocks::manifest::Manifest;
 use crate::luarocks::rockspec::Rockspec;
-use crate::luarocks::search_api::SearchAPI;
 use crate::resolver::dependency_graph::DependencyGraph;
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 /// Resolution strategy for selecting package versions
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -37,18 +35,72 @@ impl ResolutionStrategy {
 pub struct DependencyResolver {
     manifest: Manifest,
     strategy: ResolutionStrategy,
+    package_client: Arc<dyn PackageClient>,
+    search_provider: Arc<dyn SearchProvider>,
 }
 
 impl DependencyResolver {
-    pub fn new(manifest: Manifest) -> Self {
-        Self {
+    /// Create a new resolver with production dependencies
+    pub fn new(manifest: Manifest) -> LpmResult<Self> {
+        let container = ServiceContainer::new()?;
+        Self::with_dependencies(
             manifest,
-            strategy: ResolutionStrategy::default(),
-        }
+            ResolutionStrategy::default(),
+            container.package_client.clone(),
+            container.search_provider.clone(),
+        )
     }
 
-    pub fn new_with_strategy(manifest: Manifest, strategy: ResolutionStrategy) -> Self {
-        Self { manifest, strategy }
+    /// Create a new resolver with injected dependencies (proper DI)
+    pub fn with_dependencies(
+        manifest: Manifest,
+        strategy: ResolutionStrategy,
+        package_client: Arc<dyn PackageClient>,
+        search_provider: Arc<dyn SearchProvider>,
+    ) -> LpmResult<Self> {
+        Ok(Self {
+            manifest,
+            strategy,
+            package_client,
+            search_provider,
+        })
+    }
+
+    /// Create a new resolver with custom strategy
+    pub fn new_with_strategy(manifest: Manifest, strategy: ResolutionStrategy) -> LpmResult<Self> {
+        let container = ServiceContainer::new()?;
+        Self::with_dependencies(
+            manifest,
+            strategy,
+            container.package_client.clone(),
+            container.search_provider.clone(),
+        )
+    }
+
+    /// Create a new resolver with custom container (deprecated)
+    #[deprecated(note = "Use with_dependencies instead for proper dependency injection")]
+    pub fn with_container(manifest: Manifest, container: ServiceContainer) -> LpmResult<Self> {
+        Self::with_dependencies(
+            manifest,
+            ResolutionStrategy::default(),
+            container.package_client.clone(),
+            container.search_provider.clone(),
+        )
+    }
+
+    /// Create a new resolver with custom strategy and container (deprecated)
+    #[deprecated(note = "Use with_dependencies instead for proper dependency injection")]
+    pub fn with_strategy_and_container(
+        manifest: Manifest,
+        strategy: ResolutionStrategy,
+        container: ServiceContainer,
+    ) -> LpmResult<Self> {
+        Self::with_dependencies(
+            manifest,
+            strategy,
+            container.package_client.clone(),
+            container.search_provider.clone(),
+        )
     }
 
     /// Resolve all dependencies from a package manifest
@@ -74,12 +126,6 @@ impl DependencyResolver {
                 })?;
             graph.add_node(name.clone(), constraint);
         }
-
-        // Setup clients for fetching rockspecs
-        let config = Config::load()?;
-        let cache = Cache::new(config.get_cache_dir()?)?;
-        let client = LuaRocksClient::new(&config, cache);
-        let search_api = SearchAPI::new();
 
         // Build full dependency graph by parsing rockspecs
         let mut to_process: Vec<(String, VersionConstraint)> = dependencies
@@ -115,9 +161,7 @@ impl DependencyResolver {
             resolved.insert(package_name.clone(), selected_version.clone());
 
             // Get rockspec and parse dependencies
-            let rockspec = get_rockspec(
-                &client,
-                &search_api,
+            let rockspec = self.get_rockspec(
                 &package_name,
                 &selected_version.to_string(),
             )
@@ -149,6 +193,13 @@ impl DependencyResolver {
         graph.detect_circular_dependencies()?;
 
         Ok(resolved)
+    }
+
+    /// Fetch and parse a rockspec for a package version
+    async fn get_rockspec(&self, name: &str, version: &str) -> LpmResult<Rockspec> {
+        let rockspec_url = self.search_provider.get_rockspec_url(name, version, None);
+        let content = self.package_client.download_rockspec(&rockspec_url).await?;
+        self.package_client.parse_rockspec(&content)
     }
 
     /// Get all available versions for a package from the manifest
@@ -261,28 +312,31 @@ fn parse_dependency_string(dep: &str) -> LpmResult<(String, VersionConstraint)> 
     }
 }
 
-/// Fetch and parse a rockspec for a package version
-async fn get_rockspec(
-    client: &LuaRocksClient,
-    search_api: &SearchAPI,
-    name: &str,
-    version: &str,
-) -> LpmResult<Rockspec> {
-    let rockspec_url = search_api.get_rockspec_url(name, version, None);
-    let content = client.download_rockspec(&rockspec_url).await?;
-    client.parse_rockspec(&content)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::core::version::parse_constraint;
+    use crate::di::mocks::*;
     use crate::luarocks::manifest::PackageVersion;
+    use std::sync::Arc;
+
+    fn create_test_deps() -> (Arc<dyn PackageClient>, Arc<dyn SearchProvider>) {
+        (
+            Arc::new(MockPackageClient::new()),
+            Arc::new(MockSearchProvider::new()),
+        )
+    }
 
     #[test]
     fn test_select_version() {
-        let manifest = Manifest::default(); // Empty manifest for now
-        let resolver = DependencyResolver::new(manifest);
+        let manifest = Manifest::default();
+        let (client, search) = create_test_deps();
+        let resolver = DependencyResolver::with_dependencies(
+            manifest,
+            ResolutionStrategy::Highest,
+            client,
+            search,
+        ).unwrap();
 
         // Versions should be sorted highest first (already done in get_available_versions)
         let versions = vec![
@@ -299,7 +353,8 @@ mod tests {
     #[test]
     fn test_resolve_conflicts() {
         let manifest = Manifest::default();
-        let resolver = DependencyResolver::new(manifest);
+        let (client, search) = create_test_deps();
+        let resolver = DependencyResolver::with_dependencies(manifest, ResolutionStrategy::Highest, client, search).unwrap();
 
         let constraints = vec![
             parse_constraint("^1.0.0").unwrap(),
@@ -321,7 +376,8 @@ mod tests {
     #[test]
     fn test_select_version_no_match() {
         let manifest = Manifest::default();
-        let resolver = DependencyResolver::new(manifest);
+        let (client, search) = create_test_deps();
+        let resolver = DependencyResolver::with_dependencies(manifest, ResolutionStrategy::Highest, client, search).unwrap();
 
         let versions = vec![Version::new(2, 0, 0), Version::new(1, 1, 0)];
 
@@ -333,7 +389,8 @@ mod tests {
     #[test]
     fn test_select_version_exact_match() {
         let manifest = Manifest::default();
-        let resolver = DependencyResolver::new(manifest);
+        let (client, search) = create_test_deps();
+        let resolver = DependencyResolver::with_dependencies(manifest, ResolutionStrategy::Highest, client, search).unwrap();
 
         let versions = vec![
             Version::new(2, 0, 0),
@@ -349,7 +406,8 @@ mod tests {
     #[test]
     fn test_get_available_versions_nonexistent() {
         let manifest = Manifest::default();
-        let resolver = DependencyResolver::new(manifest);
+        let (client, search) = create_test_deps();
+        let resolver = DependencyResolver::with_dependencies(manifest, ResolutionStrategy::Highest, client, search).unwrap();
 
         let result = resolver.get_available_versions("nonexistent-package");
         assert!(result.is_err());
@@ -358,7 +416,8 @@ mod tests {
     #[test]
     fn test_select_version_with_range() {
         let manifest = Manifest::default();
-        let resolver = DependencyResolver::new(manifest);
+        let (client, search) = create_test_deps();
+        let resolver = DependencyResolver::with_dependencies(manifest, ResolutionStrategy::Highest, client, search).unwrap();
 
         let versions = vec![
             Version::new(2, 0, 0),
@@ -376,7 +435,8 @@ mod tests {
     #[test]
     fn test_select_version_with_exact() {
         let manifest = Manifest::default();
-        let resolver = DependencyResolver::new(manifest);
+        let (client, search) = create_test_deps();
+        let resolver = DependencyResolver::with_dependencies(manifest, ResolutionStrategy::Highest, client, search).unwrap();
 
         let versions = vec![
             Version::new(2, 0, 0),
@@ -441,7 +501,8 @@ mod tests {
     #[test]
     fn test_resolve_conflicts_empty() {
         let manifest = Manifest::default();
-        let resolver = DependencyResolver::new(manifest);
+        let (client, search) = create_test_deps();
+        let resolver = DependencyResolver::with_dependencies(manifest, ResolutionStrategy::Highest, client, search).unwrap();
         let result = resolver.resolve_conflicts("test", &[]);
         assert!(result.is_err());
     }
@@ -449,7 +510,8 @@ mod tests {
     #[test]
     fn test_resolve_conflicts_single() {
         let manifest = Manifest::default();
-        let resolver = DependencyResolver::new(manifest);
+        let (client, search) = create_test_deps();
+        let resolver = DependencyResolver::with_dependencies(manifest, ResolutionStrategy::Highest, client, search).unwrap();
         let constraints = vec![parse_constraint("^1.0.0").unwrap()];
         let result = resolver.resolve_conflicts("test", &constraints);
         assert!(result.is_ok());
@@ -458,7 +520,8 @@ mod tests {
     #[test]
     fn test_select_version_with_patch_constraint() {
         let manifest = Manifest::default();
-        let resolver = DependencyResolver::new(manifest);
+        let (client, search) = create_test_deps();
+        let resolver = DependencyResolver::with_dependencies(manifest, ResolutionStrategy::Highest, client, search).unwrap();
 
         let versions = vec![
             Version::new(1, 2, 2),
@@ -475,7 +538,8 @@ mod tests {
     #[test]
     fn test_select_version_with_less_than() {
         let manifest = Manifest::default();
-        let resolver = DependencyResolver::new(manifest);
+        let (client, search) = create_test_deps();
+        let resolver = DependencyResolver::with_dependencies(manifest, ResolutionStrategy::Highest, client, search).unwrap();
 
         let versions = vec![
             Version::new(2, 0, 0),
@@ -498,7 +562,8 @@ mod tests {
     #[test]
     fn test_get_available_versions_empty_manifest() {
         let manifest = Manifest::default();
-        let resolver = DependencyResolver::new(manifest);
+        let (client, search) = create_test_deps();
+        let resolver = DependencyResolver::with_dependencies(manifest, ResolutionStrategy::Highest, client, search).unwrap();
         let result = resolver.get_available_versions("nonexistent");
         assert!(result.is_err());
     }
@@ -547,7 +612,8 @@ mod tests {
         ];
         manifest.packages.insert("test-pkg".to_string(), versions);
 
-        let resolver = DependencyResolver::new(manifest);
+        let (client, search) = create_test_deps();
+        let resolver = DependencyResolver::with_dependencies(manifest, ResolutionStrategy::Highest, client, search).unwrap();
         let constraints = vec![
             parse_constraint("^1.0.0").unwrap(),
             parse_constraint("^1.1.0").unwrap(),
@@ -573,7 +639,8 @@ mod tests {
         }];
         manifest.packages.insert("test-pkg".to_string(), versions);
 
-        let resolver = DependencyResolver::new(manifest);
+        let (client, search) = create_test_deps();
+        let resolver = DependencyResolver::with_dependencies(manifest, ResolutionStrategy::Highest, client, search).unwrap();
         let constraints = vec![
             parse_constraint("^1.0.0").unwrap(),
             parse_constraint("^2.0.0").unwrap(),
@@ -605,7 +672,8 @@ mod tests {
         ];
         manifest.packages.insert("test-pkg".to_string(), versions);
 
-        let resolver = DependencyResolver::new(manifest);
+        let (client, search) = create_test_deps();
+        let resolver = DependencyResolver::with_dependencies(manifest, ResolutionStrategy::Highest, client, search).unwrap();
         let result = resolver.get_available_versions("test-pkg").unwrap();
         assert_eq!(result.len(), 2);
         // Versions should be sorted highest first
@@ -616,7 +684,8 @@ mod tests {
     #[test]
     fn test_select_version_with_patch() {
         let manifest = Manifest::default();
-        let resolver = DependencyResolver::new(manifest);
+        let (client, search) = create_test_deps();
+        let resolver = DependencyResolver::with_dependencies(manifest, ResolutionStrategy::Highest, client, search).unwrap();
         let versions = vec![Version::new(1, 0, 1), Version::new(1, 0, 0)];
         let constraint = parse_constraint("^1.0.0").unwrap();
         let selected = resolver.select_version(&versions, &constraint).unwrap();
@@ -701,7 +770,8 @@ mod tests {
             ],
         );
         manifest.packages = packages;
-        let resolver = DependencyResolver::new(manifest);
+        let (client, search) = create_test_deps();
+        let resolver = DependencyResolver::with_dependencies(manifest, ResolutionStrategy::Highest, client, search).unwrap();
 
         let versions = resolver.get_available_versions("test-pkg").unwrap();
         assert_eq!(versions.len(), 2);
@@ -732,7 +802,8 @@ mod tests {
             ],
         );
         manifest.packages = packages;
-        let resolver = DependencyResolver::new(manifest);
+        let (client, search) = create_test_deps();
+        let resolver = DependencyResolver::with_dependencies(manifest, ResolutionStrategy::Highest, client, search).unwrap();
 
         let constraints = vec![
             parse_constraint(">=1.0.0").unwrap(),
@@ -763,7 +834,8 @@ mod tests {
     #[test]
     fn test_select_version_with_no_compatible() {
         let manifest = Manifest::default();
-        let resolver = DependencyResolver::new(manifest);
+        let (client, search) = create_test_deps();
+        let resolver = DependencyResolver::with_dependencies(manifest, ResolutionStrategy::Highest, client, search).unwrap();
 
         let versions = vec![Version::new(1, 0, 0)];
         let constraint = parse_constraint(">=2.0.0").unwrap();
@@ -803,7 +875,8 @@ mod tests {
     #[test]
     fn test_resolver_with_highest_strategy() {
         let manifest = Manifest::default();
-        let resolver = DependencyResolver::new_with_strategy(manifest, ResolutionStrategy::Highest);
+        let (client, search) = create_test_deps();
+        let resolver = DependencyResolver::with_dependencies(manifest, ResolutionStrategy::Highest, client, search).unwrap();
         // Test that strategy field is set correctly
         assert_eq!(resolver.strategy, ResolutionStrategy::Highest);
     }
@@ -811,7 +884,8 @@ mod tests {
     #[test]
     fn test_resolver_with_lowest_strategy() {
         let manifest = Manifest::default();
-        let resolver = DependencyResolver::new_with_strategy(manifest, ResolutionStrategy::Lowest);
+        let (client, search) = create_test_deps();
+        let resolver = DependencyResolver::with_dependencies(manifest, ResolutionStrategy::Lowest, client, search).unwrap();
         assert_eq!(resolver.strategy, ResolutionStrategy::Lowest);
     }
 }

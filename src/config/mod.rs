@@ -1,5 +1,6 @@
 use crate::core::path::{config_file, ensure_dir};
 use crate::core::{LpmError, LpmResult};
+use crate::di::ConfigProvider;
 use serde::{Deserialize, Serialize};
 use std::fs;
 
@@ -147,6 +148,45 @@ impl Config {
         } else {
             crate::core::path::cache_dir()
         }
+    }
+}
+
+// Implement ConfigProvider trait
+impl ConfigProvider for Config {
+    fn luarocks_manifest_url(&self) -> &str {
+        &self.luarocks_manifest_url
+    }
+
+    fn cache_dir(&self) -> LpmResult<std::path::PathBuf> {
+        self.get_cache_dir()
+    }
+
+    fn verify_checksums(&self) -> bool {
+        self.verify_checksums
+    }
+
+    fn show_diffs_on_update(&self) -> bool {
+        self.show_diffs_on_update
+    }
+
+    fn resolution_strategy(&self) -> &str {
+        &self.resolution_strategy
+    }
+
+    fn checksum_algorithm(&self) -> &str {
+        &self.checksum_algorithm
+    }
+
+    fn strict_conflicts(&self) -> bool {
+        self.strict_conflicts
+    }
+
+    fn lua_binary_source_url(&self) -> Option<&str> {
+        self.lua_binary_source_url.as_deref()
+    }
+
+    fn supported_lua_versions(&self) -> Option<&Vec<String>> {
+        self.supported_lua_versions.as_ref()
     }
 }
 

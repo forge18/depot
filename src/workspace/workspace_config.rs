@@ -870,4 +870,179 @@ packages:
         // The invalid package should be skipped
         assert!(!workspace.packages.contains_key("invalid-pkg"));
     }
+
+    #[test]
+    fn test_workspace_workspace_dependencies() {
+        let mut config = WorkspaceConfig::default();
+        config
+            .dependencies
+            .insert("dep1".to_string(), "1.0.0".to_string());
+        config
+            .dependencies
+            .insert("dep2".to_string(), "2.0.0".to_string());
+
+        let workspace = Workspace {
+            root: PathBuf::from("/tmp/test"),
+            config,
+            packages: HashMap::new(),
+        };
+
+        let deps = workspace.workspace_dependencies();
+        assert_eq!(deps.len(), 2);
+        assert_eq!(deps.get("dep1"), Some(&"1.0.0".to_string()));
+        assert_eq!(deps.get("dep2"), Some(&"2.0.0".to_string()));
+    }
+
+    #[test]
+    fn test_workspace_workspace_dev_dependencies() {
+        let mut config = WorkspaceConfig::default();
+        config
+            .dev_dependencies
+            .insert("dev-dep1".to_string(), "1.0.0".to_string());
+
+        let workspace = Workspace {
+            root: PathBuf::from("/tmp/test"),
+            config,
+            packages: HashMap::new(),
+        };
+
+        let dev_deps = workspace.workspace_dev_dependencies();
+        assert_eq!(dev_deps.len(), 1);
+        assert_eq!(dev_deps.get("dev-dep1"), Some(&"1.0.0".to_string()));
+    }
+
+    #[test]
+    fn test_workspace_package_metadata() {
+        let mut config = WorkspaceConfig::default();
+        config.package_metadata = Some(WorkspacePackageMetadata {
+            version: Some("1.0.0".to_string()),
+            authors: Some(vec!["Author Name".to_string()]),
+            license: Some("MIT".to_string()),
+            homepage: Some("https://example.com".to_string()),
+            repository: Some("https://github.com/example/repo".to_string()),
+            description: Some("Test description".to_string()),
+        });
+
+        let workspace = Workspace {
+            root: PathBuf::from("/tmp/test"),
+            config,
+            packages: HashMap::new(),
+        };
+
+        let metadata = workspace.workspace_package_metadata();
+        assert!(metadata.is_some());
+        let metadata = metadata.unwrap();
+        assert_eq!(metadata.version, Some("1.0.0".to_string()));
+        assert_eq!(metadata.license, Some("MIT".to_string()));
+    }
+
+    #[test]
+    fn test_workspace_default_members_with_default_members() {
+        let temp = TempDir::new().unwrap();
+
+        let pkg1_dir = temp.path().join("packages").join("pkg1");
+        let pkg2_dir = temp.path().join("packages").join("pkg2");
+        fs::create_dir_all(&pkg1_dir).unwrap();
+        fs::create_dir_all(&pkg2_dir).unwrap();
+
+        fs::write(
+            pkg1_dir.join("package.yaml"),
+            r#"
+name: pkg1
+version: 1.0.0
+"#,
+        )
+        .unwrap();
+        fs::write(
+            pkg2_dir.join("package.yaml"),
+            r#"
+name: pkg2
+version: 1.0.0
+"#,
+        )
+        .unwrap();
+
+        let config = WorkspaceConfig {
+            name: "test-workspace".to_string(),
+            packages: vec!["packages/*".to_string()],
+            default_members: Some(vec!["pkg1".to_string()]),
+            ..Default::default()
+        };
+
+        let workspace = Workspace {
+            root: temp.path().to_path_buf(),
+            config: config.clone(),
+            packages: Workspace::find_packages(temp.path(), &config).unwrap(),
+        };
+
+        let default_members = workspace.default_members();
+        assert_eq!(default_members.len(), 1);
+        assert_eq!(default_members[0].name, "pkg1");
+    }
+
+    #[test]
+    fn test_workspace_default_members_without_default_members() {
+        let temp = TempDir::new().unwrap();
+
+        let pkg1_dir = temp.path().join("packages").join("pkg1");
+        fs::create_dir_all(&pkg1_dir).unwrap();
+        fs::write(
+            pkg1_dir.join("package.yaml"),
+            r#"
+name: pkg1
+version: 1.0.0
+"#,
+        )
+        .unwrap();
+
+        let config = WorkspaceConfig {
+            name: "test-workspace".to_string(),
+            packages: vec!["packages/*".to_string()],
+            default_members: None,
+            ..Default::default()
+        };
+
+        let workspace = Workspace {
+            root: temp.path().to_path_buf(),
+            config: config.clone(),
+            packages: Workspace::find_packages(temp.path(), &config).unwrap(),
+        };
+
+        let default_members = workspace.default_members();
+        // Should return all packages when no default members specified
+        assert_eq!(default_members.len(), workspace.packages.len());
+    }
+
+    #[test]
+    fn test_workspace_is_excluded() {
+        let temp = TempDir::new().unwrap();
+        let excluded_path = temp.path().join("packages").join("excluded");
+
+        let exclude_patterns = vec!["packages/excluded".to_string()];
+        let is_excluded = Workspace::is_excluded(&excluded_path, &exclude_patterns, temp.path());
+        assert!(is_excluded);
+    }
+
+    #[test]
+    fn test_workspace_is_excluded_not_excluded() {
+        let temp = TempDir::new().unwrap();
+        let included_path = temp.path().join("packages").join("included");
+
+        let exclude_patterns = vec!["packages/excluded".to_string()];
+        let is_excluded = Workspace::is_excluded(&included_path, &exclude_patterns, temp.path());
+        assert!(!is_excluded);
+    }
+
+    #[test]
+    fn test_workspace_package_metadata_none() {
+        let config = WorkspaceConfig::default();
+        let workspace = Workspace {
+            root: PathBuf::from("/tmp/test"),
+            config,
+            packages: HashMap::new(),
+        };
+
+        let metadata = workspace.workspace_package_metadata();
+        assert!(metadata.is_none());
+    }
 }

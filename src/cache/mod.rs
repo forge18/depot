@@ -1,5 +1,6 @@
 use crate::core::path::{cache_dir, ensure_dir};
 use crate::core::{LpmError, LpmResult};
+use crate::di::CacheProvider;
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::Write;
@@ -357,6 +358,78 @@ impl Cache {
         }
 
         Ok(result)
+    }
+}
+
+// Implement CacheProvider trait
+impl CacheProvider for Cache {
+    fn rockspec_path(&self, package: &str, version: &str) -> PathBuf {
+        self.rockspec_path(package, version)
+    }
+
+    fn source_path(&self, url: &str) -> PathBuf {
+        self.source_path(url)
+    }
+
+    fn exists(&self, path: &Path) -> bool {
+        self.exists(path)
+    }
+
+    fn read(&self, path: &Path) -> LpmResult<Vec<u8>> {
+        self.read(path)
+    }
+
+    fn write(&self, path: &Path, data: &[u8]) -> LpmResult<()> {
+        self.write(path, data)
+    }
+
+    fn checksum(&self, path: &Path) -> LpmResult<String> {
+        Cache::checksum(path)
+    }
+
+    fn verify_checksum(&self, path: &Path, expected: &str) -> LpmResult<bool> {
+        Cache::verify_checksum(path, expected)
+    }
+
+    fn rust_build_path(
+        &self,
+        package: &str,
+        version: &str,
+        lua_version: &str,
+        target: &str,
+    ) -> PathBuf {
+        self.rust_build_path(package, version, lua_version, target)
+    }
+
+    fn has_rust_build(
+        &self,
+        package: &str,
+        version: &str,
+        lua_version: &str,
+        target: &str,
+    ) -> bool {
+        self.has_rust_build(package, version, lua_version, target)
+    }
+
+    fn store_rust_build(
+        &self,
+        package: &str,
+        version: &str,
+        lua_version: &str,
+        target: &str,
+        artifact_path: &Path,
+    ) -> LpmResult<PathBuf> {
+        self.store_rust_build(package, version, lua_version, target, artifact_path)
+    }
+
+    fn get_rust_build(
+        &self,
+        package: &str,
+        version: &str,
+        lua_version: &str,
+        target: &str,
+    ) -> Option<PathBuf> {
+        self.get_rust_build(package, version, lua_version, target)
     }
 }
 

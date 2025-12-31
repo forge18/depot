@@ -4,6 +4,7 @@ use lpm::core::{LpmError, LpmResult};
 use reqwest;
 use std::fs;
 use std::io::Write;
+use std::path::PathBuf;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
@@ -11,6 +12,32 @@ use std::os::unix::fs::PermissionsExt;
 pub struct PluginInstaller;
 
 impl PluginInstaller {
+    /// Create plugin metadata from entry data
+    fn create_metadata(
+        plugin_name: &str,
+        target_version: &str,
+        description: Option<String>,
+        author: Option<String>,
+        homepage: Option<String>,
+    ) -> PluginMetadata {
+        PluginMetadata {
+            name: plugin_name.to_string(),
+            version: target_version.to_string(),
+            description,
+            author,
+            homepage,
+            dependencies: vec![],
+            min_lpm_version: None,
+        }
+    }
+
+    /// Get the plugin installation path
+    fn get_plugin_path(plugin_name: &str) -> LpmResult<PathBuf> {
+        let lpm_home = lpm_home()?;
+        let bin_dir = lpm_home.join("bin");
+        Ok(bin_dir.join(format!("lpm-{}", plugin_name)))
+    }
+
     /// Download and install a plugin
     pub async fn install(plugin_name: &str, version: Option<&str>) -> LpmResult<()> {
         use crate::cli::plugin::registry::PluginRegistry;
@@ -78,15 +105,13 @@ impl PluginInstaller {
         }
 
         // Save metadata
-        let metadata = PluginMetadata {
-            name: plugin_name.to_string(),
-            version: target_version.to_string(),
-            description: entry.description,
-            author: entry.author,
-            homepage: entry.homepage,
-            dependencies: vec![],
-            min_lpm_version: None,
-        };
+        let metadata = Self::create_metadata(
+            plugin_name,
+            target_version,
+            entry.description,
+            entry.author,
+            entry.homepage,
+        );
 
         let metadata_path = PluginMetadata::metadata_path(plugin_name)?;
         metadata.save(&metadata_path)?;
@@ -137,5 +162,62 @@ impl PluginInstaller {
 
         // Install latest version
         Self::install(plugin_name, Some(&latest_version)).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_create_metadata_with_all_fields() {
+        let metadata = PluginInstaller::create_metadata(
+            "test-plugin",
+            "1.0.0",
+            Some("Test description".to_string()),
+            Some("Test Author".to_string()),
+            Some("https://example.com".to_string()),
+        );
+
+        assert_eq!(metadata.name, "test-plugin");
+        assert_eq!(metadata.version, "1.0.0");
+        assert_eq!(metadata.description, Some("Test description".to_string()));
+        assert_eq!(metadata.author, Some("Test Author".to_string()));
+        assert_eq!(metadata.homepage, Some("https://example.com".to_string()));
+        assert!(metadata.dependencies.is_empty());
+        assert!(metadata.min_lpm_version.is_none());
+    }
+
+    #[test]
+    fn test_create_metadata_with_minimal_fields() {
+        let metadata = PluginInstaller::create_metadata(
+            "minimal-plugin",
+            "2.5.1",
+            None,
+            None,
+            None,
+        );
+
+        assert_eq!(metadata.name, "minimal-plugin");
+        assert_eq!(metadata.version, "2.5.1");
+        assert_eq!(metadata.description, None);
+        assert_eq!(metadata.author, None);
+        assert_eq!(metadata.homepage, None);
+    }
+
+    #[test]
+    fn test_get_plugin_path_format() {
+        // This will fail if lpm_home() fails, but tests the path construction
+        if let Ok(path) = PluginInstaller::get_plugin_path("test-plugin") {
+            let path_str = path.to_string_lossy();
+            assert!(path_str.contains("lpm-test-plugin"));
+            assert!(path_str.contains("bin"));
+        }
+    }
+
+    #[test]
+    fn test_plugin_installer_exists() {
+        // Test that the struct exists and can be referenced
+        let _installer = PluginInstaller;
     }
 }

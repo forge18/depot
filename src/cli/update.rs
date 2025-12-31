@@ -1,9 +1,7 @@
-use lpm::cache::Cache;
-use lpm::config::Config;
 use lpm::core::path::find_project_root;
 use lpm::core::version::Version;
 use lpm::core::{LpmError, LpmResult};
-use lpm::luarocks::client::LuaRocksClient;
+use lpm::di::ServiceContainer;
 use lpm::package::installer::PackageInstaller;
 use lpm::package::interactive::confirm;
 use lpm::package::lockfile::Lockfile;
@@ -13,29 +11,43 @@ use lpm::package::rollback::with_rollback_async;
 use lpm::package::update_diff::UpdateDiff;
 use lpm::path_setup::PathSetup;
 use lpm::resolver::DependencyResolver;
+use lpm::workspace::{Workspace, WorkspaceFilter};
 use std::env;
 
-pub async fn run(package: Option<String>) -> LpmResult<()> {
+pub async fn run(package: Option<String>, filter: Vec<String>) -> LpmResult<()> {
     let current_dir = env::current_dir()
         .map_err(|e| LpmError::Path(format!("Failed to get current directory: {}", e)))?;
 
     let project_root = find_project_root(&current_dir)?;
+
+    // Check if we're in a workspace and filtering is requested
+    if !filter.is_empty() {
+        if Workspace::is_workspace(&project_root) {
+            let workspace = Workspace::load(&project_root)?;
+            return update_workspace_filtered(&workspace, &filter, package).await;
+        } else {
+            return Err(LpmError::Package(
+                "--filter can only be used in workspace mode".to_string(),
+            ));
+        }
+    }
 
     // Use rollback for safety
     with_rollback_async(&project_root, || async {
         let mut manifest = PackageManifest::load(&project_root)?;
         let lockfile = Lockfile::load(&project_root)?;
 
-        // Load config and create cache
-        let config = Config::load()?;
-        let cache = Cache::new(config.get_cache_dir()?)?;
-
-        // Create LuaRocks client
-        let client = LuaRocksClient::new(&config, cache.clone());
-        let luarocks_manifest = client.fetch_manifest().await?;
+        // Create service container
+        let container = ServiceContainer::new()?;
+        let luarocks_manifest = container.package_client.fetch_manifest().await?;
 
         // Create resolver
-        let resolver = DependencyResolver::new(luarocks_manifest);
+        let resolver = DependencyResolver::with_dependencies(
+            luarocks_manifest,
+            lpm::resolver::ResolutionStrategy::Highest,
+            container.package_client.clone(),
+            container.search_provider.clone(),
+        )?;
 
         // Resolve versions first to calculate diff
         let resolved_versions = if let Some(package_name) = &package {
@@ -120,7 +132,12 @@ pub async fn run(package: Option<String>) -> LpmResult<()> {
         manifest.save(&project_root)?;
 
         // Regenerate lockfile incrementally (include dev dependencies for updates)
-        let builder = LockfileBuilder::new(cache);
+        let builder = LockfileBuilder::with_dependencies(
+            container.config.clone(),
+            container.cache.clone(),
+            container.package_client.clone(),
+            container.search_provider.clone(),
+        )?;
         let new_lockfile = if let Some(existing) = &lockfile {
             builder
                 .update_lockfile(existing, &manifest, &project_root, false)
@@ -275,6 +292,175 @@ async fn update_all_packages(
 
     println!("\n✓ Update complete");
     println!("  Updated: {} package(s)", updated_count);
+
+    Ok(())
+}
+
+async fn update_workspace_filtered(
+    workspace: &Workspace,
+    filter_patterns: &[String],
+    package: Option<String>,
+) -> LpmResult<()> {
+    // Create filter
+    let filter = WorkspaceFilter::new(filter_patterns.to_vec());
+
+    // Get filtered packages
+    let filtered_packages = filter.filter_packages(workspace)?;
+
+    if filtered_packages.is_empty() {
+        println!("No packages match the filter patterns");
+        return Ok(());
+    }
+
+    println!(
+        "📦 Updating dependencies for {} workspace package(s):",
+        filtered_packages.len()
+    );
+    for pkg in &filtered_packages {
+        println!("  - {} ({})", pkg.name, pkg.path.display());
+    }
+    println!();
+
+    // Update for each filtered package
+    for pkg in filtered_packages {
+        let pkg_dir = workspace.root.join(&pkg.path);
+
+        println!("Updating dependencies for {}...", pkg.name);
+
+        // Load package manifest and merge workspace dependencies
+        let mut manifest = PackageManifest::load(&pkg_dir)?;
+
+        // Merge workspace dependencies
+        for (name, version) in workspace.workspace_dependencies() {
+            if !manifest.dependencies.contains_key(name) {
+                manifest.dependencies.insert(name.clone(), version.clone());
+            }
+        }
+        for (name, version) in workspace.workspace_dev_dependencies() {
+            if !manifest.dev_dependencies.contains_key(name) {
+                manifest
+                    .dev_dependencies
+                    .insert(name.clone(), version.clone());
+            }
+        }
+
+        // Load or create lockfile
+        let lockfile = Lockfile::load(&pkg_dir)?;
+
+        // Create service container
+        let container = ServiceContainer::new()?;
+        let luarocks_manifest = container.package_client.fetch_manifest().await?;
+
+        // Create resolver
+        let resolver = DependencyResolver::with_dependencies(
+            luarocks_manifest,
+            lpm::resolver::ResolutionStrategy::Highest,
+            container.package_client.clone(),
+            container.search_provider.clone(),
+        )?;
+
+        // Resolve versions first to calculate diff
+        let resolved_versions = if let Some(ref package_name) = package {
+            // For single package update, resolve just that package
+            let mut deps = std::collections::HashMap::new();
+            if let Some(constraint) = manifest
+                .dependencies
+                .get(package_name)
+                .or_else(|| manifest.dev_dependencies.get(package_name))
+            {
+                deps.insert(package_name.clone(), constraint.clone());
+            }
+            resolver.resolve(&deps).await?
+        } else {
+            // Resolve all dependencies
+            resolver.resolve(&manifest.dependencies).await?
+        };
+
+        let resolved_dev_versions = if package.is_none() {
+            resolver.resolve(&manifest.dev_dependencies).await?
+        } else {
+            std::collections::HashMap::new()
+        };
+
+        // Calculate diff
+        let mut diff = UpdateDiff::calculate(&lockfile, &resolved_versions, &resolved_dev_versions);
+
+        // Calculate file changes
+        diff.calculate_file_changes(&pkg_dir);
+
+        // Display diff
+        diff.display();
+
+        // Check if there are any changes
+        if !diff.has_changes() {
+            println!("  ✓ All packages are up to date for {}\n", pkg.name);
+            continue;
+        }
+
+        // Interactive confirmation for this package
+        println!();
+        let proceed = confirm(&format!("Proceed with update for {}?", pkg.name))?;
+        if !proceed {
+            println!("  Update cancelled for {}\n", pkg.name);
+            continue;
+        }
+
+        // Initialize installer
+        let installer = PackageInstaller::new(&pkg_dir)?;
+        installer.init()?;
+
+        // Apply updates
+        if let Some(ref package_name) = package {
+            // Update specific package
+            update_package(
+                &pkg_dir,
+                &mut manifest,
+                &resolver,
+                package_name,
+                &lockfile,
+                &installer,
+            )
+            .await?;
+        } else {
+            // Update all packages
+            update_all_packages(
+                &pkg_dir,
+                &mut manifest,
+                &resolver,
+                &lockfile,
+                &resolved_versions,
+                &resolved_dev_versions,
+                &installer,
+            )
+            .await?;
+        }
+
+        // Install loader after updates
+        PathSetup::install_loader(&pkg_dir)?;
+
+        // Save updated manifest
+        manifest.save(&pkg_dir)?;
+
+        // Regenerate lockfile incrementally
+        let builder = LockfileBuilder::with_dependencies(
+            container.config.clone(),
+            container.cache.clone(),
+            container.package_client.clone(),
+            container.search_provider.clone(),
+        )?;
+        let new_lockfile = if let Some(ref existing) = lockfile {
+            builder
+                .update_lockfile(existing, &manifest, &pkg_dir, false)
+                .await?
+        } else {
+            builder.build_lockfile(&manifest, &pkg_dir, false).await?
+        };
+        new_lockfile.save(&pkg_dir)?;
+
+        println!("✓ Updated dependencies for {}\n", pkg.name);
+    }
+
+    println!("✓ All filtered workspace packages updated");
 
     Ok(())
 }
@@ -471,5 +657,37 @@ mod tests {
 
         let diff = UpdateDiff::calculate(&lockfile, &resolved_versions, &resolved_dev_versions);
         assert!(diff.has_changes());
+    }
+
+    #[test]
+    fn test_update_run_function_exists() {
+        // Verify run function exists
+        let _ = run;
+    }
+
+    #[test]
+    fn test_update_workspace_filtered_function_exists() {
+        // Verify update_workspace_filtered function exists
+        let _ = update_workspace_filtered;
+    }
+
+    #[test]
+    fn test_lockfile_add_and_get_package() {
+        let mut lockfile = Lockfile::new();
+        let pkg = LockedPackage {
+            version: "2.0.0".to_string(),
+            source: "github".to_string(),
+            rockspec_url: Some("http://example.com".to_string()),
+            source_url: Some("http://example.com/source".to_string()),
+            checksum: "def".to_string(),
+            size: Some(1024),
+            dependencies: HashMap::new(),
+            build: None,
+        };
+
+        lockfile.add_package("test-pkg".to_string(), pkg);
+        let retrieved = lockfile.get_package("test-pkg").unwrap();
+        assert_eq!(retrieved.version, "2.0.0");
+        assert_eq!(retrieved.source, "github");
     }
 }

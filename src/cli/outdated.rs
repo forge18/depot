@@ -1,10 +1,8 @@
-use lpm::cache::Cache;
-use lpm::config::Config;
 use lpm::core::path::find_project_root;
 use lpm::core::version::parse_constraint;
 use lpm::core::version::Version;
 use lpm::core::{LpmError, LpmResult};
-use lpm::luarocks::client::LuaRocksClient;
+use lpm::di::{PackageClient, ServiceContainer};
 use lpm::luarocks::manifest::Manifest;
 use lpm::luarocks::version::normalize_luarocks_version;
 use lpm::package::lockfile::Lockfile;
@@ -28,13 +26,9 @@ pub async fn run() -> LpmResult<()> {
 
     println!("Checking for outdated packages...");
 
-    // Load config and create cache
-    let config = Config::load()?;
-    let cache = Cache::new(config.get_cache_dir()?)?;
-
-    // Create LuaRocks client
-    let client = LuaRocksClient::new(&config, cache);
-    let luarocks_manifest = client.fetch_manifest().await.ok();
+    // Create service container
+    let container = ServiceContainer::new()?;
+    let luarocks_manifest = container.package_client.fetch_manifest().await.ok();
 
     let mut outdated_count = 0;
     let mut up_to_date_count = 0;
@@ -47,7 +41,7 @@ pub async fn run() -> LpmResult<()> {
             .and_then(|pkg| Version::parse(&pkg.version).ok());
 
         match check_outdated(
-            &client,
+            container.package_client.as_ref(),
             &luarocks_manifest,
             name,
             version_constraint,
@@ -89,7 +83,7 @@ pub async fn run() -> LpmResult<()> {
             .and_then(|pkg| Version::parse(&pkg.version).ok());
 
         match check_outdated(
-            &client,
+            container.package_client.as_ref(),
             &luarocks_manifest,
             name,
             version_constraint,
@@ -145,7 +139,7 @@ enum OutdatedStatus {
 }
 
 async fn check_outdated(
-    client: &LuaRocksClient,
+    client: &dyn PackageClient,
     manifest: &Option<Manifest>,
     package_name: &str,
     version_constraint: &str,

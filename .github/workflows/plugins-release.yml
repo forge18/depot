@@ -25,6 +25,8 @@ jobs:
   build:
     name: Build ${{ matrix.plugin }} for ${{ matrix.platform }}-${{ matrix.arch }}
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       matrix:
         include:
@@ -187,9 +189,13 @@ jobs:
 
       - name: Determine plugin and version from tag
         id: tag_info
+        env:
+          GITHUB_REF_VALUE: ${{ github.ref }}
+          INPUT_PLUGIN: ${{ github.event.inputs.plugin }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            TAG="${GITHUB_REF#refs/tags/}"
+          if [[ "$GITHUB_REF_VALUE" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF_VALUE#refs/tags/}"
             if [[ "$TAG" == plugins/v* ]]; then
               PLUGIN="all"
               VERSION="${TAG#plugins/v}"
@@ -204,10 +210,10 @@ jobs:
               exit 1
             fi
           else
-            PLUGIN="${{ github.event.inputs.plugin }}"
-            VERSION="${{ github.event.inputs.version }}"
+            PLUGIN="$INPUT_PLUGIN"
+            VERSION="$INPUT_VERSION"
           fi
-          
+
           echo "plugin=$PLUGIN" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Plugin: $PLUGIN, Version: $VERSION"

@@ -19,7 +19,7 @@ pub enum VersionConstraint {
     AnyPatch(Version),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Version {
     pub major: u64,
     pub minor: u64,
@@ -70,18 +70,25 @@ impl Version {
         let (version_part, prerelease) = if let Some(pos) = version_prerelease.rfind('-') {
             // Check if this looks like a pre-release or LuaRocks version
             let potential_prerelease = &version_prerelease[pos + 1..];
+            let version_before_dash = &version_prerelease[..pos];
 
             // If it contains non-numeric characters or dots, it's a pre-release
             if potential_prerelease.contains('.')
                 || potential_prerelease.chars().any(|c| !c.is_ascii_digit())
             {
-                (
-                    &version_prerelease[..pos],
-                    Some(potential_prerelease.to_string()),
-                )
+                (version_before_dash, Some(potential_prerelease.to_string()))
             } else {
-                // LuaRocks format: "3.0-1" -> treat as patch version
-                (version_prerelease, None)
+                // Check if version_before_dash already has 3 parts (major.minor.patch)
+                // If so, treat the numeric suffix as a prerelease per SemVer
+                // Otherwise, treat it as LuaRocks format: "3.0-1" -> "3.0.1"
+                let parts_count = version_before_dash.split('.').count();
+                if parts_count >= 3 {
+                    // Already has major.minor.patch, so "-1" is a prerelease
+                    (version_before_dash, Some(potential_prerelease.to_string()))
+                } else {
+                    // LuaRocks format: "3.0-1" -> treat as patch version
+                    (version_prerelease, None)
+                }
             }
         } else {
             (version_prerelease, None)
@@ -135,6 +142,19 @@ impl Version {
         }
     }
 }
+
+// Implement PartialEq and Eq manually to ignore build_metadata (per SemVer spec)
+impl PartialEq for Version {
+    fn eq(&self, other: &Self) -> bool {
+        self.major == other.major
+            && self.minor == other.minor
+            && self.patch == other.patch
+            && self.prerelease == other.prerelease
+        // build_metadata is intentionally ignored
+    }
+}
+
+impl Eq for Version {}
 
 impl PartialOrd for Version {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {

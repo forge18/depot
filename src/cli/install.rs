@@ -1,16 +1,14 @@
 use dialoguer::{Confirm, Input, MultiSelect, Select};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
-use lpm::cache::Cache;
-use lpm::config::Config;
 use lpm::core::path::{
     ensure_dir, find_project_root, global_bin_dir, global_dir, global_lua_modules_dir,
 };
 use lpm::core::version::parse_constraint;
 use lpm::core::{LpmError, LpmResult};
+use lpm::di::ServiceContainer;
 use lpm::lua_version::compatibility::PackageCompatibility;
 use lpm::lua_version::detector::LuaVersionDetector;
-use lpm::luarocks::client::LuaRocksClient;
 use lpm::package::conflict_checker::ConflictChecker;
 use lpm::package::installer::PackageInstaller;
 use lpm::package::lockfile::Lockfile;
@@ -19,21 +17,34 @@ use lpm::package::manifest::PackageManifest;
 use lpm::package::rollback::with_rollback_async;
 use lpm::path_setup::loader::PathSetup;
 use lpm::resolver::DependencyResolver;
-use lpm::workspace::Workspace;
+use lpm::workspace::{Workspace, WorkspaceFilter};
 use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::Path;
 
-pub async fn run(
-    package: Option<String>,
-    dev: bool,
-    path: Option<String>,
-    no_dev: bool,
-    dev_only: bool,
-    global: bool,
-    interactive: bool,
-) -> LpmResult<()> {
+pub struct InstallOptions {
+    pub package: Option<String>,
+    pub dev: bool,
+    pub path: Option<String>,
+    pub no_dev: bool,
+    pub dev_only: bool,
+    pub global: bool,
+    pub interactive: bool,
+    pub filter: Vec<String>,
+}
+
+pub async fn run(options: InstallOptions) -> LpmResult<()> {
+    let InstallOptions {
+        package,
+        dev,
+        path,
+        no_dev,
+        dev_only,
+        global,
+        interactive,
+        filter,
+    } = options;
     // Validate conflicting flags early, before any other operations.
     if no_dev && dev_only {
         return Err(LpmError::Package(
@@ -71,6 +82,18 @@ pub async fn run(
         } else {
             None
         };
+
+        // Handle workspace filtering
+        if !filter.is_empty() {
+            if let Some(ref ws) = workspace {
+                return install_workspace_filtered(ws, &filter, dev, no_dev, dev_only, package)
+                    .await;
+            } else {
+                return Err(LpmError::Package(
+                    "--filter can only be used in workspace mode".to_string(),
+                ));
+            }
+        }
 
         // For workspace, install to workspace root's lua_modules
         // For single package, use project root
@@ -182,11 +205,14 @@ async fn install_global(package_spec: String) -> LpmResult<()> {
     ensure_dir(&global_bin)?;
 
     // Resolve version
-    let config = Config::load()?;
-    let cache = Cache::new(config.get_cache_dir()?)?;
-    let client = LuaRocksClient::new(&config, cache.clone());
-    let luarocks_manifest = client.fetch_manifest().await?;
-    let resolver = DependencyResolver::new(luarocks_manifest);
+    let container = ServiceContainer::new()?;
+    let luarocks_manifest = container.package_client.fetch_manifest().await?;
+    let resolver = DependencyResolver::with_dependencies(
+        luarocks_manifest,
+        lpm::resolver::ResolutionStrategy::Highest,
+        container.package_client.clone(),
+        container.search_provider.clone(),
+    )?;
 
     let constraint_str = version_constraint
         .clone()
@@ -212,13 +238,13 @@ async fn install_global(package_spec: String) -> LpmResult<()> {
         .await?;
 
     // Extract executables from rockspec and create wrappers
-    let rockspec_url = lpm::luarocks::search_api::SearchAPI::new().get_rockspec_url(
+    let rockspec_url = container.search_provider.get_rockspec_url(
         &package_name,
         &version_str,
         None,
     );
-    let rockspec_content = client.download_rockspec(&rockspec_url).await?;
-    let rockspec = client.parse_rockspec(&rockspec_content)?;
+    let rockspec_content = container.package_client.download_rockspec(&rockspec_url).await?;
+    let rockspec = container.package_client.parse_rockspec(&rockspec_content)?;
 
     create_global_executables(
         &package_name,
@@ -489,11 +515,14 @@ async fn install_package(
     println!("Installing package: {}", package_name);
 
     // Resolve version using dependency resolver (handles version constraints).
-    let config = Config::load()?;
-    let cache = Cache::new(config.get_cache_dir()?)?;
-    let client = LuaRocksClient::new(&config, cache.clone());
-    let luarocks_manifest = client.fetch_manifest().await?;
-    let resolver = DependencyResolver::new(luarocks_manifest);
+    let container = ServiceContainer::new()?;
+    let luarocks_manifest = container.package_client.fetch_manifest().await?;
+    let resolver = DependencyResolver::with_dependencies(
+        luarocks_manifest,
+        lpm::resolver::ResolutionStrategy::Highest,
+        container.package_client.clone(),
+        container.search_provider.clone(),
+    )?;
 
     // Build dependency map for resolver.
     let constraint_str = version_constraint
@@ -599,11 +628,14 @@ async fn install_workspace_dependencies(
     installer.init()?;
 
     // Resolve all workspace dependencies.
-    let config = Config::load()?;
-    let cache = Cache::new(config.get_cache_dir()?)?;
-    let client = LuaRocksClient::new(&config, cache.clone());
-    let luarocks_manifest = client.fetch_manifest().await?;
-    let resolver = DependencyResolver::new(luarocks_manifest);
+    let container = ServiceContainer::new()?;
+    let luarocks_manifest = container.package_client.fetch_manifest().await?;
+    let resolver = DependencyResolver::with_dependencies(
+        luarocks_manifest,
+        lpm::resolver::ResolutionStrategy::Highest,
+        container.package_client.clone(),
+        container.search_provider.clone(),
+    )?;
 
     // Collect all dependencies from workspace packages.
     let mut all_dependencies = HashMap::new();
@@ -687,14 +719,18 @@ async fn generate_lockfile(
     manifest: &PackageManifest,
     no_dev: bool,
 ) -> LpmResult<()> {
-    // Load config to get cache directory
-    let config = Config::load()?;
-    let cache = Cache::new(config.get_cache_dir()?)?;
+    // Load service container
+    let container = ServiceContainer::new()?;
 
     // Try to load existing lockfile for incremental updates
     let existing_lockfile = Lockfile::load(project_root)?;
 
-    let builder = LockfileBuilder::new(cache);
+    let builder = LockfileBuilder::with_dependencies(
+        container.config.clone(),
+        container.cache.clone(),
+        container.package_client.clone(),
+        container.search_provider.clone(),
+    )?;
     let lockfile = if let Some(existing) = existing_lockfile {
         // Use incremental update
         builder
@@ -728,10 +764,8 @@ pub async fn run_interactive(
 
     // Fetch manifest
     println!("Loading package list...");
-    let config = Config::load()?;
-    let cache = Cache::new(config.get_cache_dir()?)?;
-    let client = LuaRocksClient::new(&config, cache);
-    let luarocks_manifest = client.fetch_manifest().await?;
+    let container = ServiceContainer::new()?;
+    let luarocks_manifest = container.package_client.fetch_manifest().await?;
 
     // Get search query
     let query: String = Input::new()
@@ -844,10 +878,11 @@ pub async fn run_interactive(
 
         // Fetch and parse rockspec to get metadata and dependencies
         println!("  Fetching package metadata...");
-        let rockspec_content = client
+        let rockspec_content = container
+            .package_client
             .download_rockspec(&selected_pkg_version.rockspec_url)
             .await?;
-        let rockspec = client.parse_rockspec(&rockspec_content)?;
+        let rockspec = container.package_client.parse_rockspec(&rockspec_content)?;
 
         // Select dependency type (dev or prod)
         let dep_type_options = vec!["Production dependency", "Development dependency"];
@@ -958,6 +993,146 @@ pub async fn run_interactive(
     generate_lockfile(project_root, manifest, false).await?;
 
     println!("\n✓ Installed {} package(s)", selections.len());
+
+    Ok(())
+}
+
+/// Install dependencies for filtered workspace packages
+async fn install_workspace_filtered(
+    workspace: &Workspace,
+    filter_patterns: &[String],
+    dev: bool,
+    no_dev: bool,
+    dev_only: bool,
+    package: Option<String>,
+) -> LpmResult<()> {
+    // Create filter
+    let filter = WorkspaceFilter::new(filter_patterns.to_vec());
+
+    // Get filtered packages
+    let filtered_packages = filter.filter_packages(workspace)?;
+
+    if filtered_packages.is_empty() {
+        println!("No packages match the filter patterns");
+        return Ok(());
+    }
+
+    println!(
+        "📦 Installing dependencies for {} workspace package(s):",
+        filtered_packages.len()
+    );
+    for pkg in &filtered_packages {
+        println!("  - {} ({})", pkg.name, pkg.path.display());
+    }
+    println!();
+
+    // Install for each filtered package
+    for pkg in filtered_packages {
+        let pkg_dir = workspace.root.join(&pkg.path);
+
+        println!("Installing dependencies for {}...", pkg.name);
+
+        // Load package manifest and merge workspace dependencies
+        let mut manifest = PackageManifest::load(&pkg_dir)?;
+
+        // Merge workspace dependencies
+        for (name, version) in workspace.workspace_dependencies() {
+            if !manifest.dependencies.contains_key(name) {
+                manifest.dependencies.insert(name.clone(), version.clone());
+            }
+        }
+        for (name, version) in workspace.workspace_dev_dependencies() {
+            if !manifest.dev_dependencies.contains_key(name) {
+                manifest
+                    .dev_dependencies
+                    .insert(name.clone(), version.clone());
+            }
+        }
+
+        // If a specific package is requested, add it to this workspace package
+        if let Some(ref pkg_spec) = package {
+            // Parse package name and version
+            let (pkg_name, version) = if let Some(at_pos) = pkg_spec.find('@') {
+                (
+                    pkg_spec[..at_pos].to_string(),
+                    Some(pkg_spec[at_pos + 1..].to_string()),
+                )
+            } else {
+                (pkg_spec.clone(), None)
+            };
+
+            let version_str = version.unwrap_or_else(|| "*".to_string());
+
+            if dev {
+                manifest.dev_dependencies.insert(pkg_name, version_str);
+            } else {
+                manifest.dependencies.insert(pkg_name, version_str);
+            }
+
+            manifest.save(&pkg_dir)?;
+        }
+
+        // Determine which dependencies to install
+        let mut deps_to_install = HashMap::new();
+
+        if !no_dev && !dev_only {
+            // Install both prod and dev dependencies
+            deps_to_install.extend(manifest.dependencies.clone());
+            deps_to_install.extend(manifest.dev_dependencies.clone());
+        } else if dev_only {
+            // Install only dev dependencies
+            deps_to_install.extend(manifest.dev_dependencies.clone());
+        } else if no_dev {
+            // Install only prod dependencies
+            deps_to_install.extend(manifest.dependencies.clone());
+        }
+
+        if deps_to_install.is_empty() {
+            println!("  No dependencies to install for {}", pkg.name);
+            continue;
+        }
+
+        // Install dependencies
+        let installer = PackageInstaller::new(&pkg_dir)?;
+        installer.init()?;
+
+        // Initialize client for dependency resolution
+        let container = ServiceContainer::new()?;
+        let luarocks_manifest = container.package_client.fetch_manifest().await?;
+        let resolver = DependencyResolver::with_dependencies(
+            luarocks_manifest,
+            lpm::resolver::ResolutionStrategy::Highest,
+            container.package_client.clone(),
+            container.search_provider.clone(),
+        )?;
+
+        // Resolve all dependencies at once
+        let resolved_versions = resolver.resolve(&deps_to_install).await?;
+
+        for dep_name in deps_to_install.keys() {
+            println!("  Installing {}...", dep_name);
+
+            // Get resolved version
+            let resolved_version = resolved_versions.get(dep_name).ok_or_else(|| {
+                LpmError::Package(format!("Failed to resolve version for {}", dep_name))
+            })?;
+
+            installer
+                .install_package(dep_name, &resolved_version.to_string())
+                .await?;
+            println!("  ✓ Installed {}@{}", dep_name, resolved_version);
+        }
+
+        // Generate loader for this package
+        PathSetup::install_loader(&pkg_dir)?;
+
+        // Generate lockfile for this package
+        generate_lockfile(&pkg_dir, &manifest, false).await?;
+
+        println!("✓ Installed dependencies for {}\n", pkg.name);
+    }
+
+    println!("✓ All workspace packages updated");
 
     Ok(())
 }
@@ -1362,5 +1537,137 @@ mod tests {
         // Test install_package structure
         // The actual async tests would require network access
         // These tests verify the function signatures and structure
+    }
+
+    #[test]
+    fn test_install_options_default() {
+        let options = InstallOptions {
+            package: None,
+            dev: false,
+            path: None,
+            no_dev: false,
+            dev_only: false,
+            global: false,
+            interactive: false,
+            filter: vec![],
+        };
+        assert_eq!(options.package, None);
+        assert!(!options.dev);
+        assert!(!options.global);
+    }
+
+    #[test]
+    fn test_install_options_with_package() {
+        let options = InstallOptions {
+            package: Some("test-pkg".to_string()),
+            dev: true,
+            path: None,
+            no_dev: false,
+            dev_only: false,
+            global: false,
+            interactive: false,
+            filter: vec![],
+        };
+        assert_eq!(options.package, Some("test-pkg".to_string()));
+        assert!(options.dev);
+    }
+
+    #[test]
+    fn test_install_options_with_filter() {
+        let options = InstallOptions {
+            package: None,
+            dev: false,
+            path: None,
+            no_dev: false,
+            dev_only: false,
+            global: false,
+            interactive: false,
+            filter: vec!["pkg1".to_string(), "pkg2".to_string()],
+        };
+        assert_eq!(options.filter.len(), 2);
+        assert_eq!(options.filter[0], "pkg1");
+        assert_eq!(options.filter[1], "pkg2");
+    }
+
+    #[test]
+    fn test_install_from_path_creates_path_dependency() {
+        let temp = TempDir::new().unwrap();
+        let local_pkg_dir = temp.path().join("local-package");
+        fs::create_dir_all(&local_pkg_dir).unwrap();
+
+        let local_manifest = PackageManifest {
+            name: "local-package".to_string(),
+            version: "2.0.0".to_string(),
+            ..PackageManifest::default("".to_string())
+        };
+        local_manifest.save(&local_pkg_dir).unwrap();
+
+        let mut manifest = PackageManifest::default("test".to_string());
+        install_from_path(local_pkg_dir.to_str().unwrap(), false, &mut manifest).unwrap();
+
+        assert!(manifest.dependencies.contains_key("local-package"));
+        let dep_version = manifest.dependencies.get("local-package").unwrap();
+        assert!(dep_version.starts_with("path:"));
+    }
+
+    #[test]
+    fn test_install_from_path_dev_dependency() {
+        let temp = TempDir::new().unwrap();
+        let local_pkg_dir = temp.path().join("dev-package");
+        fs::create_dir_all(&local_pkg_dir).unwrap();
+
+        let local_manifest = PackageManifest {
+            name: "dev-package".to_string(),
+            version: "1.0.0".to_string(),
+            ..PackageManifest::default("".to_string())
+        };
+        local_manifest.save(&local_pkg_dir).unwrap();
+
+        let mut manifest = PackageManifest::default("test".to_string());
+        install_from_path(local_pkg_dir.to_str().unwrap(), true, &mut manifest).unwrap();
+
+        assert!(manifest.dev_dependencies.contains_key("dev-package"));
+        assert!(!manifest.dependencies.contains_key("dev-package"));
+    }
+
+    #[test]
+    fn test_install_from_path_missing_package_yaml() {
+        let temp = TempDir::new().unwrap();
+        let local_pkg_dir = temp.path().join("empty-dir");
+        fs::create_dir_all(&local_pkg_dir).unwrap();
+
+        let mut manifest = PackageManifest::default("test".to_string());
+        let result = install_from_path(local_pkg_dir.to_str().unwrap(), false, &mut manifest);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_package_spec_edge_cases() {
+        // Test with just @
+        let spec = "@";
+        let (name, version) = if let Some(at_pos) = spec.find('@') {
+            (
+                spec[..at_pos].to_string(),
+                Some(spec[at_pos + 1..].to_string()),
+            )
+        } else {
+            (spec.to_string(), None)
+        };
+        assert_eq!(name, "");
+        assert_eq!(version, Some("".to_string()));
+
+        // Test with multiple @ symbols
+        let spec = "pkg@v1@v2";
+        let (name, version) = if let Some(at_pos) = spec.find('@') {
+            (
+                spec[..at_pos].to_string(),
+                Some(spec[at_pos + 1..].to_string()),
+            )
+        } else {
+            (spec.to_string(), None)
+        };
+        assert_eq!(name, "pkg");
+        assert_eq!(version, Some("v1@v2".to_string()));
     }
 }

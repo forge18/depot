@@ -57,6 +57,9 @@ enum Commands {
         /// Interactive mode: search and select packages
         #[arg(short, long)]
         interactive: bool,
+        /// Filter workspace packages (e.g., "package-a", "packages/*", "...package-a", "package-a...")
+        #[arg(short = 'f', long)]
+        filter: Vec<String>,
     },
     /// Remove a dependency
     Remove {
@@ -65,11 +68,17 @@ enum Commands {
         /// Remove global package
         #[arg(short = 'g', long)]
         global: bool,
+        /// Filter workspace packages (e.g., "package-a", "packages/*", "...package-a", "package-a...")
+        #[arg(short = 'f', long)]
+        filter: Vec<String>,
     },
     /// Update dependencies
     Update {
         /// Package name to update (optional)
         package: Option<String>,
+        /// Filter workspace packages (e.g., "package-a", "packages/*", "...package-a", "package-a...")
+        #[arg(short = 'f', long)]
+        filter: Vec<String>,
     },
     /// List installed packages
     List {
@@ -90,6 +99,9 @@ enum Commands {
     Run {
         /// Script name
         script: String,
+        /// Filter workspace packages (e.g., "package-a", "packages/*", "...package-a", "package-a...")
+        #[arg(short = 'f', long)]
+        filter: Vec<String>,
     },
     /// Execute a command with correct paths
     Exec {
@@ -104,6 +116,9 @@ enum Commands {
         /// Build for all common targets
         #[arg(long)]
         all_targets: bool,
+        /// Filter workspace packages (e.g., "package-a", "packages/*", "...package-a", "package-a...")
+        #[arg(short = 'f', long)]
+        filter: Vec<String>,
     },
     /// Publish package to LuaRocks
     Publish {
@@ -182,19 +197,37 @@ async fn main() -> Result<(), LpmError> {
             dev_only,
             global,
             interactive,
-        } => cli::install::run(package, dev, path, no_dev, dev_only, global, interactive).await,
-        Commands::Remove { package, global } => cli::remove::run(package, global),
-        Commands::Update { package } => cli::update::run(package).await,
+            filter,
+        } => {
+            cli::install::run(cli::install::InstallOptions {
+                package,
+                dev,
+                path,
+                no_dev,
+                dev_only,
+                global,
+                interactive,
+                filter,
+            })
+            .await
+        }
+        Commands::Remove {
+            package,
+            global,
+            filter,
+        } => cli::remove::run(package, global, filter),
+        Commands::Update { package, filter } => cli::update::run(package, filter).await,
         Commands::List { tree, global } => cli::list::run(tree, global),
         Commands::Verify => cli::verify::run(),
         Commands::Outdated => cli::outdated::run().await,
         Commands::Clean => cli::clean::run(),
-        Commands::Run { script } => cli::run::run(script),
+        Commands::Run { script, filter } => cli::run::run(script, filter),
         Commands::Exec { command } => cli::exec::run(command),
         Commands::Build {
             target,
             all_targets,
-        } => cli::build::run(target, all_targets),
+            filter,
+        } => cli::build::run(target, all_targets, filter),
         Commands::Package { target } => cli::package::run(target),
         Commands::Publish { with_binaries } => cli::publish::run(with_binaries).await,
         Commands::Login => cli::login::run().await,

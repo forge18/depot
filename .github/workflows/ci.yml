@@ -10,7 +10,9 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: read
+
     steps:
       - uses: actions/checkout@v4
 
@@ -41,10 +43,12 @@ jobs:
   test:
     name: Test
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-    
+
     steps:
       - uses: actions/checkout@v4
 
@@ -81,13 +85,14 @@ jobs:
 
   comprehensive-tests:
     name: Comprehensive E2E Tests
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         lua: ['5.1', '5.3', '5.4']
-    
-    runs-on: ${{ matrix.os }}
-    
+
     steps:
       - uses: actions/checkout@v4
       
@@ -206,6 +211,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -232,21 +238,30 @@ jobs:
       - name: Update coverage badge
         run: bash scripts/update-coverage-badge.sh
 
-      - name: Commit coverage changes
+      - name: Amend commit with coverage updates
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add coverage/ README.md
-          git diff --quiet && git diff --staged --quiet || git commit -m "chore: update coverage badge"
-          git push
+
+          # Check if there are changes to commit
+          if ! git diff --quiet --staged; then
+            # Amend the HEAD commit with coverage updates
+            git commit --amend --no-edit
+            git push --force-with-lease
+          else
+            echo "No coverage changes to commit"
+          fi
 
   build:
     name: Build Check
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-    
+
     steps:
       - uses: actions/checkout@v4
 

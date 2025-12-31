@@ -77,6 +77,9 @@ urlencoding = "2.1"
 dialoguer = "0.11"
 fuzzy-matcher = "0.3"
 
+# Async trait support for dependency injection
+async-trait = "0.1"
+
 # Rockspec parsing (regex-based, no Lua interpreter needed)
 
 # Package management
@@ -86,6 +89,8 @@ fuzzy-matcher = "0.3"
 tempfile = "3.8"
 criterion = { version = "0.5", features = ["html_reports"] }
 rusty-hook = "0.11.2"
+serial_test = "3.0"
+mockall = "0.13"
 
 # E2E testing dependencies
 assert_cmd = "2.0"      # Test CLI binaries

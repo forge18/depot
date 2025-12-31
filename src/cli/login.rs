@@ -35,8 +35,6 @@ pub async fn run() -> LpmResult<()> {
 
     println!();
     println!("✓ Credentials stored securely");
-    println!("  Username: {}", username);
-    println!("  API key: {}...", &api_key[..api_key.len().min(8)]);
 
     Ok(())
 }

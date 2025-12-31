@@ -195,3 +195,83 @@ impl PluginRegistry {
         Ok(None)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_registry_entry_creation() {
+        let entry = RegistryEntry {
+            name: "test-plugin".to_string(),
+            version: "1.0.0".to_string(),
+            description: Some("A test plugin".to_string()),
+            author: Some("Test Author".to_string()),
+            homepage: Some("https://example.com".to_string()),
+            download_url: Some("https://example.com/download".to_string()),
+            versions: vec!["1.0.0".to_string(), "0.9.0".to_string()],
+        };
+
+        assert_eq!(entry.name, "test-plugin");
+        assert_eq!(entry.version, "1.0.0");
+        assert_eq!(entry.versions.len(), 2);
+        assert!(entry.description.is_some());
+    }
+
+    #[test]
+    fn test_registry_entry_minimal() {
+        let entry = RegistryEntry {
+            name: "minimal".to_string(),
+            version: "2.0.0".to_string(),
+            description: None,
+            author: None,
+            homepage: None,
+            download_url: None,
+            versions: vec![],
+        };
+
+        assert_eq!(entry.name, "minimal");
+        assert!(entry.description.is_none());
+        assert!(entry.versions.is_empty());
+    }
+
+    #[test]
+    fn test_registry_struct_exists() {
+        // Ensure the registry struct can be constructed
+        let _registry = PluginRegistry;
+    }
+
+    #[test]
+    fn test_github_asset_deserialization() {
+        let json = r#"{
+            "name": "lpm-plugin-macos",
+            "browser_download_url": "https://github.com/example/releases/download/v1.0.0/lpm-plugin-macos",
+            "size": 1234567
+        }"#;
+
+        let asset: Result<GitHubAsset, _> = serde_json::from_str(json);
+        assert!(asset.is_ok());
+        let asset = asset.unwrap();
+        assert_eq!(asset.name, "lpm-plugin-macos");
+        assert!(asset.browser_download_url.contains("github.com"));
+    }
+
+    #[test]
+    fn test_registry_entry_serialization() {
+        let entry = RegistryEntry {
+            name: "serialize-test".to_string(),
+            version: "1.2.3".to_string(),
+            description: Some("Test".to_string()),
+            author: None,
+            homepage: None,
+            download_url: None,
+            versions: vec!["1.2.3".to_string()],
+        };
+
+        let json = serde_json::to_string(&entry);
+        assert!(json.is_ok());
+        let json_str = json.unwrap();
+        assert!(json_str.contains("serialize-test"));
+        assert!(json_str.contains("1.2.3"));
+    }
+}

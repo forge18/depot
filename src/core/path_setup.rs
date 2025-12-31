@@ -5,6 +5,9 @@ use std::path::PathBuf;
 /// Check if lpm is in PATH and provide setup instructions if not
 pub fn check_path_setup() -> LpmResult<()> {
     // Get the current executable path
+    // nosemgrep: rust.lang.security.current-exe.current-exe
+    // Justification: Used only to check if lpm is in PATH and provide setup instructions.
+    // No security risk as the path is not used for privilege escalation.
     let current_exe = env::current_exe()
         .map_err(|e| LpmError::Path(format!("Failed to get current executable: {}", e)))?;
 

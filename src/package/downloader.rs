@@ -1,7 +1,7 @@
 use crate::core::{LpmError, LpmResult};
+use crate::di::PackageClient;
 use crate::lua_version::compatibility::PackageCompatibility;
 use crate::lua_version::detector::LuaVersion;
-use crate::luarocks::client::LuaRocksClient;
 use crate::luarocks::manifest::Manifest;
 use crate::luarocks::rockspec::Rockspec;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -31,15 +31,15 @@ pub struct DownloadResult {
 
 /// Manages parallel/concurrent package downloads
 pub struct ParallelDownloader {
-    client: Arc<LuaRocksClient>,
+    client: Arc<dyn PackageClient>,
     max_concurrent: usize,
 }
 
 impl ParallelDownloader {
     /// Create a new parallel downloader
-    pub fn new(client: LuaRocksClient, max_concurrent: Option<usize>) -> Self {
+    pub fn new(client: Arc<dyn PackageClient>, max_concurrent: Option<usize>) -> Self {
         Self {
-            client: Arc::new(client),
+            client,
             max_concurrent: max_concurrent.unwrap_or(10), // Default to 10 concurrent downloads
         }
     }
@@ -83,7 +83,7 @@ impl ParallelDownloader {
 
     /// Download a single package (used by parallel downloader)
     async fn download_single_package(
-        client: &LuaRocksClient,
+        client: &dyn PackageClient,
         task: DownloadTask,
         installed_lua: Option<&LuaVersion>,
     ) -> DownloadResult {

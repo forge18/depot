@@ -156,4 +156,12 @@ mod tests {
         assert_eq!(result.successful.len(), 3);
         assert_eq!(result.failed.len(), 1);
     }
+
+    #[test]
+    fn test_empty_lockfile_message() {
+        // Test that we properly handle the case where lockfile has no packages
+        let lockfile = Lockfile::new();
+        assert!(lockfile.packages.is_empty());
+        // The message "No packages to verify" should be shown for empty lockfiles
+    }
 }

@@ -158,10 +158,32 @@ pub async fn shared_deps() -> LpmResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::fs;
+    use std::path::PathBuf;
     use tempfile::TempDir;
 
+    /// Guard that restores the current directory when dropped
+    struct DirGuard {
+        original_dir: PathBuf,
+    }
+
+    impl DirGuard {
+        fn new(new_dir: &std::path::Path) -> std::io::Result<Self> {
+            let original_dir = env::current_dir()?;
+            env::set_current_dir(new_dir)?;
+            Ok(Self { original_dir })
+        }
+    }
+
+    impl Drop for DirGuard {
+        fn drop(&mut self) {
+            let _ = env::set_current_dir(&self.original_dir);
+        }
+    }
+
     #[tokio::test]
+    #[serial]
     async fn test_list_empty_workspace() {
         let temp = TempDir::new().unwrap();
 
@@ -176,12 +198,9 @@ packages:
         )
         .unwrap();
 
-        // Change to workspace directory
-        let original_dir = env::current_dir().unwrap();
-        env::set_current_dir(temp.path()).unwrap();
+        let _guard = DirGuard::new(temp.path()).unwrap();
 
         let result = list().await;
-        env::set_current_dir(&original_dir).unwrap();
 
         assert!(result.is_ok());
     }

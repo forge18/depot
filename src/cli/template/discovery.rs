@@ -17,6 +17,9 @@ impl TemplateDiscovery {
     pub fn builtin_templates_dir() -> PathBuf {
         // Check for templates in the source directory (for development)
         // In production, this could be embedded in the binary or installed separately
+        // nosemgrep: rust.lang.security.current-exe.current-exe
+        // Justification: Used only to locate built-in template resources relative to the binary.
+        // This is a standard practice for finding application resources and poses no security risk.
         if let Ok(exe) = std::env::current_exe() {
             if let Some(exe_dir) = exe.parent() {
                 // Check if we're in a development build (target/debug or target/release)

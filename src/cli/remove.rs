@@ -2,9 +2,10 @@ use lpm::core::path::find_project_root;
 use lpm::core::{LpmError, LpmResult};
 use lpm::package::installer::PackageInstaller;
 use lpm::package::manifest::PackageManifest;
+use lpm::workspace::{Workspace, WorkspaceFilter};
 use std::env;
 
-pub fn run(package: String, global: bool) -> LpmResult<()> {
+pub fn run(package: String, global: bool, filter: Vec<String>) -> LpmResult<()> {
     if global {
         return remove_global(&package);
     }
@@ -13,13 +14,31 @@ pub fn run(package: String, global: bool) -> LpmResult<()> {
         .map_err(|e| LpmError::Path(format!("Failed to get current directory: {}", e)))?;
 
     let project_root = find_project_root(&current_dir)?;
-    let mut manifest = PackageManifest::load(&project_root)?;
+
+    // Check if we're in a workspace and filtering is requested
+    if !filter.is_empty() {
+        if Workspace::is_workspace(&project_root) {
+            let workspace = Workspace::load(&project_root)?;
+            return remove_workspace_filtered(&workspace, &filter, &package);
+        } else {
+            return Err(LpmError::Package(
+                "--filter can only be used in workspace mode".to_string(),
+            ));
+        }
+    }
+
+    // Non-workspace or no filter: continue with original logic
+    remove_from_project(&project_root, &package)
+}
+
+fn remove_from_project(project_root: &std::path::Path, package: &str) -> LpmResult<()> {
+    let mut manifest = PackageManifest::load(project_root)?;
 
     // Try to remove from dependencies
-    let removed_from_deps = manifest.dependencies.remove(&package).is_some();
+    let removed_from_deps = manifest.dependencies.remove(package).is_some();
 
     // Try to remove from dev_dependencies
-    let removed_from_dev = manifest.dev_dependencies.remove(&package).is_some();
+    let removed_from_dev = manifest.dev_dependencies.remove(package).is_some();
 
     if !removed_from_deps && !removed_from_dev {
         return Err(LpmError::Package(format!(
@@ -29,13 +48,13 @@ pub fn run(package: String, global: bool) -> LpmResult<()> {
     }
 
     // Actually remove package files from lua_modules/
-    let installer = PackageInstaller::new(&project_root)?;
-    if installer.is_installed(&package) {
-        installer.remove_package(&package)?;
+    let installer = PackageInstaller::new(project_root)?;
+    if installer.is_installed(package) {
+        installer.remove_package(package)?;
     }
 
     // Save updated manifest
-    manifest.save(&project_root)?;
+    manifest.save(project_root)?;
 
     let location = if removed_from_deps && removed_from_dev {
         "dependencies and dev_dependencies"
@@ -47,6 +66,82 @@ pub fn run(package: String, global: bool) -> LpmResult<()> {
 
     println!("✓ Removed {} from {}", package, location);
     println!("✓ Removed package files from lua_modules/");
+
+    Ok(())
+}
+
+fn remove_workspace_filtered(
+    workspace: &Workspace,
+    filter_patterns: &[String],
+    package: &str,
+) -> LpmResult<()> {
+    // Create filter
+    let filter = WorkspaceFilter::new(filter_patterns.to_vec());
+
+    // Get filtered packages
+    let filtered_packages = filter.filter_packages(workspace)?;
+
+    if filtered_packages.is_empty() {
+        println!("No packages match the filter patterns");
+        return Ok(());
+    }
+
+    println!(
+        "📦 Removing {} from {} workspace package(s):",
+        package,
+        filtered_packages.len()
+    );
+    for pkg in &filtered_packages {
+        println!("  - {} ({})", pkg.name, pkg.path.display());
+    }
+    println!();
+
+    // Remove from each filtered package
+    for pkg in filtered_packages {
+        let pkg_dir = workspace.root.join(&pkg.path);
+
+        println!("Removing {} from {}...", package, pkg.name);
+
+        let mut manifest = PackageManifest::load(&pkg_dir)?;
+
+        // Try to remove from dependencies
+        let removed_from_deps = manifest.dependencies.remove(package).is_some();
+
+        // Try to remove from dev_dependencies
+        let removed_from_dev = manifest.dev_dependencies.remove(package).is_some();
+
+        if !removed_from_deps && !removed_from_dev {
+            println!(
+                "  Package '{}' not found in {}, skipping",
+                package, pkg.name
+            );
+            continue;
+        }
+
+        // Actually remove package files from lua_modules/
+        let installer = PackageInstaller::new(&pkg_dir)?;
+        if installer.is_installed(package) {
+            installer.remove_package(package)?;
+        }
+
+        // Save updated manifest
+        manifest.save(&pkg_dir)?;
+
+        let location = if removed_from_deps && removed_from_dev {
+            "dependencies and dev_dependencies"
+        } else if removed_from_deps {
+            "dependencies"
+        } else {
+            "dev_dependencies"
+        };
+
+        println!("  ✓ Removed {} from {}", package, location);
+    }
+
+    println!(
+        "\n✓ Removed {} from all filtered workspace packages",
+        package
+    );
 
     Ok(())
 }
@@ -242,5 +337,123 @@ mod tests {
     #[test]
     fn test_run_function_exists() {
         let _ = run;
+    }
+
+    #[test]
+    fn test_remove_function_signature() {
+        let _func: fn(String, bool, Vec<String>) -> LpmResult<()> = run;
+    }
+
+    #[test]
+    fn test_manifest_remove_multiple_dependencies() {
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest
+            .dependencies
+            .insert("a".to_string(), "1.0.0".to_string());
+        manifest
+            .dependencies
+            .insert("b".to_string(), "2.0.0".to_string());
+        manifest
+            .dependencies
+            .insert("c".to_string(), "3.0.0".to_string());
+
+        assert_eq!(manifest.dependencies.len(), 3);
+
+        manifest.dependencies.remove("a");
+        manifest.dependencies.remove("c");
+
+        assert_eq!(manifest.dependencies.len(), 1);
+        assert!(manifest.dependencies.contains_key("b"));
+    }
+
+    #[test]
+    fn test_manifest_clear_all_dependencies() {
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest
+            .dependencies
+            .insert("dep1".to_string(), "^1.0.0".to_string());
+        manifest
+            .dependencies
+            .insert("dep2".to_string(), "^2.0.0".to_string());
+
+        manifest.dependencies.clear();
+        assert_eq!(manifest.dependencies.len(), 0);
+    }
+
+    #[test]
+    fn test_manifest_clear_dev_dependencies() {
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest
+            .dev_dependencies
+            .insert("dev1".to_string(), "^1.0.0".to_string());
+        manifest
+            .dev_dependencies
+            .insert("dev2".to_string(), "^2.0.0".to_string());
+
+        manifest.dev_dependencies.clear();
+        assert_eq!(manifest.dev_dependencies.len(), 0);
+    }
+
+    #[test]
+    fn test_manifest_has_dependencies() {
+        let mut manifest = PackageManifest::default("test".to_string());
+        assert!(!manifest.dependencies.contains_key("any"));
+
+        manifest
+            .dependencies
+            .insert("pkg".to_string(), "1.0.0".to_string());
+        assert!(manifest.dependencies.contains_key("pkg"));
+    }
+
+    #[test]
+    fn test_manifest_dependency_count() {
+        let mut manifest = PackageManifest::default("test".to_string());
+        assert_eq!(manifest.dependencies.len(), 0);
+
+        for i in 0..5 {
+            manifest
+                .dependencies
+                .insert(format!("pkg{}", i), "1.0.0".to_string());
+        }
+        assert_eq!(manifest.dependencies.len(), 5);
+    }
+
+    #[test]
+    fn test_manifest_dev_dependency_count() {
+        let mut manifest = PackageManifest::default("test".to_string());
+        assert_eq!(manifest.dev_dependencies.len(), 0);
+
+        for i in 0..3 {
+            manifest
+                .dev_dependencies
+                .insert(format!("dev{}", i), "1.0.0".to_string());
+        }
+        assert_eq!(manifest.dev_dependencies.len(), 3);
+    }
+
+    #[test]
+    fn test_manifest_mixed_dependencies() {
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest
+            .dependencies
+            .insert("prod".to_string(), "1.0.0".to_string());
+        manifest
+            .dev_dependencies
+            .insert("dev".to_string(), "2.0.0".to_string());
+
+        assert_eq!(manifest.dependencies.len(), 1);
+        assert_eq!(manifest.dev_dependencies.len(), 1);
+        assert!(manifest.dependencies.contains_key("prod"));
+        assert!(manifest.dev_dependencies.contains_key("dev"));
+    }
+
+    #[test]
+    fn test_remove_from_project_function_exists() {
+        let _ = remove_from_project;
+    }
+
+    #[test]
+    fn test_remove_workspace_filtered_function_exists() {
+        let _ = remove_workspace_filtered;
     }
 }

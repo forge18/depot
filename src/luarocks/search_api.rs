@@ -1,5 +1,7 @@
+use async_trait::async_trait;
 use crate::core::version::Version;
 use crate::core::{LpmError, LpmResult};
+use crate::di::SearchProvider;
 use crate::luarocks::manifest::Manifest;
 use reqwest::Client;
 
@@ -89,6 +91,27 @@ impl SearchAPI {
             return Err(LpmError::Package(format!("Rockspec not found: {}", url)));
         }
         Ok(())
+    }
+}
+
+// Implement SearchProvider trait
+#[async_trait]
+impl SearchProvider for SearchAPI {
+    async fn get_latest_version(&self, package_name: &str) -> LpmResult<String> {
+        self.get_latest_version(package_name).await
+    }
+
+    fn get_rockspec_url(
+        &self,
+        package_name: &str,
+        version: &str,
+        manifest: Option<&str>,
+    ) -> String {
+        self.get_rockspec_url(package_name, version, manifest)
+    }
+
+    async fn verify_rockspec_url(&self, url: &str) -> LpmResult<()> {
+        self.verify_rockspec_url(url).await
     }
 }
 

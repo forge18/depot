@@ -1,35 +1,79 @@
-use crate::cache::Cache;
-use crate::config::Config;
 use crate::core::LpmResult;
-use crate::luarocks::client::LuaRocksClient;
+use crate::di::{CacheProvider, ConfigProvider, PackageClient, SearchProvider, ServiceContainer};
 use crate::luarocks::rockspec::Rockspec;
-use crate::luarocks::search_api::SearchAPI;
 use crate::package::lockfile::{LockedPackage, Lockfile};
 use crate::package::manifest::PackageManifest;
 use crate::resolver::{DependencyResolver, ResolutionStrategy};
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::Arc;
+
+#[cfg(test)]
+use crate::cache::Cache;
+#[cfg(test)]
+use crate::config::Config;
 
 /// Builder for creating lockfiles from manifests
 pub struct LockfileBuilder {
-    cache: Cache,
-    config: Option<Config>,
+    config: Arc<dyn ConfigProvider>,
+    cache: Arc<dyn CacheProvider>,
+    package_client: Arc<dyn PackageClient>,
+    search_provider: Arc<dyn SearchProvider>,
 }
 
 impl LockfileBuilder {
-    pub fn new(cache: Cache) -> Self {
-        Self {
-            cache,
-            config: None,
-        }
+    /// Create a new lockfile builder with production dependencies
+    pub fn new() -> LpmResult<Self> {
+        let container = ServiceContainer::new()?;
+        Self::with_dependencies(
+            container.config.clone(),
+            container.cache.clone(),
+            container.package_client.clone(),
+            container.search_provider.clone(),
+        )
     }
 
-    /// Create a builder with a custom config (useful for testing)
-    #[cfg(test)]
-    pub fn with_config(cache: Cache, config: Config) -> Self {
-        Self {
+    /// Create a lockfile builder with injected dependencies (proper DI)
+    pub fn with_dependencies(
+        config: Arc<dyn ConfigProvider>,
+        cache: Arc<dyn CacheProvider>,
+        package_client: Arc<dyn PackageClient>,
+        search_provider: Arc<dyn SearchProvider>,
+    ) -> LpmResult<Self> {
+        Ok(Self {
+            config,
             cache,
-            config: Some(config),
+            package_client,
+            search_provider,
+        })
+    }
+
+    /// Create a lockfile builder with custom container (deprecated)
+    #[deprecated(note = "Use with_dependencies instead for proper dependency injection")]
+    pub fn with_container(container: ServiceContainer) -> LpmResult<Self> {
+        Self::with_dependencies(
+            container.config.clone(),
+            container.cache.clone(),
+            container.package_client.clone(),
+            container.search_provider.clone(),
+        )
+    }
+
+    /// Create a builder with a custom config (useful for testing, deprecated)
+    #[cfg(test)]
+    #[deprecated(note = "Use with_dependencies instead")]
+    pub fn with_config(cache: Cache, config: Config) -> Self {
+        use crate::luarocks::client::LuaRocksClient;
+        use crate::luarocks::search_api::SearchAPI;
+
+        let cache_arc = Arc::new(cache);
+        let config_arc = Arc::new(config.clone());
+
+        Self {
+            config: config_arc.clone(),
+            cache: cache_arc.clone(),
+            package_client: Arc::new(LuaRocksClient::new(&config, (*cache_arc).clone())),
+            search_provider: Arc::new(SearchAPI::new()),
         }
     }
 
@@ -50,24 +94,21 @@ impl LockfileBuilder {
     ) -> LpmResult<Lockfile> {
         let mut lockfile = Lockfile::new();
 
-        // Setup clients for fetching rockspecs
-        let config = match &self.config {
-            Some(c) => c.clone(),
-            None => Config::load()?,
-        };
-        let client = LuaRocksClient::new(&config, self.cache.clone());
-        let search_api = SearchAPI::new();
-
         // Determine resolution strategy from manifest, then config
         let strategy = if let Some(ref strategy_str) = manifest.resolution_strategy {
             ResolutionStrategy::parse(strategy_str)?
         } else {
-            ResolutionStrategy::parse(&config.resolution_strategy)?
+            ResolutionStrategy::parse(self.config.resolution_strategy())?
         };
 
         // Fetch manifest for resolver
-        let luarocks_manifest = client.fetch_manifest().await?;
-        let resolver = DependencyResolver::new_with_strategy(luarocks_manifest.clone(), strategy);
+        let luarocks_manifest = self.package_client.fetch_manifest().await?;
+        let resolver = DependencyResolver::with_dependencies(
+            luarocks_manifest.clone(),
+            strategy,
+            self.package_client.clone(),
+            self.search_provider.clone(),
+        )?;
 
         // Resolve all dependencies
         let resolved_versions = resolver.resolve(&manifest.dependencies).await?;
@@ -79,7 +120,7 @@ impl LockfileBuilder {
 
         // Use parallel downloads for better performance
         use crate::package::downloader::{DownloadTask, ParallelDownloader};
-        let parallel_downloader = ParallelDownloader::new(client, Some(10));
+        let parallel_downloader = ParallelDownloader::new(self.package_client.clone(), Some(10));
 
         // Get source URLs from manifest for parallel downloads (already fetched above)
 
@@ -87,7 +128,7 @@ impl LockfileBuilder {
         let mut download_tasks = Vec::new();
         for (name, version) in &resolved_versions {
             let version_str = version.to_string();
-            let rockspec_url = search_api.get_rockspec_url(name, &version_str, None);
+            let rockspec_url = self.search_provider.get_rockspec_url(name, &version_str, None);
 
             // Try to get source URL from manifest
             let source_url = luarocks_manifest
@@ -111,7 +152,7 @@ impl LockfileBuilder {
         if !exclude_dev {
             for (name, version) in &resolved_dev_versions {
                 let version_str = version.to_string();
-                let rockspec_url = search_api.get_rockspec_url(name, &version_str, None);
+                let rockspec_url = self.search_provider.get_rockspec_url(name, &version_str, None);
 
                 // Try to get source URL from manifest
                 let source_url =
@@ -147,7 +188,7 @@ impl LockfileBuilder {
 
             // Calculate checksum from downloaded source
             let checksum = if let Some(ref source_path) = result.source_path {
-                Cache::checksum(source_path)?
+                self.cache.checksum(source_path)?
             } else {
                 return Err(crate::core::LpmError::Package(format!(
                     "No source path for {}",
@@ -191,7 +232,7 @@ impl LockfileBuilder {
             let locked_package = crate::package::lockfile::LockedPackage {
                 version: version.clone(),
                 source: "luarocks".to_string(),
-                rockspec_url: Some(search_api.get_rockspec_url(&name, &version, None)),
+                rockspec_url: Some(self.search_provider.get_rockspec_url(&name, &version, None)),
                 source_url: result.rockspec.source.url.clone().into(),
                 checksum,
                 size,
@@ -208,21 +249,19 @@ impl LockfileBuilder {
     /// Build a LockedPackage entry by fetching rockspec and calculating checksum
     async fn build_locked_package(
         &self,
-        client: &LuaRocksClient,
-        search_api: &SearchAPI,
         name: &str,
         version: &str,
     ) -> LpmResult<LockedPackage> {
         // Get rockspec URL and fetch it
-        let rockspec_url = search_api.get_rockspec_url(name, version, None);
-        let rockspec_content = client.download_rockspec(&rockspec_url).await?;
-        let rockspec: Rockspec = client.parse_rockspec(&rockspec_content)?;
+        let rockspec_url = self.search_provider.get_rockspec_url(name, version, None);
+        let rockspec_content = self.package_client.download_rockspec(&rockspec_url).await?;
+        let rockspec: Rockspec = self.package_client.parse_rockspec(&rockspec_content)?;
 
         // Download source to get it in cache (if not already there)
-        let source_path = client.download_source(&rockspec.source.url).await?;
+        let source_path = self.package_client.download_source(&rockspec.source.url).await?;
 
         // Calculate checksum from cached source
-        let checksum = Cache::checksum(&source_path)?;
+        let checksum = self.cache.checksum(&source_path)?;
 
         // Get file size
         let size = std::fs::metadata(&source_path).ok().map(|m| m.len());
@@ -272,21 +311,21 @@ impl LockfileBuilder {
     ) -> LpmResult<Lockfile> {
         let mut new_lockfile = Lockfile::new();
 
-        // Setup clients
-        let config = Config::load()?;
-        let client = LuaRocksClient::new(&config, self.cache.clone());
-        let search_api = SearchAPI::new();
-
         // Determine resolution strategy from manifest, then config
         let strategy = if let Some(ref strategy_str) = manifest.resolution_strategy {
             ResolutionStrategy::parse(strategy_str)?
         } else {
-            ResolutionStrategy::parse(&config.resolution_strategy)?
+            ResolutionStrategy::parse(self.config.resolution_strategy())?
         };
 
         // Fetch manifest for resolver
-        let luarocks_manifest = client.fetch_manifest().await?;
-        let resolver = DependencyResolver::new_with_strategy(luarocks_manifest, strategy);
+        let luarocks_manifest = self.package_client.fetch_manifest().await?;
+        let resolver = DependencyResolver::with_dependencies(
+            luarocks_manifest,
+            strategy,
+            self.package_client.clone(),
+            self.search_provider.clone(),
+        )?;
 
         // Resolve all dependencies
         let resolved_versions = resolver.resolve(&manifest.dependencies).await?;
@@ -329,7 +368,7 @@ impl LockfileBuilder {
 
             // Build new lockfile entry
             let locked_package = self
-                .build_locked_package(&client, &search_api, package_name, &version_str)
+                .build_locked_package(package_name, &version_str)
                 .await?;
 
             new_lockfile.add_package(package_name.clone(), locked_package);
@@ -439,7 +478,7 @@ build = {{
 
         // Now build_locked_package should work - it will use cached rockspec, download source from mock
         let result = builder
-            .build_locked_package(&client, &search_api, "testpkg", "1.0.0")
+            .build_locked_package("testpkg", "1.0.0")
             .await;
 
         // Should succeed - uses cached rockspec, downloads source from mock server
@@ -739,7 +778,7 @@ build = {{
 
         // Will fail on network, but tests dependency parsing structure
         let _result = builder
-            .build_locked_package(&client, &search_api, "test", "1.0.0")
+            .build_locked_package("test", "1.0.0")
             .await;
     }
 

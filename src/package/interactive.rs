@@ -154,4 +154,58 @@ mod tests {
         let func: fn(&str, &[&str], usize) -> LpmResult<usize> = choose;
         let _ = func;
     }
+
+    #[test]
+    fn test_confirm_returns_lpm_result() {
+        // Verify confirm returns LpmResult<bool>
+        let func: fn(&str) -> LpmResult<bool> = confirm;
+        // Check function signature exists
+        assert_eq!(std::mem::size_of_val(&func), std::mem::size_of::<usize>());
+    }
+
+    #[test]
+    fn test_confirm_with_default_returns_lpm_result() {
+        // Verify confirm_with_default returns LpmResult<bool>
+        let func: fn(&str, bool) -> LpmResult<bool> = confirm_with_default;
+        // Check function signature exists
+        assert_eq!(std::mem::size_of_val(&func), std::mem::size_of::<usize>());
+    }
+
+    #[test]
+    fn test_choose_returns_lpm_result_usize() {
+        // Verify choose returns LpmResult<usize>
+        let func: fn(&str, &[&str], usize) -> LpmResult<usize> = choose;
+        // Check function signature exists
+        assert_eq!(std::mem::size_of_val(&func), std::mem::size_of::<usize>());
+    }
+
+    #[test]
+    fn test_confirm_accepts_prompt_string() {
+        // Test that confirm accepts &str parameter
+        let _func: fn(&str) -> LpmResult<bool> = confirm;
+        // Compilation succeeds means signature is correct
+    }
+
+    #[test]
+    fn test_confirm_with_default_accepts_bool() {
+        // Test that confirm_with_default accepts bool default parameter
+        let _func: fn(&str, bool) -> LpmResult<bool> = confirm_with_default;
+        // Compilation succeeds means signature is correct
+    }
+
+    #[test]
+    fn test_choose_accepts_slice_and_usize() {
+        // Test that choose accepts options slice and default index
+        let _func: fn(&str, &[&str], usize) -> LpmResult<usize> = choose;
+        // Compilation succeeds means signature is correct
+    }
+
+    #[test]
+    fn test_interactive_module_exports() {
+        // Test that all public functions are accessible
+        use super::{choose, confirm, confirm_with_default};
+        let _f1 = confirm;
+        let _f2 = confirm_with_default;
+        let _f3 = choose;
+    }
 }

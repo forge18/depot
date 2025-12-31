@@ -37,7 +37,7 @@ impl Publisher {
             LpmError::Package("LuaRocks API key not found. Run 'lpm login' first.".to_string())
         })?;
 
-        println!("Publishing as: {}", username);
+        println!("Publishing package...");
 
         // 3. Generate rockspec
         println!("Generating rockspec...");
