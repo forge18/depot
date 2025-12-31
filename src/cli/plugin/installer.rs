@@ -45,7 +45,9 @@ impl PluginInstaller {
         println!("Installing plugin: {}", plugin_name);
 
         // Get plugin info from registry
-        let entry = PluginRegistry::get_plugin(plugin_name)
+        let registry = PluginRegistry::new();
+        let entry = registry
+            .get_plugin(plugin_name)
             .await?
             .ok_or_else(|| {
                 LpmError::Package(format!("Plugin '{}' not found in registry", plugin_name))
@@ -138,7 +140,9 @@ impl PluginInstaller {
             .unwrap_or(&current_info.metadata.version);
 
         // Get latest version
-        let latest_version = PluginRegistry::get_latest_version(plugin_name)
+        let registry = PluginRegistry::new();
+        let latest_version = registry
+            .get_latest_version(plugin_name)
             .await?
             .ok_or_else(|| {
                 LpmError::Package(format!(

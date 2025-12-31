@@ -205,7 +205,10 @@ async fn check_outdated(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use lpm::cache::Cache;
+    use lpm::config::Config;
     use lpm::core::version::Version;
+    use lpm::luarocks::client::LuaRocksClient;
     use lpm::luarocks::manifest::{Manifest, PackageVersion};
     use tempfile::TempDir;
 

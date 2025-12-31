@@ -296,6 +296,7 @@ pub fn create_download_tasks(
 mod tests {
     use super::*;
     use crate::luarocks::manifest::{Manifest, PackageVersion};
+    use crate::luarocks::client::LuaRocksClient;
 
     #[test]
     fn test_create_download_tasks() {
@@ -393,7 +394,7 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let config = Config::default();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let client = LuaRocksClient::new(&config, cache);
+        let client = Arc::new(LuaRocksClient::new(&config, cache));
 
         let _downloader = ParallelDownloader::new(client, Some(5));
         // We can't easily access max_concurrent, but we can verify it was created
@@ -409,7 +410,7 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let config = Config::default();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let client = LuaRocksClient::new(&config, cache);
+        let client = Arc::new(LuaRocksClient::new(&config, cache));
 
         let _downloader = ParallelDownloader::new(client, None);
         // Default max_concurrent should be 10
@@ -533,7 +534,7 @@ mod tests {
         use crate::luarocks::client::LuaRocksClient;
         let config = Config::load().unwrap();
         let cache = Cache::new(config.get_cache_dir().unwrap()).unwrap();
-        let client = LuaRocksClient::new(&config, cache);
+        let client = Arc::new(LuaRocksClient::new(&config, cache));
         let downloader = ParallelDownloader::new(client, Some(0));
         assert_eq!(downloader.max_concurrent, 0);
     }
@@ -545,7 +546,7 @@ mod tests {
         use crate::luarocks::client::LuaRocksClient;
         let config = Config::load().unwrap();
         let cache = Cache::new(config.get_cache_dir().unwrap()).unwrap();
-        let client = LuaRocksClient::new(&config, cache);
+        let client = Arc::new(LuaRocksClient::new(&config, cache));
         let downloader = ParallelDownloader::new(client, Some(100));
         assert_eq!(downloader.max_concurrent, 100);
     }
@@ -557,7 +558,7 @@ mod tests {
         use crate::luarocks::client::LuaRocksClient;
         let config = Config::load().unwrap();
         let cache = Cache::new(config.get_cache_dir().unwrap()).unwrap();
-        let client = LuaRocksClient::new(&config, cache);
+        let client = Arc::new(LuaRocksClient::new(&config, cache));
         let downloader = ParallelDownloader::new(client, None);
         let results = downloader.download_with_progress(vec![], None).await;
         assert!(results.is_ok());
@@ -571,7 +572,7 @@ mod tests {
         use crate::luarocks::client::LuaRocksClient;
         let config = Config::load().unwrap();
         let cache = Cache::new(config.get_cache_dir().unwrap()).unwrap();
-        let client = LuaRocksClient::new(&config, cache);
+        let client = Arc::new(LuaRocksClient::new(&config, cache));
         let downloader = ParallelDownloader::new(client, None);
 
         // Create task with invalid URL to trigger error
@@ -594,7 +595,7 @@ mod tests {
         use crate::luarocks::client::LuaRocksClient;
         let config = Config::load().unwrap();
         let cache = Cache::new(config.get_cache_dir().unwrap()).unwrap();
-        let client = LuaRocksClient::new(&config, cache);
+        let client = Arc::new(LuaRocksClient::new(&config, cache));
         let downloader = ParallelDownloader::new(client, None);
 
         // Create tasks - one valid, one invalid
@@ -672,7 +673,7 @@ mod tests {
         use crate::luarocks::client::LuaRocksClient;
         let config = Config::load().unwrap();
         let cache = Cache::new(config.get_cache_dir().unwrap()).unwrap();
-        let client = LuaRocksClient::new(&config, cache);
+        let client = Arc::new(LuaRocksClient::new(&config, cache));
         let downloader = ParallelDownloader::new(client, Some(2)); // Limit to 2 concurrent
 
         // Create multiple tasks to test concurrency limit
@@ -710,7 +711,7 @@ mod tests {
         use crate::luarocks::client::LuaRocksClient;
         let config = Config::load().unwrap();
         let cache = Cache::new(config.get_cache_dir().unwrap()).unwrap();
-        let client = LuaRocksClient::new(&config, cache);
+        let client = Arc::new(LuaRocksClient::new(&config, cache));
         let downloader = ParallelDownloader::new(client, Some(1));
 
         // Create a task that will fail
@@ -828,7 +829,7 @@ mod tests {
         use crate::luarocks::client::LuaRocksClient;
         let config = Config::load().unwrap();
         let cache = Cache::new(config.get_cache_dir().unwrap()).unwrap();
-        let client = LuaRocksClient::new(&config, cache);
+        let client = Arc::new(LuaRocksClient::new(&config, cache));
         let downloader = ParallelDownloader::new(client, Some(2));
 
         let tasks = vec![
@@ -863,7 +864,7 @@ mod tests {
         use crate::luarocks::client::LuaRocksClient;
         let config = Config::load().unwrap();
         let cache = Cache::new(config.get_cache_dir().unwrap()).unwrap();
-        let client = LuaRocksClient::new(&config, cache);
+        let client = Arc::new(LuaRocksClient::new(&config, cache));
         let downloader = ParallelDownloader::new(client, Some(1));
 
         let tasks = vec![DownloadTask {
@@ -957,7 +958,7 @@ mod tests {
         use crate::luarocks::client::LuaRocksClient;
         let config = Config::load().unwrap();
         let cache = Cache::new(config.get_cache_dir().unwrap()).unwrap();
-        let client = LuaRocksClient::new(&config, cache);
+        let client = Arc::new(LuaRocksClient::new(&config, cache));
         let downloader = ParallelDownloader::new(client, Some(1));
 
         // Test with empty tasks
@@ -986,7 +987,7 @@ mod tests {
 
         let config = Config::load().unwrap();
         let cache = Cache::new(config.get_cache_dir().unwrap()).unwrap();
-        let client = LuaRocksClient::new(&config, cache);
+        let client = Arc::new(LuaRocksClient::new(&config, cache));
         let downloader = ParallelDownloader::new(client, Some(1));
 
         let tasks = vec![DownloadTask {
@@ -1007,7 +1008,7 @@ mod tests {
         use crate::luarocks::client::LuaRocksClient;
         let config = Config::load().unwrap();
         let cache = Cache::new(config.get_cache_dir().unwrap()).unwrap();
-        let client = LuaRocksClient::new(&config, cache);
+        let client = Arc::new(LuaRocksClient::new(&config, cache));
 
         let downloader = ParallelDownloader::new(client, Some(5));
         // Just verify it was created
@@ -1021,7 +1022,7 @@ mod tests {
         use crate::luarocks::client::LuaRocksClient;
         let config = Config::load().unwrap();
         let cache = Cache::new(config.get_cache_dir().unwrap()).unwrap();
-        let client = LuaRocksClient::new(&config, cache);
+        let client = Arc::new(LuaRocksClient::new(&config, cache));
 
         let downloader = ParallelDownloader::new(client, None);
         // Just verify it was created with default concurrency

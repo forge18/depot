@@ -7,6 +7,10 @@ use crate::luarocks::rockspec::Rockspec;
 use crate::cache::Cache;
 #[cfg(test)]
 use crate::config::Config;
+#[cfg(test)]
+use crate::luarocks::client::LuaRocksClient;
+#[cfg(test)]
+use crate::luarocks::search_api::SearchAPI;
 use crate::package::extractor::PackageExtractor;
 use crate::package::lockfile::Lockfile;
 use std::fs;
@@ -85,34 +89,28 @@ impl PackageInstaller {
 
     /// Create a new installer with injected config and cache (for testing)
     ///
-    /// DEPRECATED: Use `with_container` instead for better testability.
+    /// DEPRECATED: Use `with_dependencies` instead for better testability.
     #[cfg(test)]
-    #[deprecated(note = "Use with_container instead")]
+    #[deprecated(note = "Use with_dependencies instead")]
     pub fn with_config(project_root: &Path, config: Config, cache: Cache) -> LpmResult<Self> {
         let lua_modules = lua_modules_dir(project_root);
         let metadata_dir = lpm_metadata_dir(project_root);
         let packages_dir = packages_metadata_dir(project_root);
-        let client = LuaRocksClient::new(&config, cache);
+        let client = LuaRocksClient::new(&config, cache.clone());
         let search_api = SearchAPI::new();
         let extractor = PackageExtractor::new(lua_modules.clone());
 
-        // Create a container with the provided config and cache
-        use crate::di::{ConfigProvider, CacheProvider, PackageClient, SearchProvider};
         use std::sync::Arc;
-
-        let container = ServiceContainer::with_providers(
-            Arc::new(config),
-            Arc::new(cache),
-            Arc::new(client),
-            Arc::new(search_api),
-        );
 
         Ok(Self {
             project_root: project_root.to_path_buf(),
             lua_modules,
             metadata_dir,
             packages_dir,
-            container,
+            config: Arc::new(config),
+            cache: Arc::new(cache),
+            package_client: Arc::new(client),
+            search_provider: Arc::new(search_api),
             extractor,
         })
     }

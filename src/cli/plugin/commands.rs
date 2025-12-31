@@ -242,7 +242,8 @@ fn check_outdated_plugins() -> LpmResult<()> {
             .as_ref()
             .unwrap_or(&plugin.metadata.version);
 
-        match rt.block_on(PluginRegistry::get_latest_version(&plugin.metadata.name)) {
+        let registry = PluginRegistry::new();
+        match rt.block_on(registry.get_latest_version(&plugin.metadata.name)) {
             Ok(Some(latest_version)) => {
                 if current_version != &latest_version {
                     println!(
@@ -291,7 +292,8 @@ fn search_plugins(query: Option<String>) -> LpmResult<()> {
     let rt = Runtime::new()
         .map_err(|e| LpmError::Package(format!("Failed to create runtime: {}", e)))?;
 
-    match rt.block_on(PluginRegistry::search(search_query)) {
+    let registry = PluginRegistry::new();
+    match rt.block_on(registry.search(search_query)) {
         Ok(results) => {
             if results.is_empty() {
                 println!("No plugins found matching '{}'", search_query);

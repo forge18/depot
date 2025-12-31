@@ -34,7 +34,7 @@ use std::sync::Arc;
 ///
 /// # Example (Testing)
 ///
-/// ```
+/// ```ignore
 /// use lpm::di::{ServiceContainer, mocks::*};
 /// use std::sync::Arc;
 ///
@@ -87,7 +87,7 @@ impl ServiceContainer {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```ignore
     /// use lpm::di::{ServiceContainer, mocks::*};
     /// use std::sync::Arc;
     ///

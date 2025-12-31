@@ -383,6 +383,8 @@ impl LockfileBuilder {
 mod tests {
     use super::*;
     use crate::package::manifest::PackageManifest;
+    use crate::luarocks::client::LuaRocksClient;
+    use crate::luarocks::search_api::SearchAPI;
     use tempfile::TempDir;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -391,7 +393,8 @@ mod tests {
     fn test_lockfile_builder_new() {
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let _builder = LockfileBuilder::new(cache);
+        let config = Config::default();
+        let _builder = LockfileBuilder::with_config(cache, config);
 
         // Builder should be created successfully
         // We can't easily test the async methods without network access,
@@ -402,10 +405,11 @@ mod tests {
     fn test_lockfile_builder_with_cache() {
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let _builder = LockfileBuilder::new(cache.clone());
+        let config = Config::default();
+        let _builder = LockfileBuilder::with_config(cache.clone(), config.clone());
 
         // Verify we can create multiple builders with the same cache
-        let _builder2 = LockfileBuilder::new(cache);
+        let _builder2 = LockfileBuilder::with_config(cache, config);
         // Both builders created successfully
     }
 
@@ -508,7 +512,8 @@ build = {{
     async fn test_build_lockfile_exclude_dev() {
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let builder = LockfileBuilder::new(cache);
+        let config = Config::default();
+        let builder = LockfileBuilder::with_config(cache, config);
 
         let mut manifest = PackageManifest::default("test-package".to_string());
         manifest
@@ -528,7 +533,8 @@ build = {{
     async fn test_update_lockfile_reuse_existing() {
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let builder = LockfileBuilder::new(cache);
+        let config = Config::default();
+        let builder = LockfileBuilder::with_config(cache, config);
 
         let mut manifest = PackageManifest::default("test-package".to_string());
         manifest
@@ -560,8 +566,10 @@ build = {{
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
         let cache_clone = cache.clone();
-        let _builder1 = LockfileBuilder::new(cache);
-        let _builder2 = LockfileBuilder::new(cache_clone);
+        let config1 = Config::default();
+        let _builder1 = LockfileBuilder::with_config(cache, config1);
+        let config2 = Config::default();
+        let _builder2 = LockfileBuilder::with_config(cache_clone, config2);
     }
 
     #[test]
@@ -570,8 +578,10 @@ build = {{
         let temp2 = TempDir::new().unwrap();
         let cache1 = Cache::new(temp1.path().to_path_buf()).unwrap();
         let cache2 = Cache::new(temp2.path().to_path_buf()).unwrap();
-        let _builder1 = LockfileBuilder::new(cache1);
-        let _builder2 = LockfileBuilder::new(cache2);
+        let config1 = Config::default();
+        let _builder1 = LockfileBuilder::with_config(cache1, config1);
+        let config2 = Config::default();
+        let _builder2 = LockfileBuilder::with_config(cache2, config2);
     }
 
     #[test]
@@ -580,7 +590,8 @@ build = {{
         // This tests the dependency parsing logic in build_lockfile
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let _builder = LockfileBuilder::new(cache);
+        let config = Config::default();
+        let _builder = LockfileBuilder::with_config(cache, config);
         // The actual parsing happens in build_lockfile which requires network
     }
 
@@ -590,7 +601,8 @@ build = {{
         // This tests the "else" branch in dependency parsing
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let _builder = LockfileBuilder::new(cache);
+        let config = Config::default();
+        let _builder = LockfileBuilder::with_config(cache, config);
     }
 
     #[test]
@@ -599,14 +611,16 @@ build = {{
         // This tests the whitespace-based parsing
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let _builder = LockfileBuilder::new(cache);
+        let config = Config::default();
+        let _builder = LockfileBuilder::with_config(cache, config);
     }
 
     #[test]
     fn test_update_lockfile_exclude_dev_true() {
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let _builder = LockfileBuilder::new(cache);
+        let config = Config::default();
+        let _builder = LockfileBuilder::with_config(cache, config);
         let mut manifest = PackageManifest::default("test".to_string());
         manifest
             .dev_dependencies
@@ -620,7 +634,8 @@ build = {{
     fn test_update_lockfile_exclude_dev_false() {
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let _builder = LockfileBuilder::new(cache);
+        let config = Config::default();
+        let _builder = LockfileBuilder::with_config(cache, config);
         let mut manifest = PackageManifest::default("test".to_string());
         manifest
             .dev_dependencies
@@ -636,7 +651,8 @@ build = {{
         // This tests the dependency parsing logic in build_lockfile
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let _builder = LockfileBuilder::new(cache);
+        let config = Config::default();
+        let _builder = LockfileBuilder::with_config(cache, config);
         // The actual parsing happens in build_lockfile which requires network
     }
 
@@ -645,7 +661,8 @@ build = {{
         // Test that lua runtime dependencies with > are skipped
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let _builder = LockfileBuilder::new(cache);
+        let config = Config::default();
+        let _builder = LockfileBuilder::with_config(cache, config);
     }
 
     #[test]
@@ -653,7 +670,8 @@ build = {{
         // Test that lua runtime dependencies with == are skipped
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let _builder = LockfileBuilder::new(cache);
+        let config = Config::default();
+        let _builder = LockfileBuilder::with_config(cache, config);
     }
 
     #[test]
@@ -661,7 +679,8 @@ build = {{
         // Test that lua runtime dependencies with ~> are skipped
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let _builder = LockfileBuilder::new(cache);
+        let config = Config::default();
+        let _builder = LockfileBuilder::with_config(cache, config);
     }
 
     #[test]
@@ -669,7 +688,8 @@ build = {{
         // Test dependency parsing with whitespace (the if branch)
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let _builder = LockfileBuilder::new(cache);
+        let config = Config::default();
+        let _builder = LockfileBuilder::with_config(cache, config);
     }
 
     #[test]
@@ -677,7 +697,8 @@ build = {{
         // Test dependency parsing without whitespace (the else branch)
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let _builder = LockfileBuilder::new(cache);
+        let config = Config::default();
+        let _builder = LockfileBuilder::with_config(cache, config);
     }
 
     #[test]
@@ -685,7 +706,8 @@ build = {{
         // Test error path when result has no source_path
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let _builder = LockfileBuilder::new(cache);
+        let config = Config::default();
+        let _builder = LockfileBuilder::with_config(cache, config);
         // This tests the error path in build_lockfile when source_path is None
     }
 
@@ -694,7 +716,8 @@ build = {{
         // Test error path when download fails
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let _builder = LockfileBuilder::new(cache);
+        let config = Config::default();
+        let _builder = LockfileBuilder::with_config(cache, config);
         // This tests the error path when result.error is Some
     }
 
@@ -702,7 +725,8 @@ build = {{
     async fn test_build_lockfile_with_dev_dependencies() {
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let builder = LockfileBuilder::new(cache);
+        let config = Config::default();
+        let builder = LockfileBuilder::with_config(cache, config);
 
         let mut manifest = PackageManifest::default("test".to_string());
         manifest
@@ -720,7 +744,8 @@ build = {{
     async fn test_update_lockfile_with_new_package() {
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let builder = LockfileBuilder::new(cache);
+        let config = Config::default();
+        let builder = LockfileBuilder::with_config(cache, config);
 
         let existing = Lockfile::new();
         let mut manifest = PackageManifest::default("test".to_string());
@@ -738,7 +763,8 @@ build = {{
     async fn test_update_lockfile_version_changed() {
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let builder = LockfileBuilder::new(cache);
+        let config = Config::default();
+        let builder = LockfileBuilder::with_config(cache, config);
 
         let mut existing = Lockfile::new();
         let locked_pkg = LockedPackage {
@@ -768,7 +794,8 @@ build = {{
     async fn test_build_locked_package_dependency_parsing() {
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let builder = LockfileBuilder::new(cache.clone());
+        let config = Config::default();
+        let builder = LockfileBuilder::with_config(cache.clone(), config);
 
         // Tests build_locked_package dependency parsing paths
         // (lua runtime skip, whitespace parsing, no whitespace parsing)
@@ -918,7 +945,8 @@ build = {{
     async fn test_build_lockfile_with_dependencies_parsing() {
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let builder = LockfileBuilder::new(cache);
+        let config = Config::default();
+        let builder = LockfileBuilder::with_config(cache, config);
 
         let mut manifest = PackageManifest::default("test".to_string());
         manifest
@@ -933,7 +961,8 @@ build = {{
     async fn test_build_lockfile_dependency_with_version_constraint() {
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let builder = LockfileBuilder::new(cache);
+        let config = Config::default();
+        let builder = LockfileBuilder::with_config(cache, config);
 
         let mut manifest = PackageManifest::default("test".to_string());
         manifest
@@ -948,7 +977,8 @@ build = {{
     async fn test_update_lockfile_with_transitive_dependencies() {
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let builder = LockfileBuilder::new(cache);
+        let config = Config::default();
+        let builder = LockfileBuilder::with_config(cache, config);
 
         let existing = Lockfile::new();
         let mut manifest = PackageManifest::default("test".to_string());
@@ -969,7 +999,8 @@ build = {{
     async fn test_build_lockfile_error_handling_no_source_path() {
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let builder = LockfileBuilder::new(cache);
+        let config = Config::default();
+        let builder = LockfileBuilder::with_config(cache, config);
 
         let mut manifest = PackageManifest::default("test".to_string());
         manifest
@@ -1112,7 +1143,8 @@ build = {
         // Test the exclude_dev=false path in update_lockfile (line 263-264)
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let builder = LockfileBuilder::new(cache);
+        let config = Config::default();
+        let builder = LockfileBuilder::with_config(cache, config);
 
         let mut manifest = PackageManifest::default("test".to_string());
         manifest
@@ -1183,7 +1215,8 @@ build = {
         // Test the path where processed packages are skipped (line 294-296)
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let builder = LockfileBuilder::new(cache);
+        let config = Config::default();
+        let builder = LockfileBuilder::with_config(cache, config);
 
         let mut manifest = PackageManifest::default("test".to_string());
         manifest
