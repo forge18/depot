@@ -231,6 +231,56 @@ Verify package checksums against the lockfile.
 lpm verify
 ```
 
+## Workspace Management
+
+### `lpm workspace list`
+
+List all packages in the workspace.
+
+```bash
+lpm workspace list
+```
+
+Output shows:
+- Workspace name and root directory
+- All discovered packages with their paths
+- Total package count
+
+### `lpm workspace info`
+
+Show detailed workspace information.
+
+```bash
+lpm workspace info
+```
+
+Displays:
+- Workspace name and root directory
+- Package discovery patterns
+- Exclude patterns (if any)
+- Default members (if specified)
+- Workspace-level dependencies and dev dependencies
+- Workspace package metadata (shared version, authors, license, etc.)
+- All packages with their details (version, dependencies count)
+
+### `lpm workspace shared-deps`
+
+Analyze shared dependencies across workspace packages.
+
+```bash
+lpm workspace shared-deps
+```
+
+Shows:
+- Dependencies used by multiple packages
+- Version constraints for each usage
+- **Warning indicators** for version conflicts
+
+This helps identify:
+- Opportunities for dependency hoisting to workspace level
+- Version mismatches that should be unified
+- Packages with inconsistent dependency versions
+
 ## Scripts and Execution
 
 ### `lpm run <script>`

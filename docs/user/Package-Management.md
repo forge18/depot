@@ -183,6 +183,31 @@ packages:
   - packages/*      # Glob patterns supported
   - apps/*
   - tools/cli
+
+# Optional: Exclude patterns
+exclude:
+  - packages/experimental
+  - packages/deprecated/*
+
+# Optional: Default members (packages to operate on by default)
+default-members:
+  - packages/core
+  - packages/cli
+
+# Optional: Shared dependencies inherited by all packages
+dependencies:
+  luasocket: "^3.0.0"
+  penlight: "^1.13.0"
+
+dev_dependencies:
+  busted: "^2.0.0"
+
+# Optional: Shared package metadata
+package:
+  version: "1.0.0"
+  authors: ["Your Name"]
+  license: "MIT"
+  homepage: "https://example.com"
 ```
 
 **Option 2: Using `package.yaml` with workspace section**:
@@ -195,10 +220,15 @@ workspace:
   packages:
     - packages/*
     - apps/*
-
-# Root-level shared dependencies
-dependencies:
-  luasocket: "^3.0.0"
+  exclude:
+    - packages/experimental
+  dependencies:
+    luasocket: "^3.0.0"
+  dev_dependencies:
+    busted: "^2.0.0"
+  package:
+    authors: ["Your Name"]
+    license: "MIT"
 ```
 
 ### Package Discovery
@@ -210,6 +240,108 @@ LPM automatically discovers packages using glob patterns:
 - `tools/cli` - Specific directory path
 
 Packages are discovered by finding `package.yaml` files up to 3 levels deep in matching directories.
+
+### Dependency Inheritance
+
+Workspace packages automatically inherit dependencies defined at the workspace level:
+
+```yaml
+# workspace.yaml
+name: my-workspace
+packages:
+  - packages/*
+
+dependencies:
+  luasocket: "^3.0.0"  # All packages inherit this
+  penlight: "^1.13.0"
+
+dev_dependencies:
+  busted: "^2.0.0"     # All packages inherit for testing
+```
+
+Individual packages can:
+- **Inherit** workspace dependencies (no need to re-declare)
+- **Override** workspace dependencies with specific versions
+- **Add** additional package-specific dependencies
+
+```yaml
+# packages/api/package.yaml
+name: api
+version: 1.0.0
+
+# Inherits luasocket, penlight, busted from workspace
+# Adds package-specific dependency
+dependencies:
+  lua-cjson: "^2.1.0"
+  # Optionally override: luasocket: "3.0.0" (exact version)
+```
+
+**Benefits**:
+- Centralized version management across workspace
+- Consistent dependency versions by default
+- Flexibility to override when needed
+- Reduced duplication in package manifests
+
+### Package Metadata Inheritance
+
+Workspace metadata is inherited by all packages unless overridden:
+
+```yaml
+# workspace.yaml
+package:
+  version: "1.0.0"      # All packages default to this version
+  authors: ["Your Name"]
+  license: "MIT"
+  homepage: "https://example.com"
+```
+
+Packages can override any field:
+
+```yaml
+# packages/special/package.yaml
+name: special
+version: "2.0.0"  # Overrides workspace version
+# Inherits authors, license, homepage from workspace
+```
+
+### Exclude Patterns
+
+Exclude specific directories from workspace discovery:
+
+```yaml
+exclude:
+  - packages/experimental  # Ignore specific package
+  - packages/archived/*    # Ignore all archived packages
+  - "**/temp"              # Ignore temp directories anywhere
+```
+
+### Default Members
+
+Specify which packages to operate on by default (when no --filter is specified):
+
+```yaml
+default-members:
+  - packages/core
+  - packages/cli
+```
+
+When running `lpm install` without filters, only default members will be processed.
+Use `lpm install --all` to install all workspace packages.
+
+### Workspace Commands
+
+Inspect and manage your workspace:
+
+```bash
+# List all packages in workspace
+lpm workspace list
+
+# Show detailed workspace information
+lpm workspace info
+
+# Check shared dependencies across packages
+lpm workspace shared-deps
+```
 
 ### Shared Dependencies
 
@@ -256,8 +388,6 @@ lpm test --filter ...package-a
 - Selective dependency management
 - Better resource utilization in large workspaces
 - Support for incremental builds
-
-**Note**: Workspace dependency inheritance and advanced features like default members are planned for future releases.
 
 ## Local Dependencies
 
