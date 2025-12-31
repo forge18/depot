@@ -36,13 +36,13 @@ fi
 
 # Create badge URL
 BADGE_URL="https://img.shields.io/badge/Code%20Coverage-${COVERAGE}%25-${COLOR}"
-
-# Update README with new badge
-OLD_BADGE='[![Code Coverage](https://img.shields.io/badge/Code%20Coverage-Coming%20Soon-blue)](https://github.com/forge18/lpm/tree/main/coverage)'
 NEW_BADGE="[![Code Coverage]($BADGE_URL)](https://github.com/forge18/lpm/tree/main/coverage)"
 
+# Update README with new badge using a regex pattern that matches any coverage badge
+# This handles both "Coming Soon" and previously generated percentage badges
 if grep -q "Code Coverage" "$README_FILE"; then
-    sed -i '' "s|${OLD_BADGE}|${NEW_BADGE}|g" "$README_FILE"
+    # Use perl for cross-platform regex replacement (works on both macOS and Linux)
+    perl -i -pe 's|\[!\[Code Coverage\]\(https://img\.shields\.io/badge/Code%20Coverage-[^)]+\)\]\(https://github\.com/forge18/lpm/tree/main/coverage\)|'"$NEW_BADGE"'|g' "$README_FILE"
     echo "✓ Updated coverage badge in $README_FILE"
 else
     echo "Error: Could not find coverage badge in $README_FILE"
