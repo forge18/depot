@@ -1,21 +1,17 @@
 # Git Hooks Setup
 
-LPM uses **RustyHook** to enforce code quality before commits, similar to Husky in Node.js projects.
+LPM uses git hooks to enforce code quality before commits.
 
 ## Quick Setup
 
-RustyHook is already configured! The hooks are automatically set up when you build the project:
+After cloning the repository, copy the pre-commit hook to `.git/hooks/`:
 
 ```bash
-cargo build
+cp hooks/pre-commit .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
 ```
 
-The configuration is in `.rusty-hook.toml`:
-
-```toml
-[hooks]
-pre-commit = "cargo fmt --check && cargo clippy --all-targets --all-features -- -D warnings"
-```
+The hook script is version-controlled in the `hooks/` directory so all contributors use the same checks.
 
 ## What the Hook Does
 
@@ -29,102 +25,66 @@ The hook **prevents commits** if:
 
 Tests are run in CI, not in the pre-commit hook (for speed).
 
-## How RustyHook Works
+## Current Setup
 
-RustyHook is a Rust-native Git hook runner that:
-- ✅ Automatically installs hooks when you build the project
-- ✅ Uses a simple TOML configuration file (`.rusty-hook.toml`)
-- ✅ Runs hooks defined in the config before commits
-- ✅ Blocks commits if hooks fail
+### Hook Configuration
 
-## Configuration
-
-Edit `.rusty-hook.toml` to customize hooks:
+The project uses **RustyHook** to manage hook configuration via [.rusty-hook.toml](.rusty-hook.toml):
 
 ```toml
 [hooks]
-pre-commit = "cargo fmt --check && cargo clippy --all-targets --all-features -- -D warnings"
-pre-push = "cargo test"  # Optional: run tests before push
+pre-commit = "hooks/pre-commit"
 ```
 
-## Alternative Solutions
+This tells RustyHook to execute the script at [hooks/pre-commit](hooks/pre-commit) when a commit is made.
 
-If you want different features, consider these alternatives:
+### The Pre-Commit Script
 
-### 1. Pre-commit Framework
-
-Python-based but language-agnostic:
+The actual hook logic is in [hooks/pre-commit](hooks/pre-commit):
 
 ```bash
-# Install pre-commit
-pip install pre-commit
+#!/bin/sh
+set -e
 
-# Create .pre-commit-config.yaml
-cat > .pre-commit-config.yaml << EOF
-repos:
-  - repo: https://github.com/doublify/pre-commit-rust
-    rev: v1.0
-    hooks:
-      - id: fmt
-      - id: clippy
-      - id: test
-EOF
-
-# Install hooks
-pre-commit install
+cargo fmt --check && cargo clippy --all-targets --all-features -- -D warnings
 ```
 
-**Pros:**
-- Widely used, well-documented
-- Supports many languages
-- Easy to share configuration
+### Why Both RustyHook and Manual Copy?
 
-**Cons:**
-- Requires Python
-- Slightly slower startup
+- **RustyHook** provides the configuration ([.rusty-hook.toml](.rusty-hook.toml)) that points to the hook script
+- **Manual copy** is still required because `.git/hooks/` is not tracked by git
+- The hook script in `hooks/` is version-controlled so everyone uses the same checks
 
-### 2. Prek
+### Setup for New Contributors
 
-Rust-based alternative to pre-commit:
+When setting up the repository:
 
-```bash
-# Install Prek
-cargo install prek
+1. Copy the hook to `.git/hooks/`:
+   ```bash
+   cp hooks/pre-commit .git/hooks/pre-commit
+   chmod +x .git/hooks/pre-commit
+   ```
 
-# Create prek.toml
-cat > prek.toml << EOF
-[[hooks]]
-id = "fmt"
-command = "cargo"
-args = ["fmt", "--check"]
+2. The hook will now run automatically before each commit
 
-[[hooks]]
-id = "clippy"
-command = "cargo"
-args = ["clippy", "--all-targets", "--all-features", "--", "-D", "warnings"]
-EOF
+## Modifying the Hook
 
-# Install
-prek install
-```
+To change what checks run before commits:
 
-**Pros:**
-- Fast (Rust-native)
-- Single binary, no dependencies
-- Drop-in replacement for pre-commit
+1. Edit [hooks/pre-commit](hooks/pre-commit)
+2. Copy the updated hook to `.git/hooks/`:
+   ```bash
+   cp hooks/pre-commit .git/hooks/pre-commit
+   ```
+3. Commit the changes to `hooks/pre-commit` so other contributors get the updates
 
-**Cons:**
-- Less mature than pre-commit
-- Smaller ecosystem
+## How Git Hooks Work
 
-## Current Setup (RustyHook)
-
-The current setup uses **RustyHook**, which is:
-- ✅ Rust-native and fast
-- ✅ Simple TOML configuration
-- ✅ Automatically installs hooks on build
-- ✅ Easy to customize
-- ✅ No manual hook management needed
+Git hooks are scripts that run automatically at specific points in the git workflow:
+- The `pre-commit` hook runs before a commit is created
+- If the hook exits with a non-zero status, the commit is blocked
+- Hook scripts must be in `.git/hooks/` and executable
+- `.git/hooks/` is not tracked by git, so we store the source in `hooks/`
 
 ## Bypassing Hooks
 
@@ -140,45 +100,46 @@ git commit --no-verify -m "Emergency fix"
 
 ### Hook not running
 
-RustyHook hooks are automatically installed when you build. If hooks aren't working:
+If the hook isn't executing before commits:
 
-1. **Rebuild the project:**
-   ```bash
-   cargo build
-   ```
-
-2. **Check if rusty-hook CLI is installed:**
-   ```bash
-   cargo install rusty-hook
-   ```
-
-3. **Verify the hook exists:**
+1. **Verify the hook was copied:**
    ```bash
    ls -la .git/hooks/pre-commit
+   ```
+
+   If missing, copy it:
+   ```bash
+   cp hooks/pre-commit .git/hooks/pre-commit
+   ```
+
+2. **Ensure it's executable:**
+   ```bash
+   chmod +x .git/hooks/pre-commit
+   ```
+
+3. **Check cargo is in PATH:**
+   ```bash
+   which cargo
    ```
 
 ### Hook too slow
 
 The hook runs formatting and linting checks. If it's too slow:
 - Consider using `cargo check` instead of `cargo clippy` for faster feedback
-- Or modify `.rusty-hook.toml` to run only essential checks
+- Edit [hooks/pre-commit](hooks/pre-commit) to run only essential checks
+- Remember to copy the updated hook to `.git/hooks/`
 
-### Sharing hooks with team
+### Sharing hooks with the team
 
-The configuration is in `.rusty-hook.toml` and tracked in git. Team members just need to:
-1. Clone the repository
-2. Run `cargo build` (hooks are automatically installed)
+All hook-related files are version-controlled:
+- [.rusty-hook.toml](.rusty-hook.toml) - RustyHook configuration
+- [hooks/pre-commit](hooks/pre-commit) - Pre-commit script
 
-No manual setup required!
+When a new contributor clones the repository, they just need to:
+```bash
+cp hooks/pre-commit .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+```
 
-## Recommendations
-
-RustyHook is the recommended solution for this project because:
-1. ✅ Rust-native and fast
-2. ✅ Simple TOML configuration
-3. ✅ Automatic hook installation
-4. ✅ No manual setup needed for team members
-5. ✅ Works immediately after cloning and building
-
-If the project grows and needs more sophisticated hook management, consider migrating to RustyHook or Prek.
+When you update [hooks/pre-commit](hooks/pre-commit), all contributors need to re-copy it to their `.git/hooks/` directory to get the changes.
 
