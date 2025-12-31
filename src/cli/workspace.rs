@@ -198,6 +198,9 @@ packages:
         )
         .unwrap();
 
+        // Create packages directory (even though it's empty)
+        fs::create_dir_all(temp.path().join("packages")).unwrap();
+
         let _guard = DirGuard::new(temp.path()).unwrap();
 
         let result = list().await;
