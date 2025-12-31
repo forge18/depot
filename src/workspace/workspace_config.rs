@@ -401,7 +401,8 @@ impl Workspace {
     /// Check if a path is excluded from the workspace
     fn is_excluded(path: &Path, exclude_patterns: &[String], workspace_root: &Path) -> bool {
         let rel_path = path.strip_prefix(workspace_root).unwrap_or(path);
-        let rel_path_str = rel_path.to_string_lossy();
+        // Normalize path separators to forward slashes for cross-platform matching
+        let rel_path_str = rel_path.to_string_lossy().replace('\\', "/");
 
         for pattern in exclude_patterns {
             if crate::workspace::filter::glob_match(pattern, &rel_path_str) {

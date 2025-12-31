@@ -7642,12 +7642,12 @@ DA:80,28
 DA:81,28
 DA:83,37
 DA:84,18
-DA:85,12
-DA:86,6
-DA:87,6
-DA:88,6
-DA:89,6
-DA:90,6
+DA:85,14
+DA:86,7
+DA:87,7
+DA:88,7
+DA:89,7
+DA:90,7
 DA:95,28
 DA:96,13
 DA:98,1
@@ -7660,8 +7660,8 @@ DA:115,36
 DA:117,27
 DA:118,17
 DA:119,8
-DA:120,21
-DA:121,3
+DA:120,14
+DA:121,6
 DA:123,6
 DA:124,4
 DA:125,3
@@ -8372,7 +8372,7 @@ FN:379,Workspace::workspace_dev_dependencies
 FN:384,Workspace::workspace_package_metadata
 FN:389,Workspace::default_members
 FN:402,Workspace::is_excluded
-FN:416,<impl Default for WorkspaceConfig>::default
+FN:417,<impl Default for WorkspaceConfig>::default
 FNF:15
 FNDA:4,Workspace::load
 FNDA:9,Workspace::load_config
@@ -8532,17 +8532,17 @@ DA:393,4
 DA:397,3
 DA:402,16
 DA:403,96
-DA:404,48
-DA:406,19
-DA:407,6
-DA:408,1
-DA:411,15
-DA:416,22
-DA:418,66
-DA:419,88
-DA:420,44
-DA:422,44
-DA:423,22
+DA:405,48
+DA:407,19
+DA:408,6
+DA:409,1
+DA:412,15
+DA:417,22
+DA:419,66
+DA:420,88
+DA:421,44
+DA:423,44
+DA:424,22
 LF:154
 LH:134
 end_of_record
