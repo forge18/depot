@@ -282,7 +282,11 @@ async fn update_all_packages(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use lpm::core::version::Version;
+    use lpm::package::lockfile::{LockedPackage, Lockfile};
     use lpm::package::manifest::PackageManifest;
+    use lpm::package::update_diff::UpdateDiff;
+    use std::collections::HashMap;
     use tempfile::TempDir;
 
     #[test]
@@ -308,5 +312,164 @@ mod tests {
         });
         // Just verify the function can be called conceptually
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_update_diff_calculate() {
+        let lockfile = Some(Lockfile::new());
+        let resolved_versions = HashMap::new();
+        let resolved_dev_versions = HashMap::new();
+
+        let diff = UpdateDiff::calculate(&lockfile, &resolved_versions, &resolved_dev_versions);
+        // Empty diff since no changes
+        assert!(!diff.has_changes());
+    }
+
+    #[test]
+    fn test_update_diff_with_new_package() {
+        let lockfile = Some(Lockfile::new());
+        let mut resolved_versions = HashMap::new();
+        resolved_versions.insert("new-pkg".to_string(), Version::new(1, 0, 0));
+        let resolved_dev_versions = HashMap::new();
+
+        let diff = UpdateDiff::calculate(&lockfile, &resolved_versions, &resolved_dev_versions);
+        assert!(diff.has_changes());
+    }
+
+    #[test]
+    fn test_update_diff_with_upgraded_package() {
+        let mut lockfile = Lockfile::new();
+        lockfile.add_package(
+            "test-pkg".to_string(),
+            LockedPackage {
+                version: "1.0.0".to_string(),
+                source: "luarocks".to_string(),
+                rockspec_url: None,
+                source_url: None,
+                checksum: "abc".to_string(),
+                size: None,
+                dependencies: HashMap::new(),
+                build: None,
+            },
+        );
+
+        let mut resolved_versions = HashMap::new();
+        resolved_versions.insert("test-pkg".to_string(), Version::new(2, 0, 0));
+        let resolved_dev_versions = HashMap::new();
+
+        let diff =
+            UpdateDiff::calculate(&Some(lockfile), &resolved_versions, &resolved_dev_versions);
+        assert!(diff.has_changes());
+    }
+
+    #[test]
+    fn test_update_diff_no_changes() {
+        let mut lockfile = Lockfile::new();
+        lockfile.add_package(
+            "test-pkg".to_string(),
+            LockedPackage {
+                version: "1.0.0".to_string(),
+                source: "luarocks".to_string(),
+                rockspec_url: None,
+                source_url: None,
+                checksum: "abc".to_string(),
+                size: None,
+                dependencies: HashMap::new(),
+                build: None,
+            },
+        );
+
+        let mut resolved_versions = HashMap::new();
+        resolved_versions.insert("test-pkg".to_string(), Version::new(1, 0, 0));
+        let resolved_dev_versions = HashMap::new();
+
+        let diff =
+            UpdateDiff::calculate(&Some(lockfile), &resolved_versions, &resolved_dev_versions);
+        // No changes since version is the same
+        assert!(!diff.has_changes());
+    }
+
+    #[test]
+    fn test_manifest_dependency_lookup() {
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest
+            .dependencies
+            .insert("pkg1".to_string(), "^1.0.0".to_string());
+        manifest
+            .dev_dependencies
+            .insert("pkg2".to_string(), "^2.0.0".to_string());
+
+        // Test dependency lookup
+        assert!(manifest.dependencies.contains_key("pkg1"));
+        assert!(manifest.dev_dependencies.contains_key("pkg2"));
+
+        // Fallback lookup pattern
+        let constraint = manifest
+            .dependencies
+            .get("pkg1")
+            .or_else(|| manifest.dev_dependencies.get("pkg1"));
+        assert!(constraint.is_some());
+    }
+
+    #[test]
+    fn test_version_comparison() {
+        let v1 = Version::new(1, 0, 0);
+        let v2 = Version::new(2, 0, 0);
+        let v3 = Version::new(1, 0, 0);
+
+        assert!(v1 < v2);
+        assert!(v2 > v1);
+        assert_eq!(v1, v3);
+    }
+
+    #[test]
+    fn test_update_diff_display() {
+        let diff = UpdateDiff::calculate(&None, &HashMap::new(), &HashMap::new());
+        // Just verify display doesn't panic
+        diff.display();
+    }
+
+    #[test]
+    fn test_lockfile_get_package() {
+        let mut lockfile = Lockfile::new();
+        lockfile.add_package(
+            "test-pkg".to_string(),
+            LockedPackage {
+                version: "1.2.3".to_string(),
+                source: "luarocks".to_string(),
+                rockspec_url: None,
+                source_url: None,
+                checksum: "abc".to_string(),
+                size: None,
+                dependencies: HashMap::new(),
+                build: None,
+            },
+        );
+
+        let pkg = lockfile.get_package("test-pkg").unwrap();
+        assert_eq!(pkg.version, "1.2.3");
+    }
+
+    #[test]
+    fn test_lockfile_get_package_none() {
+        let lockfile = Lockfile::new();
+        assert!(lockfile.get_package("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_version_parse() {
+        let v = Version::parse("1.2.3").unwrap();
+        assert_eq!(v, Version::new(1, 2, 3));
+    }
+
+    #[test]
+    fn test_update_diff_with_dev_dependencies() {
+        let lockfile = Some(Lockfile::new());
+        let resolved_versions = HashMap::new();
+        let mut resolved_dev_versions = HashMap::new();
+        resolved_dev_versions.insert("dev-pkg".to_string(), Version::new(1, 0, 0));
+
+        let diff = UpdateDiff::calculate(&lockfile, &resolved_versions, &resolved_dev_versions);
+        assert!(diff.has_changes());
     }
 }

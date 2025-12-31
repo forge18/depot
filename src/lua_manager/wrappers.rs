@@ -171,3 +171,89 @@ impl WrapperGenerator {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_wrapper_generator_new() {
+        let temp = TempDir::new().unwrap();
+        let generator = WrapperGenerator::new(temp.path());
+        assert!(generator.bin_dir.ends_with("bin"));
+    }
+
+    #[test]
+    fn test_wrapper_generator_bin_dir_path() {
+        let temp = TempDir::new().unwrap();
+        let generator = WrapperGenerator::new(temp.path());
+        let expected = temp.path().join("bin");
+        assert_eq!(generator.bin_dir, expected);
+    }
+
+    #[test]
+    fn test_wrapper_source_code_lua() {
+        let temp = TempDir::new().unwrap();
+        let generator = WrapperGenerator::new(temp.path());
+        let source = generator.wrapper_source_code("lua");
+
+        // Verify the source code contains expected patterns
+        assert!(source.contains("fn main()"));
+        assert!(source.contains("LPM_LUA_DIR"));
+        assert!(source.contains(".lua-version"));
+        assert!(source.contains("lua"));
+    }
+
+    #[test]
+    fn test_wrapper_source_code_luac() {
+        let temp = TempDir::new().unwrap();
+        let generator = WrapperGenerator::new(temp.path());
+        let source = generator.wrapper_source_code("luac");
+
+        // Verify the source code contains expected patterns
+        assert!(source.contains("fn main()"));
+        assert!(source.contains("luac"));
+    }
+
+    #[test]
+    fn test_wrapper_source_code_contains_error_handling() {
+        let temp = TempDir::new().unwrap();
+        let generator = WrapperGenerator::new(temp.path());
+        let source = generator.wrapper_source_code("lua");
+
+        // Verify error handling is present
+        assert!(source.contains("eprintln!"));
+        assert!(source.contains("std::process::exit"));
+    }
+
+    #[test]
+    fn test_print_setup_instructions() {
+        let temp = TempDir::new().unwrap();
+        let generator = WrapperGenerator::new(temp.path());
+        // Just verify this doesn't panic
+        generator.print_setup_instructions();
+    }
+
+    #[test]
+    fn test_wrapper_source_code_contains_version_check() {
+        let temp = TempDir::new().unwrap();
+        let generator = WrapperGenerator::new(temp.path());
+        let source = generator.wrapper_source_code("lua");
+
+        // Should check for .lua-version file
+        assert!(source.contains(".lua-version"));
+        assert!(source.contains("version_file"));
+    }
+
+    #[test]
+    fn test_wrapper_source_code_handles_current_version() {
+        let temp = TempDir::new().unwrap();
+        let generator = WrapperGenerator::new(temp.path());
+        let source = generator.wrapper_source_code("lua");
+
+        // Should handle current version file
+        assert!(source.contains("current"));
+        assert!(source.contains("versions"));
+    }
+}

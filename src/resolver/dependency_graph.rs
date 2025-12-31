@@ -292,4 +292,25 @@ mod tests {
         let graph = DependencyGraph::default();
         assert!(graph.nodes.is_empty());
     }
+
+    #[test]
+    fn test_node_names() {
+        let mut graph = DependencyGraph::new();
+        graph.add_node("package-a".to_string(), parse_constraint("^1.0.0").unwrap());
+        graph.add_node("package-b".to_string(), parse_constraint("^2.0.0").unwrap());
+        graph.add_node("package-c".to_string(), parse_constraint("^3.0.0").unwrap());
+
+        let names = graph.node_names();
+        assert_eq!(names.len(), 3);
+        assert!(names.contains(&"package-a".to_string()));
+        assert!(names.contains(&"package-b".to_string()));
+        assert!(names.contains(&"package-c".to_string()));
+    }
+
+    #[test]
+    fn test_node_names_empty() {
+        let graph = DependencyGraph::new();
+        let names = graph.node_names();
+        assert!(names.is_empty());
+    }
 }

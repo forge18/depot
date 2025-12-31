@@ -648,4 +648,65 @@ version: 1.0.0
         // Should have default packages
         assert!(!config.packages.is_empty());
     }
+
+    #[test]
+    fn test_workspace_load() {
+        let temp = TempDir::new().unwrap();
+
+        // Create workspace.yaml
+        fs::write(
+            temp.path().join("workspace.yaml"),
+            r#"
+name: test-workspace
+packages:
+  - packages/*
+"#,
+        )
+        .unwrap();
+
+        // Create a package
+        let pkg_dir = temp.path().join("packages").join("pkg1");
+        fs::create_dir_all(&pkg_dir).unwrap();
+        fs::write(
+            pkg_dir.join("package.yaml"),
+            r#"
+name: pkg1
+version: 1.0.0
+"#,
+        )
+        .unwrap();
+
+        // Load the workspace
+        let workspace = Workspace::load(temp.path()).unwrap();
+        assert_eq!(workspace.config.name, "test-workspace");
+        assert_eq!(workspace.root, temp.path().to_path_buf());
+        assert!(workspace.packages.contains_key("pkg1"));
+    }
+
+    #[test]
+    fn test_workspace_load_invalid_package() {
+        let temp = TempDir::new().unwrap();
+
+        // Create workspace.yaml
+        fs::write(
+            temp.path().join("workspace.yaml"),
+            r#"
+name: test-workspace
+packages:
+  - packages/*
+"#,
+        )
+        .unwrap();
+
+        // Create a package directory with invalid package.yaml
+        let pkg_dir = temp.path().join("packages").join("invalid-pkg");
+        fs::create_dir_all(&pkg_dir).unwrap();
+        fs::write(pkg_dir.join("package.yaml"), "invalid: yaml: [").unwrap();
+
+        // Load should succeed but skip the invalid package
+        let workspace = Workspace::load(temp.path()).unwrap();
+        assert_eq!(workspace.config.name, "test-workspace");
+        // The invalid package should be skipped
+        assert!(!workspace.packages.contains_key("invalid-pkg"));
+    }
 }

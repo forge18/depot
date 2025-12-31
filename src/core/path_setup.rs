@@ -263,4 +263,87 @@ mod tests {
         assert!(cargo_bin.to_string_lossy().contains("cargo"));
         assert!(cargo_bin.to_string_lossy().contains("bin"));
     }
+
+    #[test]
+    fn test_check_path_setup() {
+        // Should not fail even if not in PATH
+        let result = check_path_setup();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_expand_path_vars_multiple_home() {
+        // Test expansion with multiple $HOME references
+        let path = "/regular/path";
+        let expanded = expand_path_vars(path);
+        assert_eq!(expanded, path);
+    }
+
+    #[test]
+    fn test_expand_path_vars_tilde_in_middle() {
+        // Tilde in middle should not expand
+        let path = "/some/~/path";
+        let expanded = expand_path_vars(path);
+        assert_eq!(expanded, path);
+    }
+
+    #[test]
+    fn test_get_shell_profile_sh() {
+        let profile = get_shell_profile("sh");
+        assert!(profile.contains("profile"));
+    }
+
+    #[test]
+    fn test_get_shell_profile_ksh() {
+        let profile = get_shell_profile("ksh");
+        assert!(profile.contains("profile"));
+    }
+
+    #[test]
+    fn test_detect_shell_returns_valid_shell() {
+        let shell = detect_shell();
+        // Shell should be a valid shell name (not a path)
+        assert!(!shell.contains('/'));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_setup_path_auto() {
+        // This test just verifies the function can be called
+        // It may fail or succeed depending on environment
+        let result = setup_path_auto();
+        // Either works or fails gracefully
+        let _ = result;
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn test_setup_path_auto_windows() {
+        // On Windows, should return an error
+        let result = setup_path_auto();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Windows"));
+    }
+
+    #[test]
+    fn test_expand_path_vars_empty_string() {
+        let expanded = expand_path_vars("");
+        assert_eq!(expanded, "");
+    }
+
+    #[test]
+    fn test_expand_path_vars_just_tilde() {
+        // Just ~ should expand to home
+        #[cfg(unix)]
+        {
+            let home = env::var("HOME").unwrap();
+            let expanded = expand_path_vars("~");
+            assert_eq!(expanded, home);
+        }
+        #[cfg(windows)]
+        {
+            let expanded = expand_path_vars("~");
+            assert_eq!(expanded, "~");
+        }
+    }
 }

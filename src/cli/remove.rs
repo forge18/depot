@@ -162,4 +162,85 @@ mod tests {
         };
         assert_eq!(location, "dev_dependencies");
     }
+
+    #[test]
+    fn test_remove_location_both() {
+        // Test removal from both deps and dev_deps
+        let mut manifest = PackageManifest::default("test".to_string());
+
+        manifest
+            .dependencies
+            .insert("pkg".to_string(), "1.0.0".to_string());
+        manifest
+            .dev_dependencies
+            .insert("pkg".to_string(), "1.0.0".to_string());
+
+        let removed_from_deps = manifest.dependencies.remove("pkg").is_some();
+        let removed_from_dev = manifest.dev_dependencies.remove("pkg").is_some();
+
+        let location = if removed_from_deps && removed_from_dev {
+            "dependencies and dev_dependencies"
+        } else if removed_from_deps {
+            "dependencies"
+        } else {
+            "dev_dependencies"
+        };
+        assert_eq!(location, "dependencies and dev_dependencies");
+    }
+
+    #[test]
+    fn test_remove_global_not_installed() {
+        // Test removing a package that's not installed globally
+        let result = remove_global("nonexistent-global-package-12345");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("not installed globally"));
+    }
+
+    #[test]
+    fn test_manifest_dependency_removal() {
+        let mut manifest = PackageManifest::default("test".to_string());
+
+        // Add multiple dependencies
+        manifest
+            .dependencies
+            .insert("dep1".to_string(), "^1.0.0".to_string());
+        manifest
+            .dependencies
+            .insert("dep2".to_string(), "^2.0.0".to_string());
+
+        assert_eq!(manifest.dependencies.len(), 2);
+
+        // Remove one
+        manifest.dependencies.remove("dep1");
+        assert_eq!(manifest.dependencies.len(), 1);
+        assert!(manifest.dependencies.contains_key("dep2"));
+    }
+
+    #[test]
+    fn test_manifest_dev_dependency_removal() {
+        let mut manifest = PackageManifest::default("test".to_string());
+
+        // Add dev dependencies
+        manifest
+            .dev_dependencies
+            .insert("dev1".to_string(), "^1.0.0".to_string());
+        manifest
+            .dev_dependencies
+            .insert("dev2".to_string(), "^2.0.0".to_string());
+
+        assert_eq!(manifest.dev_dependencies.len(), 2);
+
+        // Remove one
+        manifest.dev_dependencies.remove("dev1");
+        assert_eq!(manifest.dev_dependencies.len(), 1);
+        assert!(manifest.dev_dependencies.contains_key("dev2"));
+    }
+
+    #[test]
+    fn test_run_function_exists() {
+        let _ = run;
+    }
 }

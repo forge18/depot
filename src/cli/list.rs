@@ -245,7 +245,9 @@ fn print_dependency_tree(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use lpm::package::lockfile::{LockedPackage, Lockfile};
     use lpm::package::manifest::PackageManifest;
+    use std::collections::HashMap;
     use std::fs;
     use tempfile::TempDir;
 
@@ -291,6 +293,158 @@ mod tests {
         fs::create_dir_all(&lua_modules).unwrap();
 
         let result = print_dependency_tree(&manifest, &None, &lua_modules, "", true);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_print_package_list_with_installed_package() {
+        let temp = TempDir::new().unwrap();
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest
+            .dependencies
+            .insert("test-pkg".to_string(), ">=1.0.0".to_string());
+
+        let lua_modules = temp.path().join("lua_modules");
+        fs::create_dir_all(&lua_modules).unwrap();
+
+        // Create package directory to simulate installed package
+        fs::create_dir_all(lua_modules.join("test-pkg")).unwrap();
+
+        let result = print_package_list(&manifest, &None, &lua_modules);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_print_package_list_with_lockfile() {
+        let temp = TempDir::new().unwrap();
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest
+            .dependencies
+            .insert("test-pkg".to_string(), ">=1.0.0".to_string());
+
+        let lua_modules = temp.path().join("lua_modules");
+        fs::create_dir_all(&lua_modules).unwrap();
+
+        // Create lockfile
+        let mut lockfile = Lockfile::new();
+        lockfile.add_package(
+            "test-pkg".to_string(),
+            LockedPackage {
+                version: "1.2.3".to_string(),
+                source: "luarocks".to_string(),
+                rockspec_url: None,
+                source_url: None,
+                checksum: "abc".to_string(),
+                size: None,
+                dependencies: HashMap::new(),
+                build: None,
+            },
+        );
+
+        let result = print_package_list(&manifest, &Some(lockfile), &lua_modules);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_print_package_list_with_dev_dependencies() {
+        let temp = TempDir::new().unwrap();
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest
+            .dev_dependencies
+            .insert("dev-pkg".to_string(), ">=1.0.0".to_string());
+
+        let lua_modules = temp.path().join("lua_modules");
+        fs::create_dir_all(&lua_modules).unwrap();
+
+        let result = print_package_list(&manifest, &None, &lua_modules);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_print_dependency_tree_with_lockfile() {
+        let temp = TempDir::new().unwrap();
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest
+            .dependencies
+            .insert("parent-pkg".to_string(), ">=1.0.0".to_string());
+
+        let lua_modules = temp.path().join("lua_modules");
+        fs::create_dir_all(&lua_modules).unwrap();
+
+        // Create lockfile with nested dependencies
+        let mut lockfile = Lockfile::new();
+        let mut deps = HashMap::new();
+        deps.insert("child-pkg".to_string(), "2.0.0".to_string());
+        lockfile.add_package(
+            "parent-pkg".to_string(),
+            LockedPackage {
+                version: "1.0.0".to_string(),
+                source: "luarocks".to_string(),
+                rockspec_url: None,
+                source_url: None,
+                checksum: "abc".to_string(),
+                size: None,
+                dependencies: deps,
+                build: None,
+            },
+        );
+
+        let result = print_dependency_tree(&manifest, &Some(lockfile), &lua_modules, "", true);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_print_dependency_tree_with_dev_deps() {
+        let temp = TempDir::new().unwrap();
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest
+            .dependencies
+            .insert("prod-pkg".to_string(), ">=1.0.0".to_string());
+        manifest
+            .dev_dependencies
+            .insert("dev-pkg".to_string(), ">=1.0.0".to_string());
+
+        let lua_modules = temp.path().join("lua_modules");
+        fs::create_dir_all(&lua_modules).unwrap();
+
+        let result = print_dependency_tree(&manifest, &None, &lua_modules, "", true);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_print_dependency_tree_installed_packages() {
+        let temp = TempDir::new().unwrap();
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest
+            .dependencies
+            .insert("test-pkg".to_string(), ">=1.0.0".to_string());
+
+        let lua_modules = temp.path().join("lua_modules");
+        fs::create_dir_all(&lua_modules).unwrap();
+
+        // Mark as installed
+        fs::create_dir_all(lua_modules.join("test-pkg")).unwrap();
+
+        let result = print_dependency_tree(&manifest, &None, &lua_modules, "", true);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_print_package_list_both_installed_and_not() {
+        let temp = TempDir::new().unwrap();
+        let mut manifest = PackageManifest::default("test".to_string());
+        manifest
+            .dependencies
+            .insert("installed-pkg".to_string(), ">=1.0.0".to_string());
+        manifest
+            .dependencies
+            .insert("not-installed-pkg".to_string(), ">=1.0.0".to_string());
+
+        let lua_modules = temp.path().join("lua_modules");
+        fs::create_dir_all(&lua_modules).unwrap();
+        fs::create_dir_all(lua_modules.join("installed-pkg")).unwrap();
+
+        let result = print_package_list(&manifest, &None, &lua_modules);
         assert!(result.is_ok());
     }
 }

@@ -143,4 +143,105 @@ mod tests {
 
         assert_eq!(config.luarocks_manifest_url, loaded.luarocks_manifest_url);
     }
+
+    #[test]
+    fn test_config_get_cache_dir_default() {
+        let config = Config::default();
+        // Should use the default platform-specific cache dir
+        let result = config.get_cache_dir();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_config_get_cache_dir_custom() {
+        let config = Config {
+            cache_dir: Some("/custom/cache/path".to_string()),
+            ..Default::default()
+        };
+        let result = config.get_cache_dir().unwrap();
+        assert_eq!(result.to_string_lossy(), "/custom/cache/path");
+    }
+
+    #[test]
+    fn test_config_serialization() {
+        let config = Config {
+            cache_dir: Some("/tmp/cache".to_string()),
+            verify_checksums: false,
+            ..Default::default()
+        };
+
+        let yaml = serde_yaml::to_string(&config).unwrap();
+        assert!(yaml.contains("verify_checksums: false"));
+        assert!(yaml.contains("cache_dir: /tmp/cache"));
+    }
+
+    #[test]
+    fn test_config_deserialization() {
+        let yaml = r#"
+luarocks_manifest_url: https://custom.luarocks.org/manifest
+verify_checksums: false
+show_diffs_on_update: true
+cache_dir: /custom/cache
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(
+            config.luarocks_manifest_url,
+            "https://custom.luarocks.org/manifest"
+        );
+        assert!(!config.verify_checksums);
+        assert!(config.show_diffs_on_update);
+        assert_eq!(config.cache_dir, Some("/custom/cache".to_string()));
+    }
+
+    #[test]
+    fn test_config_deserialization_defaults() {
+        let yaml = r#"
+luarocks_manifest_url: https://custom.luarocks.org/manifest
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        // Should use default values for missing fields
+        assert!(config.verify_checksums); // default is true
+        assert!(config.show_diffs_on_update); // default is true
+        assert!(config.cache_dir.is_none());
+    }
+
+    #[test]
+    fn test_config_with_lua_binary_sources() {
+        let mut sources = std::collections::HashMap::new();
+        sources.insert(
+            "5.4.8".to_string(),
+            "https://custom-source.com/5.4.8".to_string(),
+        );
+        let config = Config {
+            lua_binary_sources: Some(sources),
+            ..Default::default()
+        };
+
+        let yaml = serde_yaml::to_string(&config).unwrap();
+        assert!(yaml.contains("5.4.8"));
+    }
+
+    #[test]
+    fn test_config_with_lua_binary_source_url() {
+        let config = Config {
+            lua_binary_source_url: Some("https://custom-lua-binaries.com".to_string()),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            config.lua_binary_source_url,
+            Some("https://custom-lua-binaries.com".to_string())
+        );
+    }
+
+    #[test]
+    fn test_default_luarocks_manifest_url() {
+        let url = default_luarocks_manifest_url();
+        assert_eq!(url, "https://luarocks.org/manifests/luarocks/manifest");
+    }
+
+    #[test]
+    fn test_default_true() {
+        assert!(default_true());
+    }
 }

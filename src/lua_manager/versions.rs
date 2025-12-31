@@ -67,4 +67,66 @@ mod tests {
         assert!(compare_versions("5.3.6", "5.4.8").unwrap().is_lt());
         assert!(compare_versions("5.4.8", "5.4.8").unwrap().is_eq());
     }
+
+    #[test]
+    fn test_parse_version_two_parts() {
+        // Two-part version should default patch to 0
+        assert_eq!(parse_version("5.4").unwrap(), (5, 4, 0));
+    }
+
+    #[test]
+    fn test_parse_version_invalid_single_part() {
+        let result = parse_version("5");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid version format"));
+    }
+
+    #[test]
+    fn test_parse_version_invalid_major() {
+        let result = parse_version("abc.4.8");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid major version"));
+    }
+
+    #[test]
+    fn test_parse_version_invalid_minor() {
+        let result = parse_version("5.xyz.8");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid minor version"));
+    }
+
+    #[test]
+    fn test_parse_version_invalid_patch() {
+        let result = parse_version("5.4.abc");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid patch version"));
+    }
+
+    #[test]
+    fn test_version_code_two_parts() {
+        assert_eq!(version_code("5.4").unwrap(), "54");
+    }
+
+    #[test]
+    fn test_compare_versions_patch_difference() {
+        assert!(compare_versions("5.4.8", "5.4.7").unwrap().is_gt());
+        assert!(compare_versions("5.4.7", "5.4.8").unwrap().is_lt());
+    }
+
+    #[test]
+    fn test_compare_versions_major_difference() {
+        assert!(compare_versions("6.0.0", "5.4.8").unwrap().is_gt());
+    }
 }

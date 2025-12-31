@@ -230,4 +230,68 @@ mod tests {
         let content = fs::read_to_string(project_dir.join(".lua-version")).unwrap();
         assert_eq!(content.trim(), "5.4.8");
     }
+
+    #[test]
+    fn test_version_switcher_switch_success() {
+        let temp = TempDir::new().unwrap();
+        let switcher = VersionSwitcher::new(temp.path());
+
+        // Create version directory with proper structure
+        let version_dir = temp.path().join("versions").join("5.4.8");
+        fs::create_dir_all(version_dir.join("bin")).unwrap();
+        fs::write(version_dir.join("bin").join("lua"), "mock binary").unwrap();
+
+        let result = switcher.switch("5.4.8");
+        assert!(result.is_ok());
+
+        // Verify current file was created
+        assert!(temp.path().join("current").exists());
+        let content = fs::read_to_string(temp.path().join("current")).unwrap();
+        assert_eq!(content.trim(), "5.4.8");
+    }
+
+    #[test]
+    fn test_version_switcher_list_multiple_versions() {
+        let temp = TempDir::new().unwrap();
+        let switcher = VersionSwitcher::new(temp.path());
+
+        // Create multiple version directories
+        for version in &["5.1.5", "5.3.6", "5.4.8"] {
+            let version_dir = temp.path().join("versions").join(version);
+            fs::create_dir_all(version_dir.join("bin")).unwrap();
+            fs::write(version_dir.join("bin").join("lua"), "mock binary").unwrap();
+        }
+
+        let versions = switcher.list_installed().unwrap();
+        assert_eq!(versions.len(), 3);
+        assert!(versions.contains(&"5.1.5".to_string()));
+        assert!(versions.contains(&"5.3.6".to_string()));
+        assert!(versions.contains(&"5.4.8".to_string()));
+    }
+
+    #[test]
+    fn test_version_switcher_set_local_version_not_installed() {
+        let temp = TempDir::new().unwrap();
+        let switcher = VersionSwitcher::new(temp.path());
+        let project_dir = temp.path().join("project");
+        fs::create_dir_all(&project_dir).unwrap();
+
+        let result = switcher.set_local("5.4.8", &project_dir);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_version_switcher_check_installed_via_list() {
+        let temp = TempDir::new().unwrap();
+        let switcher = VersionSwitcher::new(temp.path());
+
+        // Create version directory
+        let version_dir = temp.path().join("versions").join("5.4.8");
+        fs::create_dir_all(version_dir.join("bin")).unwrap();
+        fs::write(version_dir.join("bin").join("lua"), "mock binary").unwrap();
+
+        let installed = switcher.list_installed().unwrap();
+        assert!(installed.contains(&"5.4.8".to_string()));
+        assert!(!installed.contains(&"5.3.6".to_string()));
+    }
 }

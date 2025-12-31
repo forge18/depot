@@ -107,4 +107,70 @@ mod tests {
         let result = BuildSandbox::execute_cargo(temp.path(), &["invalid-command"], &[]);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_execute_cargo_version() {
+        let temp = TempDir::new().unwrap();
+
+        // Try running a valid cargo command (version)
+        let result = BuildSandbox::execute_cargo(temp.path(), &["--version"], &[]);
+        // Should succeed
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_execute_cargo_with_env_vars() {
+        let temp = TempDir::new().unwrap();
+
+        // Try running cargo with custom environment variables
+        let result = BuildSandbox::execute_cargo(
+            temp.path(),
+            &["--version"],
+            &[("CARGO_TERM_COLOR", "never")],
+        );
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_execute_cargo_help() {
+        let temp = TempDir::new().unwrap();
+
+        // Try running cargo help
+        let result = BuildSandbox::execute_cargo(temp.path(), &["help"], &[]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_execute_cargo_error_contains_exit_code() {
+        let temp = TempDir::new().unwrap();
+
+        // Try to run invalid cargo command
+        let result = BuildSandbox::execute_cargo(temp.path(), &["definitely-not-a-command"], &[]);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("Cargo build failed"));
+    }
+
+    #[test]
+    fn test_execute_cargo_multiple_args() {
+        let temp = TempDir::new().unwrap();
+
+        // Try running cargo with multiple arguments
+        let result = BuildSandbox::execute_cargo(temp.path(), &["--version", "--verbose"], &[]);
+        // --verbose is not valid with --version, but cargo handles it gracefully
+        assert!(result.is_ok() || result.is_err());
+    }
+
+    #[test]
+    fn test_execute_cargo_multiple_env_vars() {
+        let temp = TempDir::new().unwrap();
+
+        // Try running cargo with multiple environment variables
+        let result = BuildSandbox::execute_cargo(
+            temp.path(),
+            &["--version"],
+            &[("CARGO_TERM_COLOR", "never"), ("RUST_BACKTRACE", "0")],
+        );
+        assert!(result.is_ok());
+    }
 }

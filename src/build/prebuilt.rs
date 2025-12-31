@@ -181,4 +181,106 @@ mod tests {
         // Should not have pre-built binary for non-existent package
         assert!(!manager.has_prebuilt("test-package", "1.0.0", &lua_version, &target));
     }
+
+    #[test]
+    fn test_find_binary_url() {
+        let mut binary_urls = std::collections::HashMap::new();
+        binary_urls.insert(
+            "5.4-x86_64-unknown-linux-gnu".to_string(),
+            "https://example.com/linux.so".to_string(),
+        );
+        binary_urls.insert(
+            "5.4-x86_64-apple-darwin".to_string(),
+            "https://example.com/darwin.dylib".to_string(),
+        );
+
+        let target = Target::new("x86_64-unknown-linux-gnu").unwrap();
+        let lua_version = LuaVersion::new(5, 4, 0);
+
+        let url = PrebuiltBinaryManager::find_binary_url(&binary_urls, &target, &lua_version);
+        assert_eq!(url, Some("https://example.com/linux.so".to_string()));
+    }
+
+    #[test]
+    fn test_find_binary_url_not_found() {
+        let binary_urls = std::collections::HashMap::new();
+
+        let target = Target::new("x86_64-unknown-linux-gnu").unwrap();
+        let lua_version = LuaVersion::new(5, 4, 0);
+
+        let url = PrebuiltBinaryManager::find_binary_url(&binary_urls, &target, &lua_version);
+        assert!(url.is_none());
+    }
+
+    #[test]
+    fn test_find_binary_url_different_lua_version() {
+        let mut binary_urls = std::collections::HashMap::new();
+        binary_urls.insert(
+            "5.4-x86_64-unknown-linux-gnu".to_string(),
+            "https://example.com/lua54.so".to_string(),
+        );
+        binary_urls.insert(
+            "5.3-x86_64-unknown-linux-gnu".to_string(),
+            "https://example.com/lua53.so".to_string(),
+        );
+
+        let target = Target::new("x86_64-unknown-linux-gnu").unwrap();
+        let lua53 = LuaVersion::new(5, 3, 0);
+        let lua54 = LuaVersion::new(5, 4, 0);
+
+        let url53 = PrebuiltBinaryManager::find_binary_url(&binary_urls, &target, &lua53);
+        assert_eq!(url53, Some("https://example.com/lua53.so".to_string()));
+
+        let url54 = PrebuiltBinaryManager::find_binary_url(&binary_urls, &target, &lua54);
+        assert_eq!(url54, Some("https://example.com/lua54.so".to_string()));
+    }
+
+    #[test]
+    fn test_has_prebuilt_false() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+        let manager = PrebuiltBinaryManager { cache };
+
+        let lua_version = LuaVersion::new(5, 4, 0);
+        let target = Target::default_target();
+
+        assert!(!manager.has_prebuilt("nonexistent", "1.0.0", &lua_version, &target));
+    }
+
+    #[test]
+    fn test_get_prebuilt_none() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+        let manager = PrebuiltBinaryManager { cache };
+
+        let lua_version = LuaVersion::new(5, 4, 0);
+        let target = Target::default_target();
+
+        let path = manager.get_prebuilt("nonexistent", "1.0.0", &lua_version, &target);
+        assert!(path.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_get_or_download_no_url() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+        let manager = PrebuiltBinaryManager { cache };
+
+        let lua_version = LuaVersion::new(5, 4, 0);
+        let target = Target::default_target();
+
+        let result = manager
+            .get_or_download("test-pkg", "1.0.0", &lua_version, &target, None)
+            .await;
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+    }
+
+    #[test]
+    fn test_prebuilt_manager_new() {
+        // This test may fail if cache_dir() fails, which is expected in test environment
+        let result = PrebuiltBinaryManager::new();
+        // Just test that it doesn't panic
+        let _ = result;
+    }
 }

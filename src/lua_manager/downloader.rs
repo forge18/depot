@@ -210,4 +210,96 @@ mod tests {
         let url = downloader.get_source_url("5.4.8");
         assert!(!url.is_empty());
     }
+
+    #[test]
+    fn test_lua_downloader_new() {
+        let temp = TempDir::new().unwrap();
+        let result = LuaDownloader::new(temp.path().to_path_buf());
+        assert!(result.is_ok());
+        let downloader = result.unwrap();
+        assert_eq!(downloader.cache_dir, temp.path().to_path_buf());
+    }
+
+    #[test]
+    fn test_lua_downloader_get_binary_name() {
+        let temp = TempDir::new().unwrap();
+        let downloader = LuaDownloader::new(temp.path().to_path_buf()).unwrap();
+
+        // Test that get_binary_name returns a valid name
+        let result = downloader.get_binary_name("5.4.8", "lua");
+        assert!(result.is_ok());
+        let name = result.unwrap();
+        assert!(name.contains("54"));
+    }
+
+    #[test]
+    fn test_lua_downloader_get_binary_name_luac() {
+        let temp = TempDir::new().unwrap();
+        let downloader = LuaDownloader::new(temp.path().to_path_buf()).unwrap();
+
+        let result = downloader.get_binary_name("5.4.8", "luac");
+        assert!(result.is_ok());
+        let name = result.unwrap();
+        assert!(name.contains("luac"));
+        assert!(name.contains("54"));
+    }
+
+    #[test]
+    fn test_lua_downloader_get_binary_name_5_1() {
+        let temp = TempDir::new().unwrap();
+        let downloader = LuaDownloader::new(temp.path().to_path_buf()).unwrap();
+
+        let result = downloader.get_binary_name("5.1.5", "lua");
+        assert!(result.is_ok());
+        let name = result.unwrap();
+        assert!(name.contains("51"));
+    }
+
+    #[test]
+    fn test_lua_downloader_get_binary_name_5_3() {
+        let temp = TempDir::new().unwrap();
+        let downloader = LuaDownloader::new(temp.path().to_path_buf()).unwrap();
+
+        let result = downloader.get_binary_name("5.3.6", "lua");
+        assert!(result.is_ok());
+        let name = result.unwrap();
+        assert!(name.contains("53"));
+    }
+
+    #[test]
+    fn test_lua_downloader_resolve_version_unknown() {
+        let temp = TempDir::new().unwrap();
+        let downloader = LuaDownloader::new(temp.path().to_path_buf()).unwrap();
+
+        // Unknown version should pass through unchanged
+        assert_eq!(downloader.resolve_version("5.5.0"), "5.5.0");
+        assert_eq!(downloader.resolve_version("6.0.0"), "6.0.0");
+    }
+
+    #[test]
+    fn test_lua_downloader_list_contains_three_versions() {
+        let temp = TempDir::new().unwrap();
+        let downloader = LuaDownloader::new(temp.path().to_path_buf()).unwrap();
+        let versions = downloader.list_available_versions();
+        assert_eq!(versions.len(), 3);
+    }
+
+    #[test]
+    fn test_lua_downloader_default_source_url() {
+        let temp = TempDir::new().unwrap();
+        let downloader = LuaDownloader::new(temp.path().to_path_buf()).unwrap();
+
+        // Should use default source URL when no config exists
+        assert!(downloader.default_source_url.contains("github.com"));
+    }
+
+    #[test]
+    fn test_lua_downloader_get_source_url_default() {
+        let temp = TempDir::new().unwrap();
+        let downloader = LuaDownloader::new(temp.path().to_path_buf()).unwrap();
+
+        // Should return default for unknown version
+        let url = downloader.get_source_url("unknown");
+        assert_eq!(url, &downloader.default_source_url);
+    }
 }
