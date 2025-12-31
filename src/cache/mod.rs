@@ -525,4 +525,149 @@ mod tests {
         let result = cache.clean(30, 100);
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn test_cache_get_rust_build_exists() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+
+        // Store a build first
+        let artifact = temp.path().join("artifact.so");
+        fs::write(&artifact, b"fake binary").unwrap();
+        cache
+            .store_rust_build(
+                "test-pkg",
+                "1.0.0",
+                "5.4",
+                "x86_64-unknown-linux-gnu",
+                &artifact,
+            )
+            .unwrap();
+
+        // Should find it
+        let result = cache.get_rust_build("test-pkg", "1.0.0", "5.4", "x86_64-unknown-linux-gnu");
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn test_cache_get_rust_build_not_exists() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+
+        let result =
+            cache.get_rust_build("nonexistent", "1.0.0", "5.4", "x86_64-unknown-linux-gnu");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_cache_clean_with_files() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+        cache.init().unwrap();
+
+        // Create some files in cache
+        let test_file = cache.rockspecs_dir().join("test.rockspec");
+        fs::write(&test_file, b"test content").unwrap();
+
+        // Clean with large limits (should keep file)
+        let result = cache.clean(30, 1000).unwrap();
+        assert_eq!(result.files_removed, 0);
+        assert!(test_file.exists());
+    }
+
+    #[test]
+    fn test_cache_clean_result_add_assign() {
+        let mut result1 = CacheCleanResult {
+            files_removed: 5,
+            bytes_freed: 1000,
+        };
+        let result2 = CacheCleanResult {
+            files_removed: 3,
+            bytes_freed: 500,
+        };
+        result1 += result2;
+        assert_eq!(result1.files_removed, 8);
+        assert_eq!(result1.bytes_freed, 1500);
+    }
+
+    #[test]
+    fn test_cache_rust_build_path_windows_target() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+
+        let path = cache.rust_build_path("test-package", "1.0.0", "5.4", "x86_64-pc-windows-msvc");
+        assert!(path.to_string_lossy().contains("dll"));
+    }
+
+    #[test]
+    fn test_cache_rust_build_path_macos_target() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+
+        let path = cache.rust_build_path("test-package", "1.0.0", "5.4", "x86_64-apple-darwin");
+        assert!(path.to_string_lossy().contains("dylib"));
+    }
+
+    #[test]
+    fn test_cache_rust_build_path_linux_target() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+
+        let path =
+            cache.rust_build_path("test-package", "1.0.0", "5.4", "x86_64-unknown-linux-gnu");
+        assert!(path.to_string_lossy().contains(".so"));
+    }
+
+    #[test]
+    fn test_cache_write_creates_parent_dirs() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+
+        let nested_path = temp.path().join("deep").join("nested").join("file.txt");
+        cache.write(&nested_path, b"test").unwrap();
+        assert!(nested_path.exists());
+    }
+
+    #[test]
+    fn test_cache_source_path_different_extensions() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+
+        let path1 = cache.source_path("https://example.com/file.zip");
+        let path2 = cache.source_path("https://example.com/file.tar.gz");
+
+        // Both should be in sources dir
+        assert!(path1.parent().unwrap().ends_with("sources"));
+        assert!(path2.parent().unwrap().ends_with("sources"));
+    }
+
+    #[test]
+    fn test_cache_store_and_retrieve_rust_build() {
+        let temp = TempDir::new().unwrap();
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+
+        // Create artifact
+        let artifact = temp.path().join("lib.so");
+        fs::write(&artifact, b"binary content").unwrap();
+
+        // Store it
+        let cached_path = cache
+            .store_rust_build(
+                "my-pkg",
+                "2.0.0",
+                "5.3",
+                "x86_64-unknown-linux-gnu",
+                &artifact,
+            )
+            .unwrap();
+
+        assert!(cached_path.exists());
+        assert!(cache.has_rust_build("my-pkg", "2.0.0", "5.3", "x86_64-unknown-linux-gnu"));
+
+        // Retrieve it
+        let retrieved = cache
+            .get_rust_build("my-pkg", "2.0.0", "5.3", "x86_64-unknown-linux-gnu")
+            .unwrap();
+        assert_eq!(cached_path, retrieved);
+    }
 }
