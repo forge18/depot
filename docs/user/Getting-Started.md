@@ -36,7 +36,7 @@ This will:
 1. Download `luasocket` from LuaRocks
 2. Install it to `./lua_modules/`
 3. Update `package.yaml` with the dependency
-4. Generate `package.lock` with exact versions and checksums
+4. Generate `lpm.lock` with exact versions and BLAKE3 checksums
 
 ### Install Multiple Packages
 
@@ -91,7 +91,7 @@ After installing dependencies, your project will look like:
 ```
 my-lua-project/
 ├── package.yaml          # Your project manifest
-├── package.lock          # Lockfile (auto-generated)
+├── lpm.lock              # Lockfile (auto-generated)
 ├── lua_modules/          # Installed dependencies
 │   ├── .lpm/            # LPM metadata
 │   ├── luasocket/

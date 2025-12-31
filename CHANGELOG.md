@@ -12,15 +12,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Plugin release workflow for automated plugin builds
 - Enhanced GitHub Actions workflows with better error handling
 - Comprehensive documentation for releases and workflows
+- `lpm new` command for creating new projects in new directories
+- Dynamic Lua version discovery - automatically detects installed Lua versions (5.1, 5.2, 5.3, 5.4)
+- Full SemVer 2.0.0 support including pre-release versions and build metadata
+- Resolution strategy configuration (highest, lowest, exact)
+- Strict conflict detection mode (enabled by default)
+- Workspace filtering support for monorepos (--filter flag with glob patterns)
 
 ### Changed
 - Updated CodeQL Action to v4 (from deprecated v3)
 - Improved wiki sync workflow to handle missing tokens gracefully
 - Enhanced release workflow with manual trigger support
+- Renamed lockfile from `package.lock` to `lpm.lock` for clarity
+- Switched to BLAKE3 checksums (from SHA-256) for faster, more secure package verification
+- Code coverage thresholds: 60-70% yellow, ≥70% green (following Google Testing Blog best practices)
 
 ### Fixed
 - Fixed git hooks PATH issue for RustyHook
 - Fixed wiki sync workflow to not fail on missing tokens
+- Fixed CI pipeline coverage measurement by excluding test files from coverage calculation
 
 ## [0.1.0] - 2024-12-06
 

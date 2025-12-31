@@ -32,7 +32,7 @@ scripts:
 
 ## Version Constraints
 
-LPM uses Semantic Versioning (SemVer) constraints:
+LPM uses Semantic Versioning (SemVer) constraints with full pre-release and build metadata support:
 
 - `"3.0.0"` - Exact version
 - `"^1.13.0"` - Compatible version (>=1.13.0 <2.0.0)
@@ -41,14 +41,28 @@ LPM uses Semantic Versioning (SemVer) constraints:
 - `"<2.0.0"` - Less than
 - `"1.0.0 || 2.0.0"` - Either version
 - `"*"` - Any version
+- `"1.0.0-alpha.1"` - Pre-release version
+- `"^1.0.0-beta"` - Compatible pre-release versions
+
+### Pre-release Versions
+
+LPM fully supports pre-release versions following SemVer 2.0.0:
+
+```yaml
+dependencies:
+  my-package: "1.0.0-beta.2"  # Exact pre-release
+  other-pkg: "^1.0.0-rc"      # Compatible pre-releases (>=1.0.0-rc <2.0.0)
+```
+
+**Note**: Pre-release versions have lower precedence than normal versions. For example, `1.0.0-alpha < 1.0.0`.
 
 ## Dependency Resolution
 
 LPM automatically resolves dependency conflicts:
 
 1. **Version Selection**: Chooses the highest compatible version
-2. **Conflict Detection**: Warns if dependencies conflict
-3. **Lockfile Generation**: Creates `package.lock` with exact versions
+2. **Conflict Detection**: Warns if dependencies conflict (strict mode enabled by default)
+3. **Lockfile Generation**: Creates `lpm.lock` with exact versions and BLAKE3 checksums
 
 ### Example Resolution
 
@@ -61,24 +75,62 @@ dependencies:
 
 LPM will detect this conflict and suggest a resolution.
 
-## Lockfile (package.lock)
+### Resolution Strategies
 
-The `package.lock` file ensures reproducible builds:
+You can configure how LPM resolves version conflicts in `package.yaml`:
+
+```yaml
+config:
+  resolution_strategy: "highest"  # Default: prefer highest compatible version
+  # Other options: "lowest", "exact"
+```
+
+**Available strategies**:
+- `highest` (default): Selects the highest version that satisfies all constraints
+- `lowest`: Selects the lowest version that satisfies all constraints (useful for testing minimum requirements)
+- `exact`: Requires exact version matches (no automatic resolution)
+
+### Strict Conflict Detection
+
+By default, LPM uses strict conflict detection to catch potential version incompatibilities:
+
+```yaml
+config:
+  strict_conflicts: true  # Default: enabled
+```
+
+When enabled, LPM will:
+- Fail installation if dependency versions cannot be resolved
+- Warn about transitive dependency conflicts
+- Require explicit resolutions for ambiguous cases
+
+To disable strict mode (not recommended):
+
+```yaml
+config:
+  strict_conflicts: false
+```
+
+## Lockfile (lpm.lock)
+
+The `lpm.lock` file ensures reproducible builds with cryptographic verification:
 
 ```yaml
 packages:
   luasocket:
     version: "3.0.0"
-    checksum: "sha256:abc123..."
+    checksum: "blake3:abc123..."
     dependencies: {}
   penlight:
     version: "1.13.0"
-    checksum: "sha256:def456..."
+    checksum: "blake3:def456..."
     dependencies:
       luafilesystem: "1.8.0"
 ```
 
-**Important**: Commit `package.lock` to version control for reproducible builds.
+**Important**: Commit `lpm.lock` to version control for reproducible builds.
+
+**Checksum Algorithm**: LPM uses BLAKE3 for fast, cryptographically secure checksums to verify package integrity and prevent supply chain attacks.
 
 ## Dev Dependencies
 
@@ -103,18 +155,109 @@ lpm install --dev-only
 
 ## Workspace Support
 
-LPM supports monorepos with multiple packages:
+LPM provides monorepo/workspace support with filtering capabilities for multi-package projects.
+
+### Workspace Structure
 
 ```
-workspace/
-├── package.yaml          # Workspace root
-├── package-a/
-│   └── package.yaml
-└── package-b/
-    └── package.yaml
+my-workspace/
+├── workspace.yaml        # Workspace configuration (option 1)
+├── package.yaml          # Or: root package with workspace section (option 2)
+├── packages/
+│   ├── package-a/
+│   │   └── package.yaml
+│   └── package-b/
+│       └── package.yaml
+└── apps/
+    └── web-app/
+        └── package.yaml
 ```
 
-Shared dependencies are managed at the workspace level.
+### Workspace Configuration
+
+**Option 1: Using `workspace.yaml`**:
+
+```yaml
+name: my-workspace
+packages:
+  - packages/*      # Glob patterns supported
+  - apps/*
+  - tools/cli
+```
+
+**Option 2: Using `package.yaml` with workspace section**:
+
+```yaml
+name: my-workspace
+version: 1.0.0
+
+workspace:
+  packages:
+    - packages/*
+    - apps/*
+
+# Root-level shared dependencies
+dependencies:
+  luasocket: "^3.0.0"
+```
+
+### Package Discovery
+
+LPM automatically discovers packages using glob patterns:
+
+- `packages/*` - All direct subdirectories in `packages/`
+- `apps/*` - All direct subdirectories in `apps/`
+- `tools/cli` - Specific directory path
+
+Packages are discovered by finding `package.yaml` files up to 3 levels deep in matching directories.
+
+### Shared Dependencies
+
+LPM detects dependencies shared across multiple workspace packages and can identify version conflicts:
+
+```bash
+# Check shared dependencies
+lpm workspace shared-deps
+```
+
+This helps identify:
+- Dependencies used by multiple packages
+- Version constraint mismatches
+- Opportunities for dependency hoisting
+
+### Workspace Filtering
+
+Filter operations to specific workspace members for faster CI/CD:
+
+```bash
+# Install dependencies only for specific packages
+lpm install --filter package-a
+lpm install --filter package-b
+
+# Multiple filters
+lpm install --filter package-a --filter package-b
+
+# Glob patterns in filters
+lpm install --filter "packages/*"
+
+# Run commands on filtered workspaces
+lpm run test --filter package-a
+lpm build --filter package-a --filter package-b
+
+# Include dependents (packages that depend on this package)
+lpm test --filter package-a...
+
+# Include dependencies (packages this package depends on)
+lpm test --filter ...package-a
+```
+
+**Workspace filtering benefits**:
+- Faster CI/CD for monorepos (only build/test changed packages)
+- Selective dependency management
+- Better resource utilization in large workspaces
+- Support for incremental builds
+
+**Note**: Workspace dependency inheritance and advanced features like default members are planned for future releases.
 
 ## Local Dependencies
 
@@ -202,7 +345,7 @@ Verify package integrity:
 lpm verify
 ```
 
-Checks all package checksums against `package.lock`.
+Checks all package checksums against `lpm.lock`.
 
 ## Building from Source
 

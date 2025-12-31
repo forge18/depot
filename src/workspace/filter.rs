@@ -165,7 +165,7 @@ impl FilterPattern {
 }
 
 /// Simple glob matching supporting * and ? wildcards
-fn glob_match(pattern: &str, text: &str) -> bool {
+pub(crate) fn glob_match(pattern: &str, text: &str) -> bool {
     let pattern_chars: Vec<char> = pattern.chars().collect();
     let text_chars: Vec<char> = text.chars().collect();
 
@@ -264,6 +264,7 @@ mod tests {
             config: WorkspaceConfig {
                 name: "test-workspace".to_string(),
                 packages: vec!["packages/*".to_string()],
+                ..Default::default()
             },
             packages,
         }

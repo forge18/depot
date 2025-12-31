@@ -88,7 +88,7 @@ CLI command implementations:
 Package management:
 
 - **`manifest.rs`**: `package.yaml` parsing and management
-- **`lockfile.rs`**: `package.lock` generation and validation
+- **`lockfile.rs`**: `lpm.lock` generation and validation
 - **`lockfile_builder.rs`**: Lockfile generation with parallel downloads and incremental updates
 - **`resolver.rs`**: Dependency resolution
 - **`installer.rs`**: Package installation to `lua_modules/`
@@ -151,7 +151,7 @@ Note: Lua path setup (loader and runner) has been moved to `crates/lpm-core/src/
 5. Installer: Install to lua_modules/ → package/installer.rs
    - Checks for binary URLs in rockspec metadata
    - Downloads pre-built binaries if available
-6. Lockfile: Update package.lock incrementally → package/lockfile_builder.rs
+6. Lockfile: Update lpm.lock incrementally → package/lockfile_builder.rs
 ```
 
 ### Build Flow
@@ -176,7 +176,7 @@ All packages install to `./lua_modules/` - no global installation. This ensures:
 
 ### 2. Lockfile-Based Reproducibility
 
-`package.lock` stores exact versions and checksums:
+`lpm.lock` stores exact versions and BLAKE3 checksums:
 - Ensures reproducible builds
 - Enables checksum verification
 - Prevents supply chain attacks

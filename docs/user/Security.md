@@ -6,14 +6,16 @@ LPM is designed with security as a priority. This guide covers security features
 
 ### Checksums
 
-All packages are verified using SHA-256 checksums stored in `package.lock`:
+All packages are verified using BLAKE3 checksums stored in `lpm.lock`:
 
 ```yaml
 packages:
   luasocket:
     version: "3.0.0"
-    checksum: "sha256:abc123..."
+    checksum: "blake3:abc123..."
 ```
+
+BLAKE3 provides faster hashing with cryptographic security guarantees, making package verification both secure and performant.
 
 Verify checksums:
 
@@ -81,10 +83,10 @@ or
 
 ### 1. Use Lockfiles
 
-Always commit `package.lock` to version control:
+Always commit `lpm.lock` to version control:
 
 ```bash
-git add package.lock
+git add lpm.lock
 git commit -m "Add lockfile"
 ```
 
@@ -167,7 +169,7 @@ lpm install --no-dev
 
 ## Supply Chain Security Checklist
 
-- [ ] `package.lock` is committed to version control
+- [ ] `lpm.lock` is committed to version control
 - [ ] Regular security audits (`lpm audit`)
 - [ ] Dependencies are kept up to date
 - [ ] Version constraints are specific (not wildcards)

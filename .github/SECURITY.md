@@ -55,7 +55,7 @@ When reporting a vulnerability, please include:
 
 When using LPM:
 
-1. **Always use lockfiles**: Commit `package.lock` to ensure reproducible builds
+1. **Always use lockfiles**: Commit `lpm.lock` to ensure reproducible builds
 2. **Run security audits**: Use `lpm audit` to check for known vulnerabilities
 3. **Keep dependencies updated**: Regularly update packages with `lpm update`
 4. **Verify checksums**: LPM automatically verifies package checksums

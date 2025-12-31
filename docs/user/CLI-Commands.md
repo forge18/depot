@@ -4,6 +4,32 @@ Complete reference for all LPM commands.
 
 ## Project Management
 
+### `lpm new <name>`
+
+Create a new LPM project in a new directory.
+
+```bash
+# Create new project
+lpm new my-project
+
+# Create with template
+lpm new my-project --template love2d
+
+# Non-interactive mode
+lpm new my-project --yes
+lpm new my-project -y
+
+# Non-interactive with template
+lpm new my-project --template cli-tool --yes
+```
+
+This command:
+1. Creates a new directory with the specified name
+2. Initializes an LPM project inside it (runs `lpm init`)
+3. Sets up the project structure
+
+**Note**: The command will fail if a directory with the same name already exists.
+
 ### `lpm init`
 
 Initialize a new LPM project in the current directory.
@@ -199,7 +225,7 @@ lpm outdated
 
 Verify package checksums against the lockfile.
 
-**Note**: LPM uses incremental lockfile updates - only changed packages are rebuilt when updating `package.lock`, making updates faster.
+**Note**: LPM uses BLAKE3 checksums for fast, cryptographic verification. Incremental lockfile updates mean only changed packages are rebuilt when updating `lpm.lock`, making updates faster.
 
 ```bash
 lpm verify

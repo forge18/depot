@@ -81,12 +81,8 @@ mod tests {
         fs::create_dir(&project_dir).unwrap();
 
         // Template might not exist, will likely fail
-        let result = crate::cli::init::run_in_dir(
-            &project_dir,
-            Some("nonexistent".to_string()),
-            true,
-        )
-        .await;
+        let result =
+            crate::cli::init::run_in_dir(&project_dir, Some("nonexistent".to_string()), true).await;
 
         // May fail due to template not found, but that's expected
         let _ = result; // Ignore the result as template discovery might fail
@@ -103,8 +99,14 @@ mod tests {
         let result = crate::cli::init::run_in_dir(&project_path, None, true).await;
 
         assert!(result.is_ok());
-        assert!(project_path.join("src").exists(), "src directory should exist");
-        assert!(project_path.join("lib").exists(), "lib directory should exist");
+        assert!(
+            project_path.join("src").exists(),
+            "src directory should exist"
+        );
+        assert!(
+            project_path.join("lib").exists(),
+            "lib directory should exist"
+        );
         assert!(
             project_path.join("tests").exists(),
             "tests directory should exist"

@@ -179,7 +179,7 @@ lpm install
 
 ### Large lockfile
 
-**Problem**: `package.lock` is very large.
+**Problem**: `lpm.lock` is very large.
 
 **Solution**: This is normal for projects with many dependencies. The lockfile ensures reproducibility.
 

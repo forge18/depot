@@ -20,6 +20,27 @@ pub struct WorkspaceConfig {
     pub name: String,
     /// Package directories (relative to workspace root)
     pub packages: Vec<String>,
+    /// Patterns to exclude from workspace
+    pub exclude: Vec<String>,
+    /// Default members to operate on when no package selection is specified
+    pub default_members: Option<Vec<String>>,
+    /// Shared dependencies that workspace members can inherit
+    pub dependencies: HashMap<String, String>,
+    /// Shared dev dependencies
+    pub dev_dependencies: HashMap<String, String>,
+    /// Shared package metadata that members can inherit
+    pub package_metadata: Option<WorkspacePackageMetadata>,
+}
+
+/// Package metadata that can be inherited from workspace
+#[derive(Debug, Clone)]
+pub struct WorkspacePackageMetadata {
+    pub version: Option<String>,
+    pub authors: Option<Vec<String>>,
+    pub license: Option<String>,
+    pub homepage: Option<String>,
+    pub repository: Option<String>,
+    pub description: Option<String>,
 }
 
 /// A package within a workspace
@@ -73,6 +94,11 @@ impl Workspace {
                 .unwrap_or("workspace")
                 .to_string(),
             packages: vec!["packages/*".to_string(), "apps/*".to_string()],
+            exclude: vec![],
+            default_members: None,
+            dependencies: HashMap::new(),
+            dev_dependencies: HashMap::new(),
+            package_metadata: None,
         })
     }
 
@@ -85,6 +111,25 @@ impl Workspace {
         struct WorkspaceYaml {
             name: String,
             packages: Vec<String>,
+            #[serde(default)]
+            exclude: Vec<String>,
+            #[serde(rename = "default-members")]
+            default_members: Option<Vec<String>>,
+            #[serde(default)]
+            dependencies: HashMap<String, String>,
+            #[serde(default)]
+            dev_dependencies: HashMap<String, String>,
+            package: Option<WorkspacePackageMetadataYaml>,
+        }
+
+        #[derive(Deserialize)]
+        struct WorkspacePackageMetadataYaml {
+            version: Option<String>,
+            authors: Option<Vec<String>>,
+            license: Option<String>,
+            homepage: Option<String>,
+            repository: Option<String>,
+            description: Option<String>,
         }
 
         let content = fs::read_to_string(path)?;
@@ -94,6 +139,18 @@ impl Workspace {
         Ok(WorkspaceConfig {
             name: workspace.name,
             packages: workspace.packages,
+            exclude: workspace.exclude,
+            default_members: workspace.default_members,
+            dependencies: workspace.dependencies,
+            dev_dependencies: workspace.dev_dependencies,
+            package_metadata: workspace.package.map(|p| WorkspacePackageMetadata {
+                version: p.version,
+                authors: p.authors,
+                license: p.license,
+                homepage: p.homepage,
+                repository: p.repository,
+                description: p.description,
+            }),
         })
     }
 
@@ -106,11 +163,34 @@ impl Workspace {
         struct PackageYamlWithWorkspace {
             name: String,
             workspace: Option<WorkspaceYamlSection>,
+            #[serde(default)]
+            dependencies: HashMap<String, String>,
+            #[serde(default)]
+            dev_dependencies: HashMap<String, String>,
         }
 
         #[derive(Deserialize)]
         struct WorkspaceYamlSection {
             packages: Vec<String>,
+            #[serde(default)]
+            exclude: Vec<String>,
+            #[serde(rename = "default-members")]
+            default_members: Option<Vec<String>>,
+            #[serde(default)]
+            dependencies: HashMap<String, String>,
+            #[serde(default)]
+            dev_dependencies: HashMap<String, String>,
+            package: Option<WorkspacePackageMetadataYaml>,
+        }
+
+        #[derive(Deserialize)]
+        struct WorkspacePackageMetadataYaml {
+            version: Option<String>,
+            authors: Option<Vec<String>>,
+            license: Option<String>,
+            homepage: Option<String>,
+            repository: Option<String>,
+            description: Option<String>,
         }
 
         let content = fs::read_to_string(path)?;
@@ -118,9 +198,28 @@ impl Workspace {
             .map_err(|e| LpmError::Package(format!("Failed to parse package.yaml: {}", e)))?;
 
         if let Some(workspace) = package.workspace {
+            // Merge root-level and workspace.dependencies
+            let mut dependencies = package.dependencies;
+            dependencies.extend(workspace.dependencies);
+
+            let mut dev_dependencies = package.dev_dependencies;
+            dev_dependencies.extend(workspace.dev_dependencies);
+
             Ok(WorkspaceConfig {
                 name: package.name,
                 packages: workspace.packages,
+                exclude: workspace.exclude,
+                default_members: workspace.default_members,
+                dependencies,
+                dev_dependencies,
+                package_metadata: workspace.package.map(|p| WorkspacePackageMetadata {
+                    version: p.version,
+                    authors: p.authors,
+                    license: p.license,
+                    homepage: p.homepage,
+                    repository: p.repository,
+                    description: p.description,
+                }),
             })
         } else {
             Err(LpmError::Package(
@@ -159,6 +258,11 @@ impl Workspace {
                     {
                         if entry.file_name() == "package.yaml" && entry.file_type().is_file() {
                             if let Some(package_dir) = entry.path().parent() {
+                                // Skip if excluded
+                                if Self::is_excluded(package_dir, &config.exclude, workspace_root) {
+                                    continue;
+                                }
+
                                 match PackageManifest::load(package_dir) {
                                     Ok(manifest) => {
                                         let package = WorkspacePackage {
@@ -187,6 +291,11 @@ impl Workspace {
                 // Direct path (no wildcard)
                 let package_dir = workspace_root.join(pattern);
                 if package_dir.exists() {
+                    // Skip if excluded
+                    if Self::is_excluded(&package_dir, &config.exclude, workspace_root) {
+                        continue;
+                    }
+
                     match PackageManifest::load(&package_dir) {
                         Ok(manifest) => {
                             let package = WorkspacePackage {
@@ -260,6 +369,47 @@ impl Workspace {
             || (path.join("package.yaml").exists()
                 && Self::load_from_package_yaml(&path.join("package.yaml")).is_ok())
     }
+
+    /// Get workspace-level dependencies that can be inherited by members
+    pub fn workspace_dependencies(&self) -> &HashMap<String, String> {
+        &self.config.dependencies
+    }
+
+    /// Get workspace-level dev dependencies
+    pub fn workspace_dev_dependencies(&self) -> &HashMap<String, String> {
+        &self.config.dev_dependencies
+    }
+
+    /// Get package metadata that can be inherited by members
+    pub fn workspace_package_metadata(&self) -> Option<&WorkspacePackageMetadata> {
+        self.config.package_metadata.as_ref()
+    }
+
+    /// Get default members (packages to operate on by default)
+    pub fn default_members(&self) -> Vec<&WorkspacePackage> {
+        if let Some(default_members) = &self.config.default_members {
+            default_members
+                .iter()
+                .filter_map(|name| self.packages.get(name))
+                .collect()
+        } else {
+            // If no default members specified, return all packages
+            self.packages.values().collect()
+        }
+    }
+
+    /// Check if a path is excluded from the workspace
+    fn is_excluded(path: &Path, exclude_patterns: &[String], workspace_root: &Path) -> bool {
+        let rel_path = path.strip_prefix(workspace_root).unwrap_or(path);
+        let rel_path_str = rel_path.to_string_lossy();
+
+        for pattern in exclude_patterns {
+            if crate::workspace::filter::glob_match(pattern, &rel_path_str) {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 impl Default for WorkspaceConfig {
@@ -267,6 +417,11 @@ impl Default for WorkspaceConfig {
         Self {
             name: "workspace".to_string(),
             packages: vec!["packages/*".to_string()],
+            exclude: vec![],
+            default_members: None,
+            dependencies: HashMap::new(),
+            dev_dependencies: HashMap::new(),
+            package_metadata: None,
         }
     }
 }
@@ -378,6 +533,7 @@ version: 1.0.0
         let config = WorkspaceConfig {
             name: "test-workspace".to_string(),
             packages: vec!["packages/*".to_string()],
+            ..Default::default()
         };
 
         let packages = Workspace::find_packages(temp.path(), &config).unwrap();
@@ -404,6 +560,7 @@ version: 1.0.0
         let config = WorkspaceConfig {
             name: "test-workspace".to_string(),
             packages: vec!["my-package".to_string()],
+            ..Default::default()
         };
 
         let packages = Workspace::find_packages(temp.path(), &config).unwrap();
@@ -445,6 +602,7 @@ dependencies:
         let config = WorkspaceConfig {
             name: "test-workspace".to_string(),
             packages: vec!["packages/*".to_string()],
+            ..Default::default()
         };
 
         let workspace = Workspace {
@@ -481,6 +639,7 @@ dev_dependencies:
         let config = WorkspaceConfig {
             name: "test-workspace".to_string(),
             packages: vec!["packages/*".to_string()],
+            ..Default::default()
         };
 
         let workspace = Workspace {
@@ -512,6 +671,7 @@ version: 1.0.0
         let config = WorkspaceConfig {
             name: "test-workspace".to_string(),
             packages: vec!["packages/*".to_string()],
+            ..Default::default()
         };
 
         let workspace = Workspace {
@@ -557,6 +717,7 @@ version: 1.0.0
         let config = WorkspaceConfig {
             name: "test-workspace".to_string(),
             packages: vec!["packages/*".to_string()],
+            ..Default::default()
         };
 
         let workspace = Workspace {

@@ -24,11 +24,11 @@ LPM provides local, project-scoped package management for Lua, similar to npm, c
 - **Local installation** - Dependencies install to `./lua_modules/`, not globally
 - **Lua version manager** - Manage multiple Lua versions (5.1, 5.3, 5.4) with `lpm lua`
 - **Global tool installation** - Install dev tools globally with `lpm install -g` (like npm)
-- **Lockfile support** - Reproducible builds with `package.lock`
+- **Lockfile support** - Reproducible builds with `lpm.lock`
 - **SemVer version resolution** - Proper dependency conflict resolution
 - **LuaRocks compatible** - Uses LuaRocks as upstream package source
 - **Rust extensions** - Build native Lua modules with Rust
-- **Supply chain security** - Strong checksums, no postinstall scripts, sandboxed builds
+- **Supply chain security** - BLAKE3 checksums, no postinstall scripts, sandboxed builds
 - **Interactive CLI** - Fuzzy search, templates, and guided workflows
 
 ## Quick Start
@@ -64,7 +64,10 @@ cp target/release/lpm /usr/local/bin/  # or add to PATH
 ### Basic Usage
 
 ```bash
-# Initialize a new project
+# Create a new project
+lpm new my-project
+
+# Initialize in existing directory
 lpm init
 
 # Install dependencies
