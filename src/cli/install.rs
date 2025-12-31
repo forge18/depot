@@ -609,11 +609,25 @@ async fn install_workspace_dependencies(
     let mut all_dependencies = HashMap::new();
     let mut all_dev_dependencies = HashMap::new();
 
+    // First, add workspace-level dependencies (inherited by all packages)
+    if !dev_only {
+        for (dep_name, dep_version) in workspace.workspace_dependencies() {
+            all_dependencies.insert(dep_name.clone(), dep_version.clone());
+        }
+    }
+    if !no_dev {
+        for (dep_name, dep_version) in workspace.workspace_dev_dependencies() {
+            all_dev_dependencies.insert(dep_name.clone(), dep_version.clone());
+        }
+    }
+
+    // Then, collect dependencies from individual workspace packages
     for workspace_pkg in workspace.packages.values() {
         // Collect regular dependencies from workspace package.
         if !dev_only {
             for (dep_name, dep_version) in &workspace_pkg.manifest.dependencies {
                 // Use most restrictive constraint if multiple packages specify the same dependency
+                // Package-level dependencies override workspace-level ones
                 all_dependencies
                     .entry(dep_name.clone())
                     .or_insert_with(|| dep_version.clone());
@@ -623,6 +637,7 @@ async fn install_workspace_dependencies(
         // Collect dev dependencies from workspace package.
         if !no_dev {
             for (dep_name, dep_version) in &workspace_pkg.manifest.dev_dependencies {
+                // Package-level dev dependencies override workspace-level ones
                 all_dev_dependencies
                     .entry(dep_name.clone())
                     .or_insert_with(|| dep_version.clone());

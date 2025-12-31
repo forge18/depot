@@ -134,9 +134,22 @@ enum Commands {
     /// Manage plugins
     #[command(subcommand)]
     Plugin(cli::plugin::commands::PluginSubcommand),
+    /// Workspace commands
+    #[command(subcommand)]
+    Workspace(WorkspaceCommands),
     /// External subcommands (plugins)
     #[command(external_subcommand)]
     External(Vec<String>),
+}
+
+#[derive(Subcommand)]
+enum WorkspaceCommands {
+    /// List all packages in the workspace
+    List,
+    /// Show detailed workspace information
+    Info,
+    /// Show shared dependencies across workspace packages
+    SharedDeps,
 }
 
 #[tokio::main]
@@ -194,6 +207,11 @@ async fn main() -> Result<(), LpmError> {
         Commands::Lua(cmd) => cli::lua::run(cmd).await,
         Commands::Template(cmd) => cli::template::run(cmd),
         Commands::Plugin(cmd) => cli::plugin::commands::run(cmd),
+        Commands::Workspace(cmd) => match cmd {
+            WorkspaceCommands::List => cli::workspace::list().await,
+            WorkspaceCommands::Info => cli::workspace::info().await,
+            WorkspaceCommands::SharedDeps => cli::workspace::shared_deps().await,
+        },
         Commands::External(args) => {
             if args.is_empty() {
                 return Err(LpmError::Package("Command required".to_string()));

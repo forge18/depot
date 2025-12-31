@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Full SemVer 2.0.0 support including pre-release versions and build metadata
 - Resolution strategy configuration (highest, lowest, exact)
 - Strict conflict detection mode (enabled by default)
-- Workspace filtering support for monorepos (--filter flag with glob patterns)
+- Workspace support for monorepos with dependency inheritance, package metadata inheritance, default members, exclude patterns, and filtering
 
 ### Changed
 - Updated CodeQL Action to v4 (from deprecated v3)
