@@ -9,14 +9,46 @@ use crate::luarocks::search_api::SearchAPI;
 use crate::resolver::dependency_graph::DependencyGraph;
 use std::collections::{HashMap, HashSet};
 
+/// Resolution strategy for selecting package versions
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ResolutionStrategy {
+    /// Select the highest compatible version (default)
+    #[default]
+    Highest,
+    /// Select the lowest compatible version
+    Lowest,
+}
+
+impl ResolutionStrategy {
+    /// Parse a resolution strategy from a string
+    pub fn parse(s: &str) -> LpmResult<Self> {
+        match s.to_lowercase().as_str() {
+            "highest" => Ok(ResolutionStrategy::Highest),
+            "lowest" => Ok(ResolutionStrategy::Lowest),
+            _ => Err(LpmError::Config(format!(
+                "Invalid resolution strategy '{}'. Must be 'highest' or 'lowest'",
+                s
+            ))),
+        }
+    }
+}
+
 /// Resolves dependencies and versions using SemVer algorithm
 pub struct DependencyResolver {
     manifest: Manifest,
+    strategy: ResolutionStrategy,
 }
 
 impl DependencyResolver {
     pub fn new(manifest: Manifest) -> Self {
-        Self { manifest }
+        Self {
+            manifest,
+            strategy: ResolutionStrategy::default(),
+        }
+    }
+
+    pub fn new_with_strategy(manifest: Manifest, strategy: ResolutionStrategy) -> Self {
+        Self { manifest, strategy }
     }
 
     /// Resolve all dependencies from a package manifest
@@ -138,12 +170,16 @@ impl DependencyResolver {
             versions.push(version);
         }
 
-        // Sort versions (highest first)
-        versions.sort_by(|a, b| b.cmp(a));
+        // Sort versions according to strategy
+        match self.strategy {
+            ResolutionStrategy::Highest => versions.sort_by(|a, b| b.cmp(a)), // Descending
+            ResolutionStrategy::Lowest => versions.sort(),                    // Ascending
+        }
         Ok(versions)
     }
 
-    /// Select the highest version that satisfies the constraint
+    /// Select a version that satisfies the constraint based on the resolution strategy
+    /// (highest or lowest compatible version depending on strategy)
     fn select_version(
         &self,
         available_versions: &[Version],
@@ -733,5 +769,49 @@ mod tests {
         let constraint = parse_constraint(">=2.0.0").unwrap();
         let result = resolver.select_version(&versions, &constraint);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_resolution_strategy_from_str() {
+        assert_eq!(
+            ResolutionStrategy::parse("highest").unwrap(),
+            ResolutionStrategy::Highest
+        );
+        assert_eq!(
+            ResolutionStrategy::parse("HIGHEST").unwrap(),
+            ResolutionStrategy::Highest
+        );
+        assert_eq!(
+            ResolutionStrategy::parse("lowest").unwrap(),
+            ResolutionStrategy::Lowest
+        );
+        assert_eq!(
+            ResolutionStrategy::parse("LOWEST").unwrap(),
+            ResolutionStrategy::Lowest
+        );
+
+        // Invalid strategy
+        assert!(ResolutionStrategy::parse("invalid").is_err());
+    }
+
+    #[test]
+    fn test_resolution_strategy_default() {
+        let strategy = ResolutionStrategy::default();
+        assert_eq!(strategy, ResolutionStrategy::Highest);
+    }
+
+    #[test]
+    fn test_resolver_with_highest_strategy() {
+        let manifest = Manifest::default();
+        let resolver = DependencyResolver::new_with_strategy(manifest, ResolutionStrategy::Highest);
+        // Test that strategy field is set correctly
+        assert_eq!(resolver.strategy, ResolutionStrategy::Highest);
+    }
+
+    #[test]
+    fn test_resolver_with_lowest_strategy() {
+        let manifest = Manifest::default();
+        let resolver = DependencyResolver::new_with_strategy(manifest, ResolutionStrategy::Lowest);
+        assert_eq!(resolver.strategy, ResolutionStrategy::Lowest);
     }
 }

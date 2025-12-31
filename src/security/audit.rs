@@ -39,7 +39,10 @@ impl SecurityAuditor {
         // Load lockfile to get package names
         let lockfile =
             crate::package::lockfile::Lockfile::load(project_root)?.ok_or_else(|| {
-                LpmError::Package("No package.lock found. Run 'lpm install' first.".to_string())
+                LpmError::Package(format!(
+                    "No {} found. Run 'lpm install' first.",
+                    crate::package::lockfile::LOCKFILE_NAME
+                ))
             })?;
 
         let package_names: Vec<String> = lockfile.packages.keys().cloned().collect();
@@ -52,7 +55,10 @@ impl SecurityAuditor {
     fn audit(&self, project_root: &Path) -> LpmResult<VulnerabilityReport> {
         // Load lockfile to get installed packages
         let lockfile = Lockfile::load(project_root)?.ok_or_else(|| {
-            LpmError::Package("No package.lock found. Run 'lpm install' first.".to_string())
+            LpmError::Package(format!(
+                "No {} found. Run 'lpm install' first.",
+                crate::package::lockfile::LOCKFILE_NAME
+            ))
         })?;
 
         let mut report = VulnerabilityReport::new();
@@ -445,10 +451,10 @@ mod tests {
     #[tokio::test]
     async fn test_audit_project_with_osv_no_lockfile() {
         let temp = tempfile::TempDir::new().unwrap();
-        // No package.lock file
+        // No lockfile
         let result = SecurityAuditor::audit_project_with_osv(temp.path()).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("No package.lock"));
+        assert!(result.unwrap_err().to_string().contains("No lpm.lock"));
     }
 
     #[tokio::test]
@@ -474,7 +480,7 @@ mod tests {
         let temp = tempfile::TempDir::new().unwrap();
         let result = SecurityAuditor::audit_project(temp.path());
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("No package.lock"));
+        assert!(result.unwrap_err().to_string().contains("No lpm.lock"));
     }
 
     #[test]

@@ -34,6 +34,41 @@ pub struct Config {
     /// Example: { "5.4.8": "https://custom-source.com/binaries" }
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lua_binary_sources: Option<std::collections::HashMap<String, String>>,
+
+    /// Resolution strategy for selecting package versions
+    /// - "highest": Select the highest compatible version (default)
+    /// - "lowest": Select the lowest compatible version
+    #[serde(default = "default_resolution_strategy")]
+    pub resolution_strategy: String,
+
+    /// Checksum algorithm for package verification
+    /// - "blake3": BLAKE3 (default, faster and more secure)
+    /// - "sha256": SHA-256 (legacy, for backward compatibility)
+    #[serde(default = "default_checksum_algorithm")]
+    pub checksum_algorithm: String,
+
+    /// Override for supported Lua versions (optional)
+    /// If set, only these versions will be offered in interactive prompts
+    /// Example: ["5.1", "5.3", "5.4"]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub supported_lua_versions: Option<Vec<String>>,
+
+    /// Enable strict conflict detection mode
+    /// When enabled, performs additional checks:
+    /// - Transitive dependency conflicts
+    /// - Diamond dependency version mismatches
+    /// - Constraint satisfiability verification
+    /// - Phantom dependency warnings
+    #[serde(default = "default_true")]
+    pub strict_conflicts: bool,
+}
+
+fn default_checksum_algorithm() -> String {
+    "blake3".to_string()
+}
+
+fn default_resolution_strategy() -> String {
+    "highest".to_string()
 }
 
 fn default_luarocks_manifest_url() -> String {
@@ -53,6 +88,10 @@ impl Default for Config {
             show_diffs_on_update: true,
             lua_binary_source_url: None,
             lua_binary_sources: None,
+            resolution_strategy: default_resolution_strategy(),
+            checksum_algorithm: default_checksum_algorithm(),
+            supported_lua_versions: None,
+            strict_conflicts: true,
         }
     }
 }
@@ -243,5 +282,106 @@ luarocks_manifest_url: https://custom.luarocks.org/manifest
     #[test]
     fn test_default_true() {
         assert!(default_true());
+    }
+
+    #[test]
+    fn test_config_with_resolution_strategy() {
+        let config = Config {
+            resolution_strategy: "lowest".to_string(),
+            ..Default::default()
+        };
+
+        assert_eq!(config.resolution_strategy, "lowest");
+
+        let yaml = serde_yaml::to_string(&config).unwrap();
+        assert!(yaml.contains("resolution_strategy: lowest"));
+    }
+
+    #[test]
+    fn test_config_default_resolution_strategy() {
+        let config = Config::default();
+        assert_eq!(config.resolution_strategy, "highest");
+    }
+
+    #[test]
+    fn test_config_deserialization_with_resolution_strategy() {
+        let yaml = r#"
+luarocks_manifest_url: https://custom.luarocks.org/manifest
+resolution_strategy: lowest
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(config.resolution_strategy, "lowest");
+    }
+
+    #[test]
+    fn test_config_with_supported_lua_versions() {
+        let config = Config {
+            supported_lua_versions: Some(vec!["5.1".to_string(), "5.4".to_string()]),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            config.supported_lua_versions,
+            Some(vec!["5.1".to_string(), "5.4".to_string()])
+        );
+
+        let yaml = serde_yaml::to_string(&config).unwrap();
+        assert!(yaml.contains("supported_lua_versions"));
+        assert!(yaml.contains("5.1"));
+        assert!(yaml.contains("5.4"));
+    }
+
+    #[test]
+    fn test_config_deserialization_with_supported_lua_versions() {
+        let yaml = r#"
+luarocks_manifest_url: https://custom.luarocks.org/manifest
+supported_lua_versions:
+  - "5.1"
+  - "5.3"
+  - "5.4"
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(
+            config.supported_lua_versions,
+            Some(vec![
+                "5.1".to_string(),
+                "5.3".to_string(),
+                "5.4".to_string()
+            ])
+        );
+    }
+
+    #[test]
+    fn test_config_default_no_supported_lua_versions() {
+        let config = Config::default();
+        assert_eq!(config.supported_lua_versions, None);
+    }
+
+    #[test]
+    fn test_config_default_strict_conflicts() {
+        let config = Config::default();
+        assert!(config.strict_conflicts); // Now defaults to true
+    }
+
+    #[test]
+    fn test_config_with_strict_conflicts() {
+        let config = Config {
+            strict_conflicts: true,
+            ..Default::default()
+        };
+        assert!(config.strict_conflicts);
+
+        let yaml = serde_yaml::to_string(&config).unwrap();
+        assert!(yaml.contains("strict_conflicts: true"));
+    }
+
+    #[test]
+    fn test_config_deserialization_with_strict_conflicts() {
+        let yaml = r#"
+luarocks_manifest_url: https://custom.luarocks.org/manifest
+strict_conflicts: true
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert!(config.strict_conflicts);
     }
 }

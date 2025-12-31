@@ -80,7 +80,7 @@ mod tests {
         fs::write(&test_file, b"test data").unwrap();
 
         let checksum = recorder.calculate_for_file(&test_file).unwrap();
-        assert!(checksum.starts_with("sha256:"));
+        assert!(checksum.starts_with("blake3:")); // Now defaults to BLAKE3
     }
 
     #[test]
@@ -118,6 +118,6 @@ mod tests {
         fs::write(&source_path, b"test archive").unwrap();
 
         let checksum = recorder.record_checksum("test-package", url).unwrap();
-        assert!(checksum.starts_with("sha256:"));
+        assert!(checksum.starts_with("blake3:")); // Now defaults to BLAKE3
     }
 }

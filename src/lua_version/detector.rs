@@ -59,14 +59,8 @@ impl LuaVersion {
 
         let patch = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(0);
 
-        // Validate it's a supported Lua version (5.1, 5.3, or 5.4)
-        if major != 5 || (minor != 1 && minor != 3 && minor != 4) {
-            return Err(LpmError::Version(format!(
-                "Unsupported Lua version: {}.{}.{}. LPM supports Lua 5.1, 5.3, and 5.4",
-                major, minor, patch
-            )));
-        }
-
+        // Accept any Lua version (5.x and potentially future versions)
+        // No hardcoded restriction - let the ecosystem evolve
         Ok(Self {
             major,
             minor,
@@ -111,6 +105,38 @@ impl LuaVersion {
             // Default to Lua 5.4 for unknown versions
             "lua54"
         }
+    }
+
+    /// Discover installed Lua versions by checking common locations
+    ///
+    /// This checks for:
+    /// - lua (default Lua binary)
+    /// - lua5.1, lua5.3, lua5.4 (versioned binaries)
+    /// - luajit (LuaJIT, reports as Lua 5.1)
+    ///
+    /// Returns a sorted list of unique versions
+    pub fn discover_installed() -> Vec<LuaVersion> {
+        let mut versions = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+
+        // Common Lua binary names to check
+        let commands = [
+            "lua", "lua5.1", "lua5.2", "lua5.3", "lua5.4", "lua5.5", // Future-proof
+            "luajit",
+        ];
+
+        for cmd in &commands {
+            if let Ok(version) = LuaVersionDetector::detect_with_command(cmd) {
+                let key = (version.major, version.minor);
+                if seen.insert(key) {
+                    versions.push(version);
+                }
+            }
+        }
+
+        // Sort versions (newest first)
+        versions.sort_by(|a, b| b.cmp(a));
+        versions
     }
 }
 
@@ -211,9 +237,17 @@ mod tests {
     }
 
     #[test]
-    fn test_unsupported_version() {
-        assert!(LuaVersion::parse("Lua 5.2.4").is_err());
-        assert!(LuaVersion::parse("Lua 6.0.0").is_err());
+    fn test_any_version_accepted() {
+        // Now accepts any Lua version, not just 5.1, 5.3, 5.4
+        let v52 = LuaVersion::parse("Lua 5.2.4").unwrap();
+        assert_eq!(v52.major, 5);
+        assert_eq!(v52.minor, 2);
+        assert_eq!(v52.patch, 4);
+
+        let v60 = LuaVersion::parse("Lua 6.0.0").unwrap();
+        assert_eq!(v60.major, 6);
+        assert_eq!(v60.minor, 0);
+        assert_eq!(v60.patch, 0);
     }
 
     #[test]
@@ -238,8 +272,11 @@ mod tests {
 
     #[test]
     fn test_parse_version_major_only() {
-        // Lua version "5" alone is not supported - must be 5.1, 5.3, or 5.4
-        assert!(LuaVersion::parse("5").is_err());
+        // Now accepts any valid version format, including just major version
+        let v = LuaVersion::parse("5").unwrap();
+        assert_eq!(v.major, 5);
+        assert_eq!(v.minor, 0);
+        assert_eq!(v.patch, 0);
     }
 
     #[test]
@@ -260,5 +297,32 @@ mod tests {
         assert_eq!(v.major, 5);
         assert_eq!(v.minor, 4);
         assert_eq!(v.patch, 6);
+    }
+
+    #[test]
+    fn test_discover_installed() {
+        // This test may find different versions depending on what's installed
+        // Just verify it returns a vec and doesn't panic
+        let versions = LuaVersion::discover_installed();
+        // Should return a vec (may be empty if no Lua is installed)
+        assert!(versions.len() >= 0);
+
+        // If versions are found, they should be sorted (newest first)
+        for i in 1..versions.len() {
+            assert!(
+                versions[i - 1] >= versions[i],
+                "Versions should be sorted newest first"
+            );
+        }
+    }
+
+    #[test]
+    fn test_discover_installed_uniqueness() {
+        let versions = LuaVersion::discover_installed();
+        let mut seen = std::collections::HashSet::new();
+        for v in &versions {
+            let key = (v.major, v.minor);
+            assert!(seen.insert(key), "Should not have duplicate versions");
+        }
     }
 }

@@ -6,7 +6,7 @@ use crate::luarocks::rockspec::Rockspec;
 use crate::luarocks::search_api::SearchAPI;
 use crate::package::lockfile::{LockedPackage, Lockfile};
 use crate::package::manifest::PackageManifest;
-use crate::resolver::DependencyResolver;
+use crate::resolver::{DependencyResolver, ResolutionStrategy};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -58,9 +58,16 @@ impl LockfileBuilder {
         let client = LuaRocksClient::new(&config, self.cache.clone());
         let search_api = SearchAPI::new();
 
+        // Determine resolution strategy from manifest, then config
+        let strategy = if let Some(ref strategy_str) = manifest.resolution_strategy {
+            ResolutionStrategy::parse(strategy_str)?
+        } else {
+            ResolutionStrategy::parse(&config.resolution_strategy)?
+        };
+
         // Fetch manifest for resolver
         let luarocks_manifest = client.fetch_manifest().await?;
-        let resolver = DependencyResolver::new(luarocks_manifest.clone());
+        let resolver = DependencyResolver::new_with_strategy(luarocks_manifest.clone(), strategy);
 
         // Resolve all dependencies
         let resolved_versions = resolver.resolve(&manifest.dependencies).await?;
@@ -270,9 +277,16 @@ impl LockfileBuilder {
         let client = LuaRocksClient::new(&config, self.cache.clone());
         let search_api = SearchAPI::new();
 
+        // Determine resolution strategy from manifest, then config
+        let strategy = if let Some(ref strategy_str) = manifest.resolution_strategy {
+            ResolutionStrategy::parse(strategy_str)?
+        } else {
+            ResolutionStrategy::parse(&config.resolution_strategy)?
+        };
+
         // Fetch manifest for resolver
         let luarocks_manifest = client.fetch_manifest().await?;
-        let resolver = DependencyResolver::new(luarocks_manifest);
+        let resolver = DependencyResolver::new_with_strategy(luarocks_manifest, strategy);
 
         // Resolve all dependencies
         let resolved_versions = resolver.resolve(&manifest.dependencies).await?;

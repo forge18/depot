@@ -45,6 +45,7 @@ thiserror = "2.0"
 # File I/O and utilities
 walkdir = "2.4"
 sha2 = "0.10"
+blake3 = "1.5"
 hex = "0.4"
 regex = "1.10"
 

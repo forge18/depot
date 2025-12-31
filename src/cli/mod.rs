@@ -8,6 +8,7 @@ pub mod install;
 pub mod list;
 pub mod login;
 pub mod lua;
+pub mod new;
 pub mod outdated;
 pub mod package;
 pub mod plugin;

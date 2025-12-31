@@ -14,9 +14,10 @@ pub fn run() -> LpmResult<()> {
 
     // Load lockfile
     let lockfile = Lockfile::load(&project_root)?.ok_or_else(|| {
-        LpmError::Package(
-            "No package.lock found. Run 'lpm install' first to generate a lockfile.".to_string(),
-        )
+        LpmError::Package(format!(
+            "No {} found. Run 'lpm install' first to generate a lockfile.",
+            lpm::package::lockfile::LOCKFILE_NAME
+        ))
     })?;
 
     if lockfile.packages.is_empty() {

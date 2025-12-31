@@ -38,12 +38,13 @@ impl PackageVerifier {
         package: &LockedPackage,
         _project_root: &Path,
     ) -> LpmResult<()> {
-        // Extract checksum from lockfile (format: "sha256:...")
+        // Extract checksum from lockfile (format: "sha256:..." or "blake3:...")
         let expected_checksum = &package.checksum;
 
-        if !expected_checksum.starts_with("sha256:") {
+        // Validate checksum format (must have algorithm prefix)
+        if !expected_checksum.starts_with("sha256:") && !expected_checksum.starts_with("blake3:") {
             return Err(LpmError::Package(format!(
-                "Invalid checksum format for '{}': expected 'sha256:...'",
+                "Invalid checksum format for '{}': expected 'sha256:...' or 'blake3:...'",
                 package_name
             )));
         }
@@ -67,14 +68,11 @@ impl PackageVerifier {
             )));
         }
 
-        // Calculate actual checksum
-        let actual_checksum = Cache::checksum(&source_path)?;
-
-        // Compare checksums
-        if actual_checksum != *expected_checksum {
+        // Verify using the Cache's verify_checksum method (supports both algorithms)
+        if !Cache::verify_checksum(&source_path, expected_checksum)? {
             return Err(LpmError::Package(format!(
-                "Checksum mismatch for '{}':\n  Expected: {}\n  Actual:   {}",
-                package_name, expected_checksum, actual_checksum
+                "Checksum mismatch for '{}':\n  Expected: {}",
+                package_name, expected_checksum
             )));
         }
 
@@ -83,9 +81,10 @@ impl PackageVerifier {
 
     /// Verify a package's checksum from a file path
     pub fn verify_file(&self, file_path: &Path, expected_checksum: &str) -> LpmResult<()> {
-        if !expected_checksum.starts_with("sha256:") {
+        // Validate checksum format (must have algorithm prefix)
+        if !expected_checksum.starts_with("sha256:") && !expected_checksum.starts_with("blake3:") {
             return Err(LpmError::Package(
-                "Invalid checksum format: expected 'sha256:...'".to_string(),
+                "Invalid checksum format: expected 'sha256:...' or 'blake3:...'".to_string(),
             ));
         }
 
@@ -96,12 +95,11 @@ impl PackageVerifier {
             )));
         }
 
-        let actual_checksum = Cache::checksum(file_path)?;
-
-        if actual_checksum != expected_checksum {
+        // Verify using the Cache's verify_checksum method (supports both algorithms)
+        if !Cache::verify_checksum(file_path, expected_checksum)? {
             return Err(LpmError::Package(format!(
-                "Checksum mismatch:\n  Expected: {}\n  Actual:   {}",
-                expected_checksum, actual_checksum
+                "Checksum mismatch:\n  Expected: {}",
+                expected_checksum
             )));
         }
 

@@ -24,6 +24,17 @@ enum Commands {
         #[arg(short, long)]
         yes: bool,
     },
+    /// Create a new LPM project in a new directory
+    New {
+        /// Name of the project (creates directory)
+        name: String,
+        /// Template to use
+        #[arg(short, long)]
+        template: Option<String>,
+        /// Skip interactive prompts
+        #[arg(short, long)]
+        yes: bool,
+    },
     /// Install dependencies
     Install {
         /// Package name to install
@@ -145,6 +156,11 @@ async fn main() -> Result<(), LpmError> {
 
     let result = match cli.command {
         Commands::Init { template, yes } => cli::init::run(template, yes).await,
+        Commands::New {
+            name,
+            template,
+            yes,
+        } => cli::new::run(name, template, yes).await,
         Commands::Install {
             package,
             dev,

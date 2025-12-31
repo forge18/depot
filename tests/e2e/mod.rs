@@ -246,7 +246,7 @@ impl Drop for TestContext {
 pub mod constants {
     // File names
     pub const PACKAGE_YAML: &str = "package.yaml";
-    pub const PACKAGE_LOCK: &str = "package.lock";
+    pub const PACKAGE_LOCK: &str = "lpm.lock";
     pub const WORKSPACE_YAML: &str = "workspace.yaml";
     pub const TEST_LUA: &str = "test.lua";
 

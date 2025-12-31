@@ -29,7 +29,7 @@ impl RollbackManager {
         // Restore lockfile if we had a backup
         if let Some(ref lockfile) = self.backup_lockfile {
             lockfile.save(project_root)?;
-            eprintln!("✓ Rolled back package.lock");
+            eprintln!("✓ Rolled back {}", crate::package::lockfile::LOCKFILE_NAME);
         }
 
         // Restore manifest if we had a backup

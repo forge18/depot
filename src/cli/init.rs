@@ -94,15 +94,39 @@ async fn run_wizard(
         .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))?;
     let license = licenses[license_selection].to_string();
 
-    // Select Lua version (defaults to 5.4)
-    let lua_versions = vec!["5.1", "5.3", "5.4", "latest"];
+    // Discover installed Lua versions dynamically
+    let installed_versions = lpm::lua_version::LuaVersion::discover_installed();
+    let mut lua_versions: Vec<String> =
+        installed_versions.iter().map(|v| v.major_minor()).collect();
+
+    // Add common versions if not already present
+    for common in ["5.1", "5.3", "5.4"] {
+        if !lua_versions.contains(&common.to_string()) {
+            lua_versions.push(common.to_string());
+        }
+    }
+
+    // Always add "latest" option
+    lua_versions.push("latest".to_string());
+
+    // Find default index (prefer 5.4, or first installed version)
+    let default_index = lua_versions
+        .iter()
+        .position(|v| v == "5.4")
+        .or(if !installed_versions.is_empty() {
+            Some(0)
+        } else {
+            None
+        })
+        .unwrap_or(lua_versions.len().saturating_sub(2)); // "latest" is last, so use second-to-last
+
     let lua_selection = Select::new()
         .with_prompt("Lua version")
         .items(&lua_versions)
-        .default(2)
+        .default(default_index)
         .interact()
         .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))?;
-    let lua_version = lua_versions[lua_selection].to_string();
+    let lua_version = lua_versions[lua_selection].clone();
 
     // Select or use specified template
     let selected_template = if let Some(template_name) = template_name {

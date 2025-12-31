@@ -153,6 +153,7 @@ mod tests {
             scripts: std::collections::HashMap::new(),
             build: None,
             binary_urls: std::collections::HashMap::new(),
+            resolution_strategy: None,
         }
     }
 

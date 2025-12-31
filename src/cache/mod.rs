@@ -6,6 +6,30 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
+/// Checksum algorithm for verifying package integrity
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ChecksumAlgorithm {
+    /// SHA-256 (legacy, for backward compatibility)
+    Sha256,
+    /// BLAKE3 (default, faster and more secure)
+    #[default]
+    Blake3,
+}
+
+impl ChecksumAlgorithm {
+    /// Parse algorithm from a prefixed checksum string
+    pub fn from_checksum(checksum: &str) -> Self {
+        if checksum.starts_with("blake3:") {
+            ChecksumAlgorithm::Blake3
+        } else if checksum.starts_with("sha256:") {
+            ChecksumAlgorithm::Sha256
+        } else {
+            // Default to BLAKE3 for unprefixed checksums
+            ChecksumAlgorithm::Blake3
+        }
+    }
+}
+
 /// Package cache manager
 #[derive(Clone)]
 pub struct Cache {
@@ -108,13 +132,37 @@ impl Cache {
         Ok(())
     }
 
-    /// Calculate SHA-256 checksum of a file
-    pub fn checksum(path: &Path) -> LpmResult<String> {
+    /// Calculate checksum of a file using the specified algorithm
+    pub fn checksum_with_algorithm(path: &Path, algorithm: ChecksumAlgorithm) -> LpmResult<String> {
         let data = fs::read(path)?;
-        let mut hasher = Sha256::new();
-        hasher.update(&data);
-        let hash = hasher.finalize();
-        Ok(format!("sha256:{}", hex::encode(hash)))
+        match algorithm {
+            ChecksumAlgorithm::Sha256 => {
+                let mut hasher = Sha256::new();
+                hasher.update(&data);
+                Ok(format!("sha256:{}", hex::encode(hasher.finalize())))
+            }
+            ChecksumAlgorithm::Blake3 => {
+                let hash = blake3::hash(&data);
+                Ok(format!("blake3:{}", hash.to_hex()))
+            }
+        }
+    }
+
+    /// Calculate checksum of a file (defaults to BLAKE3)
+    pub fn checksum(path: &Path) -> LpmResult<String> {
+        Self::checksum_with_algorithm(path, ChecksumAlgorithm::default())
+    }
+
+    /// Verify a file's checksum matches the expected value (supports both SHA-256 and BLAKE3)
+    pub fn verify_checksum(path: &Path, expected: &str) -> LpmResult<bool> {
+        let algorithm = ChecksumAlgorithm::from_checksum(expected);
+        let actual = Self::checksum_with_algorithm(path, algorithm)?;
+
+        // Compare without prefix for backward compatibility
+        let expected_hash = expected.split_once(':').map(|(_, h)| h).unwrap_or(expected);
+        let actual_hash = actual.split_once(':').map(|(_, h)| h).unwrap_or(&actual);
+
+        Ok(expected_hash == actual_hash)
     }
 
     /// Hash a URL for use as a filename
@@ -406,8 +454,8 @@ mod tests {
         std::fs::write(&test_file, b"test data").unwrap();
 
         let checksum = Cache::checksum(&test_file).unwrap();
-        assert!(checksum.starts_with("sha256:"));
-        assert_eq!(checksum.len(), 71); // "sha256:" + 64 hex chars
+        assert!(checksum.starts_with("blake3:")); // Now defaults to BLAKE3
+        assert_eq!(checksum.len(), 71); // "blake3:" + 64 hex chars
     }
 
     #[test]
@@ -669,5 +717,93 @@ mod tests {
             .get_rust_build("my-pkg", "2.0.0", "5.3", "x86_64-unknown-linux-gnu")
             .unwrap();
         assert_eq!(cached_path, retrieved);
+    }
+
+    #[test]
+    fn test_checksum_with_blake3() {
+        let temp = TempDir::new().unwrap();
+        let test_file = temp.path().join("test.txt");
+        fs::write(&test_file, b"Hello, BLAKE3!").unwrap();
+
+        let checksum =
+            Cache::checksum_with_algorithm(&test_file, ChecksumAlgorithm::Blake3).unwrap();
+        assert!(checksum.starts_with("blake3:"));
+        assert_eq!(checksum.len(), 71); // "blake3:" + 64 hex chars
+    }
+
+    #[test]
+    fn test_checksum_with_sha256() {
+        let temp = TempDir::new().unwrap();
+        let test_file = temp.path().join("test.txt");
+        fs::write(&test_file, b"Hello, SHA-256!").unwrap();
+
+        let checksum =
+            Cache::checksum_with_algorithm(&test_file, ChecksumAlgorithm::Sha256).unwrap();
+        assert!(checksum.starts_with("sha256:"));
+        assert_eq!(checksum.len(), 71); // "sha256:" + 64 hex chars
+    }
+
+    #[test]
+    fn test_checksum_defaults_to_blake3() {
+        let temp = TempDir::new().unwrap();
+        let test_file = temp.path().join("test.txt");
+        fs::write(&test_file, b"Test content").unwrap();
+
+        let checksum = Cache::checksum(&test_file).unwrap();
+        assert!(checksum.starts_with("blake3:"));
+    }
+
+    #[test]
+    fn test_verify_checksum_blake3() {
+        let temp = TempDir::new().unwrap();
+        let test_file = temp.path().join("test.txt");
+        fs::write(&test_file, b"Test content").unwrap();
+
+        let checksum =
+            Cache::checksum_with_algorithm(&test_file, ChecksumAlgorithm::Blake3).unwrap();
+        assert!(Cache::verify_checksum(&test_file, &checksum).unwrap());
+    }
+
+    #[test]
+    fn test_verify_checksum_sha256() {
+        let temp = TempDir::new().unwrap();
+        let test_file = temp.path().join("test.txt");
+        fs::write(&test_file, b"Test content").unwrap();
+
+        let checksum =
+            Cache::checksum_with_algorithm(&test_file, ChecksumAlgorithm::Sha256).unwrap();
+        assert!(Cache::verify_checksum(&test_file, &checksum).unwrap());
+    }
+
+    #[test]
+    fn test_verify_checksum_mismatch() {
+        let temp = TempDir::new().unwrap();
+        let test_file = temp.path().join("test.txt");
+        fs::write(&test_file, b"Test content").unwrap();
+
+        let wrong_checksum =
+            "blake3:0000000000000000000000000000000000000000000000000000000000000000";
+        assert!(!Cache::verify_checksum(&test_file, wrong_checksum).unwrap());
+    }
+
+    #[test]
+    fn test_checksum_algorithm_from_checksum() {
+        assert_eq!(
+            ChecksumAlgorithm::from_checksum("blake3:abc123"),
+            ChecksumAlgorithm::Blake3
+        );
+        assert_eq!(
+            ChecksumAlgorithm::from_checksum("sha256:def456"),
+            ChecksumAlgorithm::Sha256
+        );
+        assert_eq!(
+            ChecksumAlgorithm::from_checksum("unprefixed"),
+            ChecksumAlgorithm::Blake3
+        );
+    }
+
+    #[test]
+    fn test_checksum_algorithm_default() {
+        assert_eq!(ChecksumAlgorithm::default(), ChecksumAlgorithm::Blake3);
     }
 }

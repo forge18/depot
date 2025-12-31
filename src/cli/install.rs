@@ -695,7 +695,7 @@ async fn generate_lockfile(
     // Save lockfile
     lockfile.save(project_root)?;
 
-    println!("✓ Generated package.lock");
+    println!("✓ Generated {}", lpm::package::lockfile::LOCKFILE_NAME);
     if no_dev {
         println!("  (dev dependencies excluded)");
     }

@@ -121,6 +121,7 @@ impl Rockspec {
             scripts: HashMap::new(),
             build,
             binary_urls: self.binary_urls.clone(),
+            resolution_strategy: None,
         }
     }
 }

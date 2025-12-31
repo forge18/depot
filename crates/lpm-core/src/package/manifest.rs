@@ -25,6 +25,8 @@ pub struct PackageManifest {
     pub build: Option<BuildConfig>,
     #[serde(default)]
     pub binary_urls: std::collections::HashMap<String, String>, // target -> URL
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolution_strategy: Option<String>,
 }
 
 fn default_lua_version() -> String {
@@ -146,6 +148,7 @@ impl PackageManifest {
             scripts: std::collections::HashMap::new(),
             build: None,
             binary_urls: std::collections::HashMap::new(),
+            resolution_strategy: None,
         }
     }
 
