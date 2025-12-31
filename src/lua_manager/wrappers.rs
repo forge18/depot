@@ -256,4 +256,123 @@ mod tests {
         assert!(source.contains("current"));
         assert!(source.contains("versions"));
     }
+
+    #[test]
+    fn test_wrapper_source_code_has_proper_rust_syntax() {
+        let temp = TempDir::new().unwrap();
+        let generator = WrapperGenerator::new(temp.path());
+        let source = generator.wrapper_source_code("lua");
+
+        // Verify basic Rust syntax elements
+        assert!(source.contains("fn main() {"));
+        assert!(source.contains("use std::"));
+        assert!(source.starts_with("fn main()"));
+    }
+
+    #[test]
+    fn test_wrapper_source_code_uses_environment_vars() {
+        let temp = TempDir::new().unwrap();
+        let generator = WrapperGenerator::new(temp.path());
+        let source = generator.wrapper_source_code("lua");
+
+        // Should use environment variables
+        assert!(source.contains("env::var"));
+        assert!(source.contains("HOME") || source.contains("APPDATA"));
+    }
+
+    #[test]
+    fn test_wrapper_source_code_has_path_logic() {
+        let temp = TempDir::new().unwrap();
+        let generator = WrapperGenerator::new(temp.path());
+        let source = generator.wrapper_source_code("lua");
+
+        // Should traverse parent directories
+        assert!(source.contains("parent()"));
+        assert!(source.contains("current_dir"));
+    }
+
+    #[test]
+    fn test_wrapper_source_code_executes_binary() {
+        let temp = TempDir::new().unwrap();
+        let generator = WrapperGenerator::new(temp.path());
+        let source = generator.wrapper_source_code("lua");
+
+        // Should execute the actual binary
+        assert!(source.contains("Command::new"));
+        assert!(source.contains(".args"));
+        assert!(source.contains(".status"));
+    }
+
+    #[test]
+    fn test_wrapper_source_code_different_for_lua_and_luac() {
+        let temp = TempDir::new().unwrap();
+        let generator = WrapperGenerator::new(temp.path());
+
+        let lua_source = generator.wrapper_source_code("lua");
+        let luac_source = generator.wrapper_source_code("luac");
+
+        // Sources should be different (contain different binary names)
+        assert_ne!(lua_source, luac_source);
+        assert!(lua_source.contains("lua"));
+        assert!(!lua_source.contains("luac"));
+        assert!(luac_source.contains("luac"));
+    }
+
+    #[test]
+    fn test_generate_creates_bin_dir() {
+        let temp = TempDir::new().unwrap();
+        let generator = WrapperGenerator::new(temp.path());
+
+        // Bin dir should not exist initially
+        assert!(!generator.bin_dir.exists());
+
+        // Note: We can't test the actual generate() function without rustc
+        // but we can test that the bin_dir path is correct
+        assert!(generator.bin_dir.ends_with("bin"));
+    }
+
+    #[test]
+    fn test_wrapper_source_code_handles_windows_paths() {
+        let temp = TempDir::new().unwrap();
+        let generator = WrapperGenerator::new(temp.path());
+        let source = generator.wrapper_source_code("lua");
+
+        // Should have Windows-specific path handling
+        assert!(source.contains("APPDATA"));
+        assert!(source.contains("#[cfg(windows)]"));
+    }
+
+    #[test]
+    fn test_wrapper_source_code_handles_unix_paths() {
+        let temp = TempDir::new().unwrap();
+        let generator = WrapperGenerator::new(temp.path());
+        let source = generator.wrapper_source_code("lua");
+
+        // Should have Unix-specific path handling
+        assert!(source.contains("HOME"));
+        assert!(source.contains("#[cfg(unix)]"));
+    }
+
+    #[test]
+    fn test_wrapper_generator_bin_dir_is_absolute() {
+        let temp = TempDir::new().unwrap();
+        let generator = WrapperGenerator::new(temp.path());
+
+        // If temp.path() is absolute, bin_dir should be too
+        if temp.path().is_absolute() {
+            assert!(generator.bin_dir.is_absolute());
+        }
+    }
+
+    #[test]
+    fn test_wrapper_source_code_checks_file_existence() {
+        let temp = TempDir::new().unwrap();
+        let generator = WrapperGenerator::new(temp.path());
+        let source = generator.wrapper_source_code("lua");
+
+        // Should check if files exist
+        assert!(source.contains(".exists()"));
+        assert!(source.contains("version_file.exists()"));
+        assert!(source.contains("bin_path.exists()"));
+    }
 }

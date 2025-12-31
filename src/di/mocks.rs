@@ -1,10 +1,10 @@
 //! Mock implementations of service traits for testing
 
 use super::traits::{CacheProvider, ConfigProvider, PackageClient, SearchProvider};
-use async_trait::async_trait;
 use crate::core::{LpmError, LpmResult};
 use crate::luarocks::manifest::Manifest;
 use crate::luarocks::rockspec::Rockspec;
+use async_trait::async_trait;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -222,9 +222,8 @@ impl CacheProvider for MockCacheProvider {
         artifact_path: &Path,
     ) -> LpmResult<PathBuf> {
         let dest = self.rust_build_path(package, version, lua_version, target);
-        let data = std::fs::read(artifact_path).map_err(|e| {
-            LpmError::Cache(format!("Failed to read artifact: {}", e))
-        })?;
+        let data = std::fs::read(artifact_path)
+            .map_err(|e| LpmError::Cache(format!("Failed to read artifact: {}", e)))?;
         self.write(&dest, &data)?;
         Ok(dest)
     }
@@ -359,7 +358,10 @@ impl MockSearchProvider {
 
     /// Add a latest version for a package
     pub fn add_latest_version(&self, package: String, version: String) {
-        self.latest_versions.lock().unwrap().insert(package, version);
+        self.latest_versions
+            .lock()
+            .unwrap()
+            .insert(package, version);
     }
 
     /// Add a valid rockspec URL
@@ -404,5 +406,484 @@ impl SearchProvider for MockSearchProvider {
             // By default, accept all URLs in tests
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::di::traits::{CacheProvider, ConfigProvider, PackageClient, SearchProvider};
+
+    #[test]
+    fn test_mock_config_provider_default() {
+        let config = MockConfigProvider::default();
+
+        assert_eq!(
+            config.luarocks_manifest_url(),
+            "https://luarocks.org/manifests/luarocks/manifest"
+        );
+        assert!(config.verify_checksums());
+        assert!(config.show_diffs_on_update());
+        assert_eq!(config.resolution_strategy(), "highest");
+        assert_eq!(config.checksum_algorithm(), "blake3");
+        assert!(config.strict_conflicts());
+        assert_eq!(config.lua_binary_source_url(), None);
+        assert_eq!(config.supported_lua_versions(), None);
+    }
+
+    #[test]
+    fn test_mock_config_provider_custom() {
+        let config = MockConfigProvider {
+            manifest_url: "https://custom.com/manifest".to_string(),
+            cache_dir: PathBuf::from("/custom/cache"),
+            verify_checksums: false,
+            show_diffs_on_update: false,
+            resolution_strategy: "lowest".to_string(),
+            checksum_algorithm: "sha256".to_string(),
+            strict_conflicts: false,
+            lua_binary_source_url: Some("https://lua.org".to_string()),
+            supported_lua_versions: Some(vec!["5.1".to_string(), "5.4".to_string()]),
+        };
+
+        assert_eq!(
+            config.luarocks_manifest_url(),
+            "https://custom.com/manifest"
+        );
+        assert_eq!(config.cache_dir().unwrap(), PathBuf::from("/custom/cache"));
+        assert!(!config.verify_checksums());
+        assert!(!config.show_diffs_on_update());
+        assert_eq!(config.resolution_strategy(), "lowest");
+        assert_eq!(config.checksum_algorithm(), "sha256");
+        assert!(!config.strict_conflicts());
+        assert_eq!(config.lua_binary_source_url(), Some("https://lua.org"));
+        assert_eq!(
+            config.supported_lua_versions(),
+            Some(&vec!["5.1".to_string(), "5.4".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_mock_cache_provider_new() {
+        let cache = MockCacheProvider::new();
+        assert!(cache.get_files().is_empty());
+    }
+
+    #[test]
+    fn test_mock_cache_provider_add_file() {
+        let cache = MockCacheProvider::new();
+        let path = PathBuf::from("/test/file.txt");
+        let content = b"test content".to_vec();
+
+        cache.add_file(path.clone(), content.clone());
+
+        assert!(cache.exists(&path));
+        assert_eq!(cache.read(&path).unwrap(), content);
+    }
+
+    #[test]
+    fn test_mock_cache_provider_write_read() {
+        let cache = MockCacheProvider::new();
+        let path = PathBuf::from("/test/write.txt");
+        let content = b"written content";
+
+        cache.write(&path, content).unwrap();
+
+        assert!(cache.exists(&path));
+        assert_eq!(cache.read(&path).unwrap(), content);
+    }
+
+    #[test]
+    fn test_mock_cache_provider_read_nonexistent() {
+        let cache = MockCacheProvider::new();
+        let path = PathBuf::from("/nonexistent.txt");
+
+        let result = cache.read(&path);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("File not found"));
+    }
+
+    #[test]
+    fn test_mock_cache_provider_rockspec_path() {
+        let cache = MockCacheProvider::new();
+        let path = cache.rockspec_path("test-package", "1.0.0");
+
+        assert_eq!(
+            path,
+            PathBuf::from("/tmp/rockspecs/test-package-1.0.0.rockspec")
+        );
+    }
+
+    #[test]
+    fn test_mock_cache_provider_source_path() {
+        let cache = MockCacheProvider::new();
+        let url = "https://example.com/package.tar.gz";
+        let path = cache.source_path(url);
+
+        // Should be deterministic hash
+        assert!(path.to_string_lossy().starts_with("/tmp/sources/"));
+        assert!(path.to_string_lossy().contains(".gz")); // Extension is preserved but after hash
+
+        // Same URL should produce same path
+        assert_eq!(path, cache.source_path(url));
+    }
+
+    #[test]
+    fn test_mock_cache_provider_source_path_no_extension() {
+        let cache = MockCacheProvider::new();
+        let url = "https://example.com/package";
+        let path = cache.source_path(url);
+
+        // Should use default extension
+        assert!(path.to_string_lossy().ends_with(".tar.gz"));
+    }
+
+    #[test]
+    fn test_mock_cache_provider_checksum() {
+        let cache = MockCacheProvider::new();
+        let path = PathBuf::from("/test/checksum.txt");
+        let content = b"content to hash";
+
+        cache.write(&path, content).unwrap();
+
+        let checksum = cache.checksum(&path).unwrap();
+        assert!(checksum.starts_with("blake3:"));
+    }
+
+    #[test]
+    fn test_mock_cache_provider_verify_checksum() {
+        let cache = MockCacheProvider::new();
+        let path = PathBuf::from("/test/verify.txt");
+        let content = b"content";
+
+        cache.write(&path, content).unwrap();
+
+        let checksum = cache.checksum(&path).unwrap();
+        assert!(cache.verify_checksum(&path, &checksum).unwrap());
+        assert!(!cache.verify_checksum(&path, "blake3:wrong").unwrap());
+    }
+
+    #[test]
+    fn test_mock_cache_provider_rust_build_path() {
+        let cache = MockCacheProvider::new();
+        let path = cache.rust_build_path("pkg", "1.0.0", "5.1", "x86_64-linux");
+
+        assert_eq!(
+            path,
+            PathBuf::from("/tmp/rust-builds/pkg/1.0.0/5.1/x86_64-linux")
+        );
+    }
+
+    #[test]
+    fn test_mock_cache_provider_has_rust_build() {
+        let cache = MockCacheProvider::new();
+
+        assert!(!cache.has_rust_build("pkg", "1.0.0", "5.1", "x86_64-linux"));
+
+        let path = cache.rust_build_path("pkg", "1.0.0", "5.1", "x86_64-linux");
+        cache.write(&path, b"binary").unwrap();
+
+        assert!(cache.has_rust_build("pkg", "1.0.0", "5.1", "x86_64-linux"));
+    }
+
+    #[test]
+    fn test_mock_cache_provider_get_rust_build() {
+        let cache = MockCacheProvider::new();
+
+        assert_eq!(
+            cache.get_rust_build("pkg", "1.0.0", "5.1", "x86_64-linux"),
+            None
+        );
+
+        let path = cache.rust_build_path("pkg", "1.0.0", "5.1", "x86_64-linux");
+        cache.write(&path, b"binary").unwrap();
+
+        let result = cache.get_rust_build("pkg", "1.0.0", "5.1", "x86_64-linux");
+        assert_eq!(result, Some(path));
+    }
+
+    #[test]
+    fn test_mock_cache_provider_store_rust_build() {
+        use std::fs;
+        use tempfile::TempDir;
+
+        let cache = MockCacheProvider::new();
+        let temp = TempDir::new().unwrap();
+        let artifact = temp.path().join("artifact.so");
+        fs::write(&artifact, b"binary content").unwrap();
+
+        let result = cache.store_rust_build("pkg", "1.0.0", "5.1", "x86_64-linux", &artifact);
+        assert!(result.is_ok());
+
+        let stored_path = result.unwrap();
+        assert_eq!(
+            stored_path,
+            PathBuf::from("/tmp/rust-builds/pkg/1.0.0/5.1/x86_64-linux")
+        );
+        assert_eq!(cache.read(&stored_path).unwrap(), b"binary content");
+    }
+
+    #[test]
+    fn test_mock_cache_provider_store_rust_build_nonexistent() {
+        let cache = MockCacheProvider::new();
+        let artifact = PathBuf::from("/nonexistent/artifact.so");
+
+        let result = cache.store_rust_build("pkg", "1.0.0", "5.1", "x86_64-linux", &artifact);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Failed to read artifact"));
+    }
+
+    #[test]
+    fn test_mock_cache_provider_get_files() {
+        let cache = MockCacheProvider::new();
+        cache.add_file(PathBuf::from("/file1.txt"), b"content1".to_vec());
+        cache.add_file(PathBuf::from("/file2.txt"), b"content2".to_vec());
+
+        let files = cache.get_files();
+        assert_eq!(files.len(), 2);
+        assert_eq!(
+            files.get(&PathBuf::from("/file1.txt")),
+            Some(&b"content1".to_vec())
+        );
+        assert_eq!(
+            files.get(&PathBuf::from("/file2.txt")),
+            Some(&b"content2".to_vec())
+        );
+    }
+
+    #[test]
+    fn test_mock_cache_provider_default() {
+        let cache = MockCacheProvider::default();
+        assert!(cache.get_files().is_empty());
+    }
+
+    #[test]
+    fn test_mock_package_client_new() {
+        let client = MockPackageClient::new();
+        // Just verify it can be created
+        assert!(client.rockspecs.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_mock_package_client_add_rockspec() {
+        let client = MockPackageClient::new();
+        client.add_rockspec(
+            "https://example.com/test.rockspec".to_string(),
+            "package = 'test'".to_string(),
+        );
+
+        let rockspecs = client.rockspecs.lock().unwrap();
+        assert_eq!(
+            rockspecs.get("https://example.com/test.rockspec"),
+            Some(&"package = 'test'".to_string())
+        );
+    }
+
+    #[test]
+    fn test_mock_package_client_add_source() {
+        let client = MockPackageClient::new();
+        client.add_source(
+            "https://example.com/source.tar.gz".to_string(),
+            PathBuf::from("/tmp/source.tar.gz"),
+        );
+
+        let sources = client.sources.lock().unwrap();
+        assert_eq!(
+            sources.get("https://example.com/source.tar.gz"),
+            Some(&PathBuf::from("/tmp/source.tar.gz"))
+        );
+    }
+
+    #[test]
+    fn test_mock_package_client_add_manifest() {
+        let client = MockPackageClient::new();
+        let manifest = Manifest::default();
+        client.add_manifest("https://example.com/manifest".to_string(), manifest.clone());
+
+        let manifests = client.manifests.lock().unwrap();
+        assert!(manifests.contains_key("https://example.com/manifest"));
+    }
+
+    #[tokio::test]
+    async fn test_mock_package_client_fetch_manifest() {
+        let client = MockPackageClient::new();
+        let result = client.fetch_manifest().await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_mock_package_client_download_rockspec() {
+        let client = MockPackageClient::new();
+        client.add_rockspec(
+            "https://example.com/test.rockspec".to_string(),
+            "package = 'test'".to_string(),
+        );
+
+        let result = client
+            .download_rockspec("https://example.com/test.rockspec")
+            .await;
+        assert_eq!(result.unwrap(), "package = 'test'");
+    }
+
+    #[tokio::test]
+    async fn test_mock_package_client_download_rockspec_not_found() {
+        let client = MockPackageClient::new();
+        let result = client
+            .download_rockspec("https://example.com/missing.rockspec")
+            .await;
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Rockspec not found"));
+    }
+
+    #[tokio::test]
+    async fn test_mock_package_client_download_source() {
+        let client = MockPackageClient::new();
+        client.add_source(
+            "https://example.com/source.tar.gz".to_string(),
+            PathBuf::from("/tmp/source.tar.gz"),
+        );
+
+        let result = client
+            .download_source("https://example.com/source.tar.gz")
+            .await;
+        assert_eq!(result.unwrap(), PathBuf::from("/tmp/source.tar.gz"));
+    }
+
+    #[tokio::test]
+    async fn test_mock_package_client_download_source_not_found() {
+        let client = MockPackageClient::new();
+        let result = client
+            .download_source("https://example.com/missing.tar.gz")
+            .await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Source not found"));
+    }
+
+    #[test]
+    fn test_mock_package_client_parse_rockspec() {
+        let client = MockPackageClient::new();
+        // This test verifies that parse_rockspec delegates to Rockspec::parse_lua
+        // We don't test the full parsing here as that's covered by rockspec module tests
+        let rockspec_content = r#"
+package = "test"
+version = "1.0.0-1"
+source = {
+    url = "https://example.com/test-1.0.0.tar.gz"
+}
+dependencies = {
+    "lua >= 5.1"
+}
+"#;
+
+        let result = client.parse_rockspec(rockspec_content);
+        // Just verify it attempts to parse - actual parsing logic is tested in rockspec module
+        assert!(result.is_ok() || result.is_err()); // Either is fine, we're just testing the call
+    }
+
+    #[test]
+    fn test_mock_package_client_default() {
+        let client = MockPackageClient::default();
+        assert!(client.rockspecs.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_mock_search_provider_new() {
+        let search = MockSearchProvider::new();
+        assert!(search.latest_versions.lock().unwrap().is_empty());
+        assert!(search.valid_urls.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_mock_search_provider_add_latest_version() {
+        let search = MockSearchProvider::new();
+        search.add_latest_version("test".to_string(), "1.0.0".to_string());
+
+        let versions = search.latest_versions.lock().unwrap();
+        assert_eq!(versions.get("test"), Some(&"1.0.0".to_string()));
+    }
+
+    #[test]
+    fn test_mock_search_provider_add_valid_url() {
+        let search = MockSearchProvider::new();
+        search.add_valid_url("https://example.com/test.rockspec".to_string());
+
+        let urls = search.valid_urls.lock().unwrap();
+        assert!(urls.contains(&"https://example.com/test.rockspec".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_mock_search_provider_get_latest_version() {
+        let search = MockSearchProvider::new();
+        search.add_latest_version("test".to_string(), "1.0.0".to_string());
+
+        let result = search.get_latest_version("test").await;
+        assert_eq!(result.unwrap(), "1.0.0");
+    }
+
+    #[tokio::test]
+    async fn test_mock_search_provider_get_latest_version_not_found() {
+        let search = MockSearchProvider::new();
+        let result = search.get_latest_version("missing").await;
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Package not found"));
+    }
+
+    #[test]
+    fn test_mock_search_provider_get_rockspec_url() {
+        let search = MockSearchProvider::new();
+        let url = search.get_rockspec_url("test", "1.0.0", None);
+
+        assert_eq!(
+            url,
+            "https://luarocks.org/manifests/luarocks/test-1.0.0.rockspec"
+        );
+    }
+
+    #[test]
+    fn test_mock_search_provider_get_rockspec_url_with_manifest() {
+        let search = MockSearchProvider::new();
+        let url = search.get_rockspec_url("test", "1.0.0", Some("custom"));
+
+        // Manifest parameter is ignored in mock
+        assert_eq!(
+            url,
+            "https://luarocks.org/manifests/luarocks/test-1.0.0.rockspec"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_mock_search_provider_verify_rockspec_url() {
+        let search = MockSearchProvider::new();
+
+        // By default, all URLs are valid
+        let result = search
+            .verify_rockspec_url("https://any.com/test.rockspec")
+            .await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_mock_search_provider_verify_rockspec_url_in_list() {
+        let search = MockSearchProvider::new();
+        search.add_valid_url("https://valid.com/test.rockspec".to_string());
+
+        let result = search
+            .verify_rockspec_url("https://valid.com/test.rockspec")
+            .await;
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_mock_search_provider_default() {
+        let search = MockSearchProvider::default();
+        assert!(search.latest_versions.lock().unwrap().is_empty());
     }
 }

@@ -238,12 +238,14 @@ async fn install_global(package_spec: String) -> LpmResult<()> {
         .await?;
 
     // Extract executables from rockspec and create wrappers
-    let rockspec_url = container.search_provider.get_rockspec_url(
-        &package_name,
-        &version_str,
-        None,
-    );
-    let rockspec_content = container.package_client.download_rockspec(&rockspec_url).await?;
+    let rockspec_url =
+        container
+            .search_provider
+            .get_rockspec_url(&package_name, &version_str, None);
+    let rockspec_content = container
+        .package_client
+        .download_rockspec(&rockspec_url)
+        .await?;
     let rockspec = container.package_client.parse_rockspec(&rockspec_content)?;
 
     create_global_executables(

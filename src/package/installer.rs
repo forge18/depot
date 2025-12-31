@@ -1,6 +1,6 @@
 use crate::core::path::{ensure_dir, lpm_metadata_dir, lua_modules_dir, packages_metadata_dir};
 use crate::core::{LpmError, LpmResult};
-use crate::di::{CacheProvider, ConfigProvider, PackageClient, SearchProvider, ServiceContainer};
+use crate::di::{CacheProvider, PackageClient, SearchProvider, ServiceContainer};
 use crate::luarocks::rockspec::Rockspec;
 
 #[cfg(test)]
@@ -24,7 +24,6 @@ pub struct PackageInstaller {
     lua_modules: PathBuf,
     metadata_dir: PathBuf,
     packages_dir: PathBuf,
-    config: Arc<dyn ConfigProvider>,
     cache: Arc<dyn CacheProvider>,
     package_client: Arc<dyn PackageClient>,
     search_provider: Arc<dyn SearchProvider>,
@@ -37,7 +36,6 @@ impl PackageInstaller {
         let container = ServiceContainer::new()?;
         Self::with_dependencies(
             project_root,
-            container.config.clone(),
             container.cache.clone(),
             container.package_client.clone(),
             container.search_provider.clone(),
@@ -50,7 +48,6 @@ impl PackageInstaller {
     /// Use this for testing with mock implementations.
     pub fn with_dependencies(
         project_root: &Path,
-        config: Arc<dyn ConfigProvider>,
         cache: Arc<dyn CacheProvider>,
         package_client: Arc<dyn PackageClient>,
         search_provider: Arc<dyn SearchProvider>,
@@ -65,7 +62,6 @@ impl PackageInstaller {
             lua_modules,
             metadata_dir,
             packages_dir,
-            config,
             cache,
             package_client,
             search_provider,
@@ -80,7 +76,6 @@ impl PackageInstaller {
     pub fn with_container(project_root: &Path, container: ServiceContainer) -> LpmResult<Self> {
         Self::with_dependencies(
             project_root,
-            container.config.clone(),
             container.cache.clone(),
             container.package_client.clone(),
             container.search_provider.clone(),
@@ -107,7 +102,6 @@ impl PackageInstaller {
             lua_modules,
             metadata_dir,
             packages_dir,
-            config: Arc::new(config),
             cache: Arc::new(cache),
             package_client: Arc::new(client),
             search_provider: Arc::new(search_api),
@@ -130,7 +124,9 @@ impl PackageInstaller {
         // Step 1: Construct and verify rockspec URL
         println!("  Fetching package info...");
         let rockspec_url = self.search_provider.get_rockspec_url(name, version, None);
-        self.search_provider.verify_rockspec_url(&rockspec_url).await?;
+        self.search_provider
+            .verify_rockspec_url(&rockspec_url)
+            .await?;
 
         // Step 2: Download and parse rockspec to get build configuration
         println!("  Downloading rockspec...");
@@ -139,7 +135,10 @@ impl PackageInstaller {
 
         // Step 3: Download source archive
         println!("  Downloading source...");
-        let source_path = self.package_client.download_source(&rockspec.source.url).await?;
+        let source_path = self
+            .package_client
+            .download_source(&rockspec.source.url)
+            .await?;
 
         // Step 4: Verify checksum if lockfile exists (ensures reproducible installs)
         if let Some(lockfile) = Lockfile::load(&self.project_root)? {
@@ -889,13 +888,26 @@ mod tests {
         (config, cache)
     }
 
+    fn setup_test_installer(temp: &TempDir) -> PackageInstaller {
+        let (config, cache) = setup_test_env(temp);
+        let client = LuaRocksClient::new(&config, cache.clone());
+        let search_api = SearchAPI::new();
+
+        PackageInstaller::with_dependencies(
+            temp.path(),
+            Arc::new(cache),
+            Arc::new(client),
+            Arc::new(search_api),
+        )
+        .unwrap()
+    }
+
     #[test]
     fn test_package_installer_new() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
         let project_root = temp.path();
-        let installer = PackageInstaller::with_config(project_root, config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
 
         assert_eq!(installer.project_root, project_root);
         assert!(installer.lua_modules.ends_with("lua_modules"));
@@ -905,9 +917,8 @@ mod tests {
     #[test]
     fn test_package_installer_init() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         assert!(installer.lua_modules.exists());
@@ -918,9 +929,8 @@ mod tests {
     #[test]
     fn test_get_package_path() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
         let path = installer.get_package_path("test-package");
 
         assert!(path.ends_with("test-package"));
@@ -930,9 +940,8 @@ mod tests {
     #[test]
     fn test_is_installed_false() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         assert!(!installer.is_installed("nonexistent-package"));
@@ -941,9 +950,8 @@ mod tests {
     #[test]
     fn test_is_installed_true() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         // Create a package directory
@@ -956,9 +964,8 @@ mod tests {
     #[test]
     fn test_remove_package() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         // Create package directory and metadata
@@ -980,9 +987,8 @@ mod tests {
     #[test]
     fn test_remove_nonexistent_package() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         // Should not error when removing non-existent package
@@ -1049,9 +1055,8 @@ mod tests {
     #[test]
     fn test_install_builtin_with_modules() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         // Create source directory with module files
@@ -1106,9 +1111,8 @@ mod tests {
     #[test]
     fn test_install_builtin_without_modules() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         // Create source directory with files
@@ -1155,9 +1159,8 @@ mod tests {
     #[test]
     fn test_install_builtin_missing_module() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         let source_path = temp.path().join("source");
@@ -1203,9 +1206,8 @@ mod tests {
     #[test]
     fn test_install_from_source_unsupported_build_type() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         let source_path = temp.path().join("source");
@@ -1248,9 +1250,8 @@ mod tests {
     #[test]
     fn test_install_from_source_none_build_type() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         let source_path = temp.path().join("source");
@@ -1293,9 +1294,8 @@ mod tests {
     #[test]
     fn test_install_from_source_with_install_table() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         let source_path = temp.path().join("source");
@@ -1351,9 +1351,8 @@ mod tests {
     #[test]
     fn test_install_from_source_with_modules_map() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         let source_path = temp.path().join("source");
@@ -1398,9 +1397,8 @@ mod tests {
     #[test]
     fn test_install_builtin_with_install_table() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         let source_path = temp.path().join("source");
@@ -1453,9 +1451,8 @@ mod tests {
     #[test]
     fn test_install_builtin_fallback_copy_all() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         let source_path = temp.path().join("source");
@@ -1499,9 +1496,8 @@ mod tests {
     #[test]
     fn test_remove_package_with_metadata() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         // Create package with metadata
@@ -1521,9 +1517,8 @@ mod tests {
     #[test]
     fn test_install_from_source_make_build_type() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         let source_path = temp.path().join("source");
@@ -1561,9 +1556,8 @@ mod tests {
     #[test]
     fn test_install_from_source_cmake_build_type() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         let source_path = temp.path().join("source");
@@ -1601,9 +1595,8 @@ mod tests {
     #[test]
     fn test_install_from_source_command_build_type_no_script() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         let source_path = temp.path().join("source");
@@ -1641,9 +1634,8 @@ mod tests {
     #[test]
     fn test_install_from_source_rust_build_type_no_cargo_toml() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         let source_path = temp.path().join("source");
@@ -1684,9 +1676,8 @@ mod tests {
     #[test]
     fn test_install_builtin_with_install_bin() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         let source_path = temp.path().join("source");
@@ -1738,9 +1729,8 @@ mod tests {
     #[test]
     fn test_install_builtin_with_install_conf() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         let source_path = temp.path().join("source");
@@ -1788,9 +1778,8 @@ mod tests {
     #[test]
     fn test_install_builtin_missing_module_file() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         let source_path = temp.path().join("source");
@@ -1834,9 +1823,8 @@ mod tests {
     #[test]
     fn test_install_builtin_with_subdirectory_modules() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         let source_path = temp.path().join("source");
@@ -1881,8 +1869,8 @@ mod tests {
     #[test]
     fn test_install_builtin_with_install_lib() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(source_path.join("lib")).unwrap();
@@ -1927,8 +1915,8 @@ mod tests {
     #[test]
     fn test_build_with_make_fallback_to_install_table() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -1966,8 +1954,8 @@ mod tests {
     #[test]
     fn test_build_with_cmake_fallback_to_install_table() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -2005,8 +1993,8 @@ mod tests {
     #[test]
     fn test_build_with_command_with_install_table() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -2045,8 +2033,8 @@ mod tests {
     #[test]
     fn test_build_with_make_install_table() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -2083,8 +2071,8 @@ mod tests {
     #[test]
     fn test_build_with_cmake_install_table() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -2121,8 +2109,8 @@ mod tests {
     #[test]
     fn test_build_with_rust_install_table() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -2159,8 +2147,8 @@ mod tests {
     #[test]
     fn test_build_with_make_copy_from_build_dir() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -2195,8 +2183,8 @@ mod tests {
     #[test]
     fn test_build_with_cmake_copy_from_build_dir() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -2231,8 +2219,8 @@ mod tests {
     #[test]
     fn test_install_builtin_with_install_table_dir_copy() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(source_path.join("bin")).unwrap();
@@ -2282,8 +2270,8 @@ mod tests {
     #[test]
     fn test_build_with_make_install_table_dir_copy() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(source_path.join("lib")).unwrap();
@@ -2325,8 +2313,8 @@ mod tests {
     #[test]
     fn test_build_with_cmake_install_table_dir_copy() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         let build_dir = source_path.join("build");
@@ -2369,8 +2357,8 @@ mod tests {
     #[test]
     fn test_build_with_rust_no_lib_found() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -2405,8 +2393,8 @@ mod tests {
     #[test]
     fn test_build_with_rust_with_modules() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -2444,8 +2432,8 @@ mod tests {
     #[test]
     fn test_get_package_path_returns_correct_path() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         let path = installer.get_package_path("my-package");
         assert!(path.ends_with("my-package"));
     }
@@ -2453,8 +2441,8 @@ mod tests {
     #[test]
     fn test_is_installed_checks_directory() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         assert!(!installer.is_installed("missing"));
         fs::create_dir_all(installer.lua_modules.join("present")).unwrap();
@@ -2464,8 +2452,8 @@ mod tests {
     #[test]
     fn test_remove_package_handles_missing_dirs() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         installer.remove_package("nonexistent").unwrap();
     }
@@ -2485,8 +2473,8 @@ mod tests {
     #[test]
     fn test_install_builtin_with_empty_install_table() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -2526,8 +2514,8 @@ mod tests {
     #[test]
     fn test_build_with_make_no_makefile() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -2560,8 +2548,8 @@ mod tests {
     #[test]
     fn test_build_with_cmake_no_cmakelists() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -2594,8 +2582,8 @@ mod tests {
     #[test]
     fn test_build_with_command_no_command() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -2628,8 +2616,8 @@ mod tests {
     #[test]
     fn test_build_with_rust_no_cargo_toml() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -2664,8 +2652,8 @@ mod tests {
     #[test]
     fn test_build_with_make_install_success() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -2704,8 +2692,8 @@ mod tests {
     #[test]
     fn test_build_with_cmake_install_success() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -2749,8 +2737,8 @@ mod tests {
     #[test]
     fn test_build_with_command_install_success() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -2798,8 +2786,8 @@ mod tests {
     #[test]
     fn test_build_with_rust_install_with_modules() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -2844,8 +2832,8 @@ mod tests {
     #[test]
     fn test_build_with_make_missing_makefile() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -2881,8 +2869,8 @@ mod tests {
     #[test]
     fn test_build_with_cmake_missing_cmake() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -2918,8 +2906,8 @@ mod tests {
     #[test]
     fn test_build_with_make_with_install_table() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -2959,8 +2947,8 @@ mod tests {
     #[test]
     fn test_build_with_cmake_with_install_table() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -3000,8 +2988,8 @@ mod tests {
     #[test]
     fn test_install_from_source_with_make_build_type() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -3037,8 +3025,8 @@ mod tests {
     #[test]
     fn test_install_from_source_with_cmake_build_type() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -3074,8 +3062,8 @@ mod tests {
     #[test]
     fn test_get_package_path_with_special_chars() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         let path = installer.get_package_path("test-package-123");
         assert!(path.to_string_lossy().contains("test-package-123"));
     }
@@ -3083,8 +3071,8 @@ mod tests {
     #[test]
     fn test_is_installed_with_nested_dir() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         let package_dir = installer.lua_modules.join("test-package");
@@ -3097,8 +3085,8 @@ mod tests {
     #[test]
     fn test_remove_package_with_nested_files() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         let package_dir = installer.lua_modules.join("test-package");
@@ -3142,8 +3130,8 @@ mod tests {
     #[test]
     fn test_install_from_source_with_rust_build_type() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -3179,8 +3167,8 @@ mod tests {
     #[test]
     fn test_install_from_source_with_rust_mlua_build_type() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -3216,8 +3204,8 @@ mod tests {
     #[test]
     fn test_build_with_command_with_install_table_bin() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -3262,8 +3250,8 @@ mod tests {
     #[test]
     fn test_build_with_command_with_install_table_lib() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -3301,8 +3289,8 @@ mod tests {
     #[test]
     fn test_build_with_command_with_install_table_conf() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -3340,8 +3328,8 @@ mod tests {
     #[test]
     fn test_build_with_make_with_install_table_lib() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -3379,8 +3367,8 @@ mod tests {
     #[test]
     fn test_build_with_cmake_with_install_table_lib() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -3418,8 +3406,8 @@ mod tests {
     #[test]
     fn test_build_with_rust_with_install_table_lib() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -3458,8 +3446,8 @@ mod tests {
     #[test]
     fn test_build_with_rust_with_install_table_conf() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -3498,8 +3486,8 @@ mod tests {
     #[test]
     fn test_build_with_make_with_install_table_conf() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -3537,8 +3525,8 @@ mod tests {
     #[test]
     fn test_build_with_cmake_with_install_table_conf() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -3576,8 +3564,8 @@ mod tests {
     #[test]
     fn test_build_with_make_with_modules_fallback() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -3613,8 +3601,8 @@ mod tests {
     #[test]
     fn test_build_with_make_fallback_to_copy_all() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -3649,8 +3637,8 @@ mod tests {
     #[test]
     fn test_build_with_cmake_with_modules_fallback() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -3686,8 +3674,8 @@ mod tests {
     #[test]
     fn test_build_with_cmake_fallback_to_copy_all() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -3722,8 +3710,8 @@ mod tests {
     #[test]
     fn test_install_builtin_with_modules_missing_file() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -3765,8 +3753,8 @@ mod tests {
     #[test]
     fn test_install_builtin_with_modules_nested_path() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(source_path.join("subdir")).unwrap();
@@ -3807,8 +3795,8 @@ mod tests {
     #[test]
     fn test_build_with_rust_no_lib_file() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -3848,8 +3836,8 @@ mod tests {
     #[test]
     fn test_build_with_rust_with_modules_and_no_lib() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -3892,8 +3880,8 @@ mod tests {
     #[test]
     fn test_install_from_source_routes_to_builtin() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -3931,8 +3919,8 @@ mod tests {
     #[test]
     fn test_build_with_make_install_success_path() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -3970,8 +3958,8 @@ mod tests {
     #[test]
     fn test_build_with_make_install_table_bin_dir() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -4012,8 +4000,8 @@ mod tests {
     #[test]
     fn test_build_with_make_install_table_lua_dir() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -4054,8 +4042,8 @@ mod tests {
     #[test]
     fn test_build_with_make_install_table_conf_dir() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -4096,8 +4084,8 @@ mod tests {
     #[test]
     fn test_build_with_cmake_install_table_bin_dir() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(source_path.join("build").join("bin")).unwrap();
@@ -4141,8 +4129,8 @@ mod tests {
     #[test]
     fn test_build_with_cmake_install_table_lib() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(source_path.join("build")).unwrap();
@@ -4182,8 +4170,8 @@ mod tests {
     #[test]
     fn test_build_with_command_install_table_lua() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -4231,8 +4219,8 @@ mod tests {
     #[test]
     fn test_build_with_rust_install_table_bin() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -4275,8 +4263,8 @@ mod tests {
     #[test]
     fn test_build_with_rust_install_table_lua() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -4321,8 +4309,8 @@ mod tests {
     #[test]
     fn test_build_with_rust_install_table_lib() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -4367,8 +4355,8 @@ mod tests {
     #[test]
     fn test_build_with_rust_no_lib_file_path() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -4408,8 +4396,8 @@ mod tests {
     #[test]
     fn test_build_with_rust_lib_file_none_with_modules() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -4452,8 +4440,8 @@ mod tests {
     #[test]
     fn test_build_with_rust_lib_file_none_with_install_table() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -4498,8 +4486,8 @@ mod tests {
     #[test]
     fn test_build_with_command_install_table_lib() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -4546,8 +4534,8 @@ mod tests {
     #[test]
     fn test_build_with_command_install_table_conf() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -4594,8 +4582,8 @@ mod tests {
     #[test]
     fn test_build_with_command_fallback_to_copy_all() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -4638,8 +4626,8 @@ mod tests {
     #[test]
     fn test_build_with_command_no_build_script() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -4675,8 +4663,8 @@ mod tests {
     #[test]
     fn test_build_with_cmake_install_table_conf() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(source_path.join("build").join("conf")).unwrap();
@@ -4719,8 +4707,8 @@ mod tests {
     #[test]
     fn test_build_with_make_install_table_lib() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -4759,8 +4747,8 @@ mod tests {
     #[tokio::test]
     async fn test_install_package_with_checksum_verification() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         // Create a lockfile with a checksum
@@ -4779,8 +4767,8 @@ mod tests {
     #[tokio::test]
     async fn test_install_package_checksum_mismatch() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         // Create a lockfile with a checksum
@@ -4799,8 +4787,8 @@ mod tests {
     #[tokio::test]
     async fn test_install_package_without_lockfile() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         // No lockfile - should skip checksum verification
         // Full test would require network mocking
@@ -4809,8 +4797,8 @@ mod tests {
     #[tokio::test]
     async fn test_install_package_with_lockfile_no_package() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         // Create lockfile without the package
@@ -4822,8 +4810,8 @@ mod tests {
     #[test]
     fn test_install_builtin_empty_modules_fallback() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         let source_path = temp.path().join("source");
@@ -4862,8 +4850,8 @@ mod tests {
     #[test]
     fn test_install_builtin_module_not_found_error() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         let source_path = temp.path().join("source");
@@ -4905,8 +4893,8 @@ mod tests {
     #[test]
     fn test_remove_package_removes_metadata() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         let package_dir = installer.lua_modules.join("test-pkg");
@@ -4923,8 +4911,8 @@ mod tests {
     #[test]
     fn test_get_package_path_joins_correctly_v2() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         let path = installer.get_package_path("test-pkg");
         assert!(path.ends_with("test-pkg"));
     }
@@ -4932,8 +4920,8 @@ mod tests {
     #[test]
     fn test_is_installed_checks_directory_v2() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         assert!(!installer.is_installed("nonexistent"));
@@ -4944,8 +4932,8 @@ mod tests {
     #[test]
     fn test_build_with_cmake_install_table_conf_from_build_dir() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -4985,8 +4973,8 @@ mod tests {
     #[test]
     fn test_build_with_command_install_table_conf_from_source() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -5026,8 +5014,8 @@ mod tests {
     #[test]
     fn test_build_with_rust_install_table_conf_v2() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -5071,8 +5059,8 @@ mod tests {
     #[test]
     fn test_build_with_cmake_copy_from_build_dir_fallback() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -5109,8 +5097,8 @@ mod tests {
     #[test]
     fn test_build_with_cmake_install_table_lua_from_build_dir() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -5151,8 +5139,8 @@ mod tests {
     #[test]
     fn test_build_with_cmake_install_table_lib_from_build_dir() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -5193,8 +5181,8 @@ mod tests {
     #[test]
     fn test_build_with_rust_no_lib_found_with_modules() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -5236,8 +5224,8 @@ mod tests {
     #[test]
     fn test_build_with_rust_install_table_lib_from_source() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -5281,8 +5269,8 @@ mod tests {
     #[test]
     fn test_build_with_make_install_table_conf_from_source() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -5321,8 +5309,8 @@ mod tests {
     #[test]
     fn test_build_with_make_install_table_lua_from_source() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -5361,8 +5349,8 @@ mod tests {
     #[test]
     fn test_build_with_cmake_install_table_conf_from_build_dir_v2() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -5403,8 +5391,8 @@ mod tests {
     #[test]
     fn test_build_with_rust_install_table_conf_from_source() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -5448,8 +5436,8 @@ mod tests {
     #[test]
     fn test_build_with_cmake_copy_from_build_dir_no_install_table() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -5486,8 +5474,8 @@ mod tests {
     #[test]
     fn test_build_with_make_install_table_bin_dir_copy() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -5528,8 +5516,8 @@ mod tests {
     #[test]
     fn test_build_with_command_install_table_conf_from_source_v2() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -5569,8 +5557,8 @@ mod tests {
     #[test]
     fn test_build_with_command_fallback_copy_all() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -5606,8 +5594,8 @@ mod tests {
     #[test]
     fn test_install_builtin_with_modules_specified() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -5658,8 +5646,8 @@ mod tests {
     #[test]
     fn test_install_from_source_builtin_type_v2() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -5697,8 +5685,8 @@ mod tests {
     #[test]
     fn test_install_from_source_none_type_v2() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -5736,8 +5724,8 @@ mod tests {
     #[test]
     fn test_install_from_source_unsupported_build_type_v2() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(&source_path).unwrap();
@@ -5773,8 +5761,8 @@ mod tests {
     #[test]
     fn test_install_builtin_with_modules_relative_path_v2() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(source_path.join("subdir")).unwrap();
@@ -5819,8 +5807,8 @@ mod tests {
     #[test]
     fn test_install_builtin_copy_dir_recursive_with_nested_dirs_v2() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
         let source_path = temp.path().join("source");
         fs::create_dir_all(source_path.join("dir1").join("dir2")).unwrap();
@@ -5881,9 +5869,8 @@ mod tests {
     #[tokio::test]
     async fn test_install_package_with_lockfile_checksum_verification() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         // This tests the checksum verification path when lockfile exists
@@ -5893,9 +5880,8 @@ mod tests {
     #[test]
     fn test_install_builtin_with_empty_modules() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
         installer.init().unwrap();
 
         let source_path = temp.path().join("source");
@@ -5929,11 +5915,9 @@ mod tests {
     #[test]
     fn test_multiple_installer_instances() {
         let temp = TempDir::new().unwrap();
-        let (config1, cache1) = setup_test_env(&temp);
-        let (config2, cache2) = setup_test_env(&temp);
 
-        let installer1 = PackageInstaller::with_config(temp.path(), config1, cache1).unwrap();
-        let installer2 = PackageInstaller::with_config(temp.path(), config2, cache2).unwrap();
+        let installer1 = setup_test_installer(&temp);
+        let installer2 = setup_test_installer(&temp);
 
         assert_eq!(installer1.project_root, installer2.project_root);
     }
@@ -5941,9 +5925,8 @@ mod tests {
     #[test]
     fn test_init_creates_directories_idempotent() {
         let temp = TempDir::new().unwrap();
-        let (config, cache) = setup_test_env(&temp);
 
-        let installer = PackageInstaller::with_config(temp.path(), config, cache).unwrap();
+        let installer = setup_test_installer(&temp);
 
         // Call init multiple times - should be idempotent
         installer.init().unwrap();

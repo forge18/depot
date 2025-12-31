@@ -913,15 +913,17 @@ packages:
 
     #[test]
     fn test_workspace_package_metadata() {
-        let mut config = WorkspaceConfig::default();
-        config.package_metadata = Some(WorkspacePackageMetadata {
-            version: Some("1.0.0".to_string()),
-            authors: Some(vec!["Author Name".to_string()]),
-            license: Some("MIT".to_string()),
-            homepage: Some("https://example.com".to_string()),
-            repository: Some("https://github.com/example/repo".to_string()),
-            description: Some("Test description".to_string()),
-        });
+        let config = WorkspaceConfig {
+            package_metadata: Some(WorkspacePackageMetadata {
+                version: Some("1.0.0".to_string()),
+                authors: Some(vec!["Author Name".to_string()]),
+                license: Some("MIT".to_string()),
+                homepage: Some("https://example.com".to_string()),
+                repository: Some("https://github.com/example/repo".to_string()),
+                description: Some("Test description".to_string()),
+            }),
+            ..Default::default()
+        };
 
         let workspace = Workspace {
             root: PathBuf::from("/tmp/test"),

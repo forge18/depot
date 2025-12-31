@@ -1,8 +1,8 @@
-use async_trait::async_trait;
 use crate::core::version::Version;
 use crate::core::{LpmError, LpmResult};
 use crate::di::SearchProvider;
 use crate::luarocks::manifest::Manifest;
+use async_trait::async_trait;
 use reqwest::Client;
 
 /// Client for interacting with LuaRocks search and manifest APIs

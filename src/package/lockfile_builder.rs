@@ -128,7 +128,9 @@ impl LockfileBuilder {
         let mut download_tasks = Vec::new();
         for (name, version) in &resolved_versions {
             let version_str = version.to_string();
-            let rockspec_url = self.search_provider.get_rockspec_url(name, &version_str, None);
+            let rockspec_url = self
+                .search_provider
+                .get_rockspec_url(name, &version_str, None);
 
             // Try to get source URL from manifest
             let source_url = luarocks_manifest
@@ -152,7 +154,9 @@ impl LockfileBuilder {
         if !exclude_dev {
             for (name, version) in &resolved_dev_versions {
                 let version_str = version.to_string();
-                let rockspec_url = self.search_provider.get_rockspec_url(name, &version_str, None);
+                let rockspec_url = self
+                    .search_provider
+                    .get_rockspec_url(name, &version_str, None);
 
                 // Try to get source URL from manifest
                 let source_url =
@@ -247,18 +251,17 @@ impl LockfileBuilder {
     }
 
     /// Build a LockedPackage entry by fetching rockspec and calculating checksum
-    async fn build_locked_package(
-        &self,
-        name: &str,
-        version: &str,
-    ) -> LpmResult<LockedPackage> {
+    async fn build_locked_package(&self, name: &str, version: &str) -> LpmResult<LockedPackage> {
         // Get rockspec URL and fetch it
         let rockspec_url = self.search_provider.get_rockspec_url(name, version, None);
         let rockspec_content = self.package_client.download_rockspec(&rockspec_url).await?;
         let rockspec: Rockspec = self.package_client.parse_rockspec(&rockspec_content)?;
 
         // Download source to get it in cache (if not already there)
-        let source_path = self.package_client.download_source(&rockspec.source.url).await?;
+        let source_path = self
+            .package_client
+            .download_source(&rockspec.source.url)
+            .await?;
 
         // Calculate checksum from cached source
         let checksum = self.cache.checksum(&source_path)?;
@@ -383,18 +386,49 @@ impl LockfileBuilder {
 mod tests {
     use super::*;
     use crate::package::manifest::PackageManifest;
-    use crate::luarocks::client::LuaRocksClient;
-    use crate::luarocks::search_api::SearchAPI;
     use tempfile::TempDir;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
+    fn setup_test_builder(temp: &TempDir) -> LockfileBuilder {
+        use crate::luarocks::client::LuaRocksClient;
+        use crate::luarocks::search_api::SearchAPI;
+
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+        let config = Config::default();
+        let client = LuaRocksClient::new(&config, cache.clone());
+        let search_api = SearchAPI::new();
+
+        LockfileBuilder::with_dependencies(
+            Arc::new(config),
+            Arc::new(cache),
+            Arc::new(client),
+            Arc::new(search_api),
+        )
+        .unwrap()
+    }
+
+    fn setup_test_builder_with_config(temp: &TempDir, config: Config) -> LockfileBuilder {
+        use crate::luarocks::client::LuaRocksClient;
+        use crate::luarocks::search_api::SearchAPI;
+
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
+        let client = LuaRocksClient::new(&config, cache.clone());
+        let search_api = SearchAPI::new();
+
+        LockfileBuilder::with_dependencies(
+            Arc::new(config),
+            Arc::new(cache),
+            Arc::new(client),
+            Arc::new(search_api),
+        )
+        .unwrap()
+    }
+
     #[test]
     fn test_lockfile_builder_new() {
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let _builder = LockfileBuilder::with_config(cache, config);
+        let _builder = setup_test_builder(&temp);
 
         // Builder should be created successfully
         // We can't easily test the async methods without network access,
@@ -404,12 +438,10 @@ mod tests {
     #[test]
     fn test_lockfile_builder_with_cache() {
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let _builder = LockfileBuilder::with_config(cache.clone(), config.clone());
+        let _builder = setup_test_builder(&temp);
 
         // Verify we can create multiple builders with the same cache
-        let _builder2 = LockfileBuilder::with_config(cache, config);
+        let _builder2 = setup_test_builder(&temp);
         // Both builders created successfully
     }
 
@@ -417,16 +449,13 @@ mod tests {
     async fn test_build_locked_package_with_mock() {
         let mock_server = MockServer::start().await;
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
 
         // Create config pointing to mock server
         let mut config = Config::load().unwrap();
         config.luarocks_manifest_url = format!("{}/manifest", mock_server.uri());
-        let builder = LockfileBuilder::with_config(cache.clone(), config.clone());
-        let client = LuaRocksClient::new(&config, cache.clone());
-        let search_api = SearchAPI::new();
+        let builder = setup_test_builder_with_config(&temp, config);
         // We can't easily change search_api base_url, but we can mock the rockspec URL it generates
-        // The rockspec URL will be: https://luarocks.org/manifests/luarocks/test-pkg-1.0.0.rockspec
+        // The URL will be: https://luarocks.org/manifests/luarocks/test-pkg-1.0.0.rockspec
         // But we need to mock it at the mock server
 
         // Mock manifest endpoint
@@ -438,6 +467,8 @@ mod tests {
             .mount(&mock_server)
             .await;
 
+        // Setup cache for writing test files
+        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
         // The URL will be: https://luarocks.org/manifests/luarocks/testpkg-1.0.0.rockspec
         // extract_package_name: "testpkg-1.0.0.rockspec".split('-').next() -> "testpkg" ✓
         // extract_version: "testpkg-1.0.0".split('-').nth(1) -> "1.0.0" ✓
@@ -481,9 +512,7 @@ build = {{
         // This extracts "test-pkg" and "1.0.0"
 
         // Now build_locked_package should work - it will use cached rockspec, download source from mock
-        let result = builder
-            .build_locked_package("testpkg", "1.0.0")
-            .await;
+        let result = builder.build_locked_package("testpkg", "1.0.0").await;
 
         // Should succeed - uses cached rockspec, downloads source from mock server
         assert!(
@@ -511,9 +540,7 @@ build = {{
     #[tokio::test]
     async fn test_build_lockfile_exclude_dev() {
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let builder = LockfileBuilder::with_config(cache, config);
+        let builder = setup_test_builder(&temp);
 
         let mut manifest = PackageManifest::default("test-package".to_string());
         manifest
@@ -532,9 +559,7 @@ build = {{
     #[tokio::test]
     async fn test_update_lockfile_reuse_existing() {
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let builder = LockfileBuilder::with_config(cache, config);
+        let builder = setup_test_builder(&temp);
 
         let mut manifest = PackageManifest::default("test-package".to_string());
         manifest
@@ -564,24 +589,16 @@ build = {{
     #[test]
     fn test_lockfile_builder_cache_clone() {
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let cache_clone = cache.clone();
-        let config1 = Config::default();
-        let _builder1 = LockfileBuilder::with_config(cache, config1);
-        let config2 = Config::default();
-        let _builder2 = LockfileBuilder::with_config(cache_clone, config2);
+        let _builder1 = setup_test_builder(&temp);
+        let _builder2 = setup_test_builder(&temp);
     }
 
     #[test]
     fn test_lockfile_builder_with_different_paths() {
         let temp1 = TempDir::new().unwrap();
         let temp2 = TempDir::new().unwrap();
-        let cache1 = Cache::new(temp1.path().to_path_buf()).unwrap();
-        let cache2 = Cache::new(temp2.path().to_path_buf()).unwrap();
-        let config1 = Config::default();
-        let _builder1 = LockfileBuilder::with_config(cache1, config1);
-        let config2 = Config::default();
-        let _builder2 = LockfileBuilder::with_config(cache2, config2);
+        let _builder1 = setup_test_builder(&temp1);
+        let _builder2 = setup_test_builder(&temp2);
     }
 
     #[test]
@@ -589,9 +606,7 @@ build = {{
         // Test that lua runtime dependencies are skipped
         // This tests the dependency parsing logic in build_lockfile
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let _builder = LockfileBuilder::with_config(cache, config);
+        let _builder = setup_test_builder(&temp);
         // The actual parsing happens in build_lockfile which requires network
     }
 
@@ -600,9 +615,7 @@ build = {{
         // Test dependency parsing for deps without version constraints
         // This tests the "else" branch in dependency parsing
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let _builder = LockfileBuilder::with_config(cache, config);
+        let _builder = setup_test_builder(&temp);
     }
 
     #[test]
@@ -610,17 +623,13 @@ build = {{
         // Test dependency parsing for deps with version constraints
         // This tests the whitespace-based parsing
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let _builder = LockfileBuilder::with_config(cache, config);
+        let _builder = setup_test_builder(&temp);
     }
 
     #[test]
     fn test_update_lockfile_exclude_dev_true() {
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let _builder = LockfileBuilder::with_config(cache, config);
+        let _builder = setup_test_builder(&temp);
         let mut manifest = PackageManifest::default("test".to_string());
         manifest
             .dev_dependencies
@@ -633,9 +642,7 @@ build = {{
     #[test]
     fn test_update_lockfile_exclude_dev_false() {
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let _builder = LockfileBuilder::with_config(cache, config);
+        let _builder = setup_test_builder(&temp);
         let mut manifest = PackageManifest::default("test".to_string());
         manifest
             .dev_dependencies
@@ -650,9 +657,7 @@ build = {{
         // Test that lua runtime dependencies with >= are skipped
         // This tests the dependency parsing logic in build_lockfile
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let _builder = LockfileBuilder::with_config(cache, config);
+        let _builder = setup_test_builder(&temp);
         // The actual parsing happens in build_lockfile which requires network
     }
 
@@ -660,54 +665,42 @@ build = {{
     fn test_build_lockfile_dependency_parsing_lua_runtime_with_gt() {
         // Test that lua runtime dependencies with > are skipped
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let _builder = LockfileBuilder::with_config(cache, config);
+        let _builder = setup_test_builder(&temp);
     }
 
     #[test]
     fn test_build_lockfile_dependency_parsing_lua_runtime_with_eq() {
         // Test that lua runtime dependencies with == are skipped
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let _builder = LockfileBuilder::with_config(cache, config);
+        let _builder = setup_test_builder(&temp);
     }
 
     #[test]
     fn test_build_lockfile_dependency_parsing_lua_runtime_with_tilde() {
         // Test that lua runtime dependencies with ~> are skipped
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let _builder = LockfileBuilder::with_config(cache, config);
+        let _builder = setup_test_builder(&temp);
     }
 
     #[test]
     fn test_build_lockfile_dependency_parsing_with_whitespace() {
         // Test dependency parsing with whitespace (the if branch)
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let _builder = LockfileBuilder::with_config(cache, config);
+        let _builder = setup_test_builder(&temp);
     }
 
     #[test]
     fn test_build_lockfile_dependency_parsing_without_whitespace() {
         // Test dependency parsing without whitespace (the else branch)
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let _builder = LockfileBuilder::with_config(cache, config);
+        let _builder = setup_test_builder(&temp);
     }
 
     #[test]
     fn test_build_lockfile_error_path_no_source_path() {
         // Test error path when result has no source_path
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let _builder = LockfileBuilder::with_config(cache, config);
+        let _builder = setup_test_builder(&temp);
         // This tests the error path in build_lockfile when source_path is None
     }
 
@@ -715,18 +708,14 @@ build = {{
     fn test_build_lockfile_error_path_download_error() {
         // Test error path when download fails
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let _builder = LockfileBuilder::with_config(cache, config);
+        let _builder = setup_test_builder(&temp);
         // This tests the error path when result.error is Some
     }
 
     #[tokio::test]
     async fn test_build_lockfile_with_dev_dependencies() {
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let builder = LockfileBuilder::with_config(cache, config);
+        let builder = setup_test_builder(&temp);
 
         let mut manifest = PackageManifest::default("test".to_string());
         manifest
@@ -743,9 +732,7 @@ build = {{
     #[tokio::test]
     async fn test_update_lockfile_with_new_package() {
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let builder = LockfileBuilder::with_config(cache, config);
+        let builder = setup_test_builder(&temp);
 
         let existing = Lockfile::new();
         let mut manifest = PackageManifest::default("test".to_string());
@@ -762,9 +749,7 @@ build = {{
     #[tokio::test]
     async fn test_update_lockfile_version_changed() {
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let builder = LockfileBuilder::with_config(cache, config);
+        let builder = setup_test_builder(&temp);
 
         let mut existing = Lockfile::new();
         let locked_pkg = LockedPackage {
@@ -793,20 +778,12 @@ build = {{
     #[tokio::test]
     async fn test_build_locked_package_dependency_parsing() {
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let builder = LockfileBuilder::with_config(cache.clone(), config);
+        let builder = setup_test_builder(&temp);
 
         // Tests build_locked_package dependency parsing paths
         // (lua runtime skip, whitespace parsing, no whitespace parsing)
-        let config = Config::load().unwrap();
-        let client = LuaRocksClient::new(&config, cache);
-        let search_api = SearchAPI::new();
-
         // Will fail on network, but tests dependency parsing structure
-        let _result = builder
-            .build_locked_package("test", "1.0.0")
-            .await;
+        let _result = builder.build_locked_package("test", "1.0.0").await;
     }
 
     #[tokio::test]
@@ -820,7 +797,7 @@ build = {{
         // Setup config to use mock server
         let mut config = Config::load().unwrap();
         config.luarocks_manifest_url = format!("{}/manifest", mock_server.uri());
-        let builder = LockfileBuilder::with_config(cache.clone(), config);
+        let builder = setup_test_builder_with_config(&temp, config);
 
         // Mock manifest with package info (needs proper structure for resolver)
         let manifest_json = r#"{"repository": {"packages": {"testpkg": {"1.0.0": {"arch": {"x86_64": {"1.0.0-1": {"archive": "testpkg-1.0.0.tar.gz"}}}}}}}}"#;
@@ -887,7 +864,7 @@ build = {{
         let mut config = Config::load().unwrap();
         config.luarocks_manifest_url = format!("{}/manifest", mock_server.uri());
 
-        let builder = LockfileBuilder::with_config(cache.clone(), config);
+        let builder = setup_test_builder_with_config(&temp, config);
 
         // Mock manifest
         let manifest_json = r#"{"repository": {"packages": {"testpkg": {"1.0.0": {"arch": {"x86_64": {"1.0.0-1": {"archive": "testpkg-1.0.0.tar.gz"}}}}}}}}"#;
@@ -944,9 +921,7 @@ build = {{
     #[tokio::test]
     async fn test_build_lockfile_with_dependencies_parsing() {
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let builder = LockfileBuilder::with_config(cache, config);
+        let builder = setup_test_builder(&temp);
 
         let mut manifest = PackageManifest::default("test".to_string());
         manifest
@@ -960,9 +935,7 @@ build = {{
     #[tokio::test]
     async fn test_build_lockfile_dependency_with_version_constraint() {
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let builder = LockfileBuilder::with_config(cache, config);
+        let builder = setup_test_builder(&temp);
 
         let mut manifest = PackageManifest::default("test".to_string());
         manifest
@@ -976,9 +949,7 @@ build = {{
     #[tokio::test]
     async fn test_update_lockfile_with_transitive_dependencies() {
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let builder = LockfileBuilder::with_config(cache, config);
+        let builder = setup_test_builder(&temp);
 
         let existing = Lockfile::new();
         let mut manifest = PackageManifest::default("test".to_string());
@@ -998,9 +969,7 @@ build = {{
     #[tokio::test]
     async fn test_build_lockfile_error_handling_no_source_path() {
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let builder = LockfileBuilder::with_config(cache, config);
+        let builder = setup_test_builder(&temp);
 
         let mut manifest = PackageManifest::default("test".to_string());
         manifest
@@ -1082,7 +1051,7 @@ build = {{
         let mut config = Config::load().unwrap();
         config.luarocks_manifest_url = format!("{}/manifest", mock_server.uri());
 
-        let builder = LockfileBuilder::with_config(cache.clone(), config);
+        let builder = setup_test_builder_with_config(&temp, config);
 
         // Mock manifest
         let manifest_json = r#"{"repository": {"packages": {"dep1": {"1.0.0": {}}}}}"#;
@@ -1142,9 +1111,7 @@ build = {
     async fn test_update_lockfile_include_dev_path() {
         // Test the exclude_dev=false path in update_lockfile (line 263-264)
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let builder = LockfileBuilder::with_config(cache, config);
+        let builder = setup_test_builder(&temp);
 
         let mut manifest = PackageManifest::default("test".to_string());
         manifest
@@ -1168,13 +1135,12 @@ build = {
         // Test the path where existing lockfile entry is reused (line 283-288)
         let mock_server = MockServer::start().await;
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
 
         // Setup config to use mock server
         let mut config = Config::load().unwrap();
         config.luarocks_manifest_url = format!("{}/manifest", mock_server.uri());
 
-        let builder = LockfileBuilder::with_config(cache.clone(), config);
+        let builder = setup_test_builder_with_config(&temp, config);
 
         // Mock manifest
         let manifest_json = r#"{"repository": {"packages": {"testpkg": {"1.0.0": {}}}}}"#;
@@ -1214,9 +1180,7 @@ build = {
     async fn test_update_lockfile_skip_processed() {
         // Test the path where processed packages are skipped (line 294-296)
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let config = Config::default();
-        let builder = LockfileBuilder::with_config(cache, config);
+        let builder = setup_test_builder(&temp);
 
         let mut manifest = PackageManifest::default("test".to_string());
         manifest
@@ -1248,13 +1212,12 @@ build = {
         // Test the path where dev_dependencies are extended (line 270-273)
         let mock_server = MockServer::start().await;
         let temp = TempDir::new().unwrap();
-        let cache = Cache::new(temp.path().to_path_buf()).unwrap();
 
         // Setup config to use mock server
         let mut config = Config::load().unwrap();
         config.luarocks_manifest_url = format!("{}/manifest", mock_server.uri());
 
-        let builder = LockfileBuilder::with_config(cache.clone(), config);
+        let builder = setup_test_builder_with_config(&temp, config);
 
         // Mock manifest
         let manifest_json =
@@ -1294,7 +1257,7 @@ build = {
         let mut config = Config::load().unwrap();
         config.luarocks_manifest_url = format!("{}/manifest", mock_server.uri());
 
-        let builder = LockfileBuilder::with_config(cache.clone(), config);
+        let builder = setup_test_builder_with_config(&temp, config);
 
         // Mock manifest
         let manifest_json = r#"{"repository": {"packages": {"testpkg": {"1.0.0": {}}}}}"#;
@@ -1346,7 +1309,7 @@ build = {{
         let mut config = Config::load().unwrap();
         config.luarocks_manifest_url = format!("{}/manifest", mock_server.uri());
 
-        let builder = LockfileBuilder::with_config(cache.clone(), config);
+        let builder = setup_test_builder_with_config(&temp, config);
 
         // Mock manifest
         let manifest_json = r#"{"repository": {"packages": {"testpkg": {"1.0.0": {}}}}}"#;
@@ -1420,7 +1383,7 @@ build = {{
         let mut config = Config::load().unwrap();
         config.luarocks_manifest_url = format!("{}/manifest", mock_server.uri());
 
-        let builder = LockfileBuilder::with_config(cache.clone(), config);
+        let builder = setup_test_builder_with_config(&temp, config);
 
         // Mock manifest
         let manifest_json = r#"{"repository": {"packages": {"testpkg": {"1.0.0": {}}}}}"#;
@@ -1497,7 +1460,7 @@ build = {{
         let mut config = Config::load().unwrap();
         config.luarocks_manifest_url = format!("{}/manifest", mock_server.uri());
 
-        let builder = LockfileBuilder::with_config(cache.clone(), config);
+        let builder = setup_test_builder_with_config(&temp, config);
 
         // Mock manifest
         let manifest_json = r#"{"repository": {"packages": {"testpkg": {"1.0.0": {}}}}}"#;
@@ -1562,7 +1525,7 @@ build = {{
         let mut config = Config::load().unwrap();
         config.luarocks_manifest_url = format!("{}/manifest", mock_server.uri());
 
-        let builder = LockfileBuilder::with_config(cache.clone(), config);
+        let builder = setup_test_builder_with_config(&temp, config);
 
         // Mock manifest
         let manifest_json = r#"{"repository": {"packages": {"testpkg": {"1.0.0": {}}}}}"#;

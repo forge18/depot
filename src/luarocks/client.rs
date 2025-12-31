@@ -1,10 +1,10 @@
-use async_trait::async_trait;
 use crate::cache::Cache;
 use crate::config::Config;
 use crate::core::{LpmError, LpmResult};
 use crate::di::PackageClient;
 use crate::luarocks::manifest::Manifest;
 use crate::luarocks::rockspec::Rockspec;
+use async_trait::async_trait;
 use reqwest::Client;
 use std::path::PathBuf;
 

@@ -93,9 +93,10 @@ impl HttpClient for ReqwestClient {
 
         let response = request.send().await.map_err(LpmError::Http)?;
         let status = response.status().as_u16();
-        let body = response.bytes().await.map_err(|e| {
-            LpmError::Package(format!("Failed to read response body: {}", e))
-        })?;
+        let body = response
+            .bytes()
+            .await
+            .map_err(|e| LpmError::Package(format!("Failed to read response body: {}", e)))?;
 
         Ok(HttpResponse {
             status,
@@ -124,7 +125,7 @@ impl Default for PluginRegistry<ReqwestClient> {
 }
 
 impl<C: HttpClient> PluginRegistry<C> {
-    pub fn with_client(client: C) -> Self {
+    pub fn _with_client(client: C) -> Self {
         Self { client }
     }
 }
@@ -424,7 +425,7 @@ mod tests {
             mock_response.as_bytes().to_vec(),
         );
 
-        let registry = PluginRegistry::with_client(mock_client);
+        let registry = PluginRegistry::_with_client(mock_client);
         let results = registry.search("test").await.unwrap();
 
         assert_eq!(results.len(), 2); // Only lpm-* packages
@@ -436,10 +437,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_search_with_error_response() {
-        let mock_client =
-            MockHttpClient::new().with_response("https://crates.io/api/v1/crates?q=test&per_page=20", 500, vec![]);
+        let mock_client = MockHttpClient::new().with_response(
+            "https://crates.io/api/v1/crates?q=test&per_page=20",
+            500,
+            vec![],
+        );
 
-        let registry = PluginRegistry::with_client(mock_client);
+        let registry = PluginRegistry::_with_client(mock_client);
         let result = registry.search("test").await;
 
         assert!(result.is_err());
@@ -471,7 +475,7 @@ mod tests {
             mock_response.as_bytes().to_vec(),
         );
 
-        let registry = PluginRegistry::with_client(mock_client);
+        let registry = PluginRegistry::_with_client(mock_client);
         let result = registry
             .get_plugin_from_github("lpm-org/lpm-test", "test")
             .await
@@ -489,7 +493,7 @@ mod tests {
     async fn test_get_plugin_from_github_not_found() {
         let mock_client = MockHttpClient::new();
 
-        let registry = PluginRegistry::with_client(mock_client);
+        let registry = PluginRegistry::_with_client(mock_client);
         let result = registry
             .get_plugin_from_github("lpm-org/lpm-nonexistent", "nonexistent")
             .await
@@ -519,7 +523,7 @@ mod tests {
             github_response.as_bytes().to_vec(),
         );
 
-        let registry = PluginRegistry::with_client(mock_client);
+        let registry = PluginRegistry::_with_client(mock_client);
         let result = registry.get_plugin("plugin").await.unwrap();
 
         assert!(result.is_some());
@@ -544,7 +548,7 @@ mod tests {
             github_response.as_bytes().to_vec(),
         );
 
-        let registry = PluginRegistry::with_client(mock_client);
+        let registry = PluginRegistry::_with_client(mock_client);
         let version = registry.get_latest_version("example").await.unwrap();
 
         assert!(version.is_some());
@@ -592,6 +596,6 @@ mod tests {
     #[test]
     fn test_registry_with_client() {
         let mock_client = MockHttpClient::new();
-        let _registry = PluginRegistry::with_client(mock_client);
+        let _registry = PluginRegistry::_with_client(mock_client);
     }
 }

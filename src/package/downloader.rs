@@ -295,8 +295,8 @@ pub fn create_download_tasks(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::luarocks::manifest::{Manifest, PackageVersion};
     use crate::luarocks::client::LuaRocksClient;
+    use crate::luarocks::manifest::{Manifest, PackageVersion};
 
     #[test]
     fn test_create_download_tasks() {

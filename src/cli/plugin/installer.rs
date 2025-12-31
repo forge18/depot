@@ -4,9 +4,9 @@ use lpm::core::{LpmError, LpmResult};
 use reqwest;
 use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
+use std::path::PathBuf;
 
 /// Install or update a plugin
 pub struct PluginInstaller;
@@ -32,7 +32,7 @@ impl PluginInstaller {
     }
 
     /// Get the plugin installation path
-    fn get_plugin_path(plugin_name: &str) -> LpmResult<PathBuf> {
+    fn _get_plugin_path(plugin_name: &str) -> LpmResult<PathBuf> {
         let lpm_home = lpm_home()?;
         let bin_dir = lpm_home.join("bin");
         Ok(bin_dir.join(format!("lpm-{}", plugin_name)))
@@ -46,12 +46,9 @@ impl PluginInstaller {
 
         // Get plugin info from registry
         let registry = PluginRegistry::new();
-        let entry = registry
-            .get_plugin(plugin_name)
-            .await?
-            .ok_or_else(|| {
-                LpmError::Package(format!("Plugin '{}' not found in registry", plugin_name))
-            })?;
+        let entry = registry.get_plugin(plugin_name).await?.ok_or_else(|| {
+            LpmError::Package(format!("Plugin '{}' not found in registry", plugin_name))
+        })?;
 
         let target_version = version.unwrap_or(&entry.version);
         println!("  Version: {}", target_version);
@@ -194,13 +191,8 @@ mod tests {
 
     #[test]
     fn test_create_metadata_with_minimal_fields() {
-        let metadata = PluginInstaller::create_metadata(
-            "minimal-plugin",
-            "2.5.1",
-            None,
-            None,
-            None,
-        );
+        let metadata =
+            PluginInstaller::create_metadata("minimal-plugin", "2.5.1", None, None, None);
 
         assert_eq!(metadata.name, "minimal-plugin");
         assert_eq!(metadata.version, "2.5.1");
@@ -212,7 +204,7 @@ mod tests {
     #[test]
     fn test_get_plugin_path_format() {
         // This will fail if lpm_home() fails, but tests the path construction
-        if let Ok(path) = PluginInstaller::get_plugin_path("test-plugin") {
+        if let Ok(path) = PluginInstaller::_get_plugin_path("test-plugin") {
             let path_str = path.to_string_lossy();
             assert!(path_str.contains("lpm-test-plugin"));
             assert!(path_str.contains("bin"));

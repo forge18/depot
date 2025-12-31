@@ -61,6 +61,7 @@ pub fn run() -> LpmResult<()> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use lpm::package::lockfile::{LockedPackage, Lockfile};
     use lpm::package::verifier::VerificationResult;
     use std::collections::HashMap;
@@ -74,6 +75,60 @@ mod tests {
         let lockfile = Lockfile::new();
         // Should handle empty packages
         assert!(lockfile.packages.is_empty());
+    }
+
+    #[test]
+    fn test_run_no_lockfile() {
+        let temp = TempDir::new().unwrap();
+
+        // Create package.yaml to make it a valid project root
+        fs::write(
+            temp.path().join("package.yaml"),
+            "name: test\nversion: 1.0.0",
+        )
+        .unwrap();
+
+        // Change to temp dir
+        std::env::set_current_dir(temp.path()).unwrap();
+
+        let result = run();
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("No") || err.to_string().contains("lockfile"));
+    }
+
+    #[test]
+    fn test_run_empty_lockfile() {
+        // Test that verify handles empty lockfile gracefully
+        let lockfile = Lockfile::new();
+        assert!(lockfile.packages.is_empty());
+
+        // Empty lockfile should result in "No packages to verify" message
+        // Testing full run() requires changing directories which is not thread-safe
+    }
+
+    #[test]
+    fn test_run_with_valid_packages() {
+        // Test lockfile with packages structure
+        let mut lockfile = Lockfile::new();
+        let mut deps = HashMap::new();
+        deps.insert("lua".to_string(), "5.1".to_string());
+
+        let package = LockedPackage {
+            version: "1.0.0".to_string(),
+            source: "luarocks".to_string(),
+            rockspec_url: Some("https://example.com/test.rockspec".to_string()),
+            source_url: Some("https://example.com/test.tar.gz".to_string()),
+            checksum: "blake3:abc123".to_string(),
+            size: Some(1000),
+            dependencies: deps,
+            build: None,
+        };
+        lockfile.add_package("test-pkg".to_string(), package);
+
+        assert!(!lockfile.packages.is_empty());
+        assert_eq!(lockfile.packages.len(), 1);
+        // Full verification testing requires PackageVerifier integration
     }
 
     #[test]

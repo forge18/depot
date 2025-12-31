@@ -1,9 +1,9 @@
 //! Trait definitions for dependency injection
 
-use async_trait::async_trait;
 use crate::core::LpmResult;
 use crate::luarocks::manifest::Manifest;
 use crate::luarocks::rockspec::Rockspec;
+use async_trait::async_trait;
 use std::path::{Path, PathBuf};
 
 /// Trait for configuration access
@@ -75,13 +75,8 @@ pub trait CacheProvider: Send + Sync {
     ) -> PathBuf;
 
     /// Check if a Rust build artifact exists in cache
-    fn has_rust_build(
-        &self,
-        package: &str,
-        version: &str,
-        lua_version: &str,
-        target: &str,
-    ) -> bool;
+    fn has_rust_build(&self, package: &str, version: &str, lua_version: &str, target: &str)
+        -> bool;
 
     /// Store a Rust build artifact in cache
     fn store_rust_build(
@@ -132,12 +127,8 @@ pub trait SearchProvider: Send + Sync {
     async fn get_latest_version(&self, package_name: &str) -> LpmResult<String>;
 
     /// Construct a rockspec URL for a package
-    fn get_rockspec_url(
-        &self,
-        package_name: &str,
-        version: &str,
-        manifest: Option<&str>,
-    ) -> String;
+    fn get_rockspec_url(&self, package_name: &str, version: &str, manifest: Option<&str>)
+        -> String;
 
     /// Verify that a rockspec URL is accessible
     async fn verify_rockspec_url(&self, url: &str) -> LpmResult<()>;
