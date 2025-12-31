@@ -13,11 +13,24 @@ use std::path::Path;
 /// Builder for creating lockfiles from manifests
 pub struct LockfileBuilder {
     cache: Cache,
+    config: Option<Config>,
 }
 
 impl LockfileBuilder {
     pub fn new(cache: Cache) -> Self {
-        Self { cache }
+        Self {
+            cache,
+            config: None,
+        }
+    }
+
+    /// Create a builder with a custom config (useful for testing)
+    #[cfg(test)]
+    pub fn with_config(cache: Cache, config: Config) -> Self {
+        Self {
+            cache,
+            config: Some(config),
+        }
     }
 
     /// Generate a lockfile from a manifest
@@ -38,7 +51,10 @@ impl LockfileBuilder {
         let mut lockfile = Lockfile::new();
 
         // Setup clients for fetching rockspecs
-        let config = Config::load()?;
+        let config = match &self.config {
+            Some(c) => c.clone(),
+            None => Config::load()?,
+        };
         let client = LuaRocksClient::new(&config, self.cache.clone());
         let search_api = SearchAPI::new();
 
@@ -345,11 +361,11 @@ mod tests {
         let mock_server = MockServer::start().await;
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let builder = LockfileBuilder::new(cache.clone());
 
         // Create config pointing to mock server
         let mut config = Config::load().unwrap();
         config.luarocks_manifest_url = format!("{}/manifest", mock_server.uri());
+        let builder = LockfileBuilder::with_config(cache.clone(), config.clone());
         let client = LuaRocksClient::new(&config, cache.clone());
         let search_api = SearchAPI::new();
         // We can't easily change search_api base_url, but we can mock the rockspec URL it generates
@@ -719,11 +735,11 @@ build = {{
         let mock_server = MockServer::start().await;
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let builder = LockfileBuilder::new(cache.clone());
 
         // Setup config to use mock server
         let mut config = Config::load().unwrap();
         config.luarocks_manifest_url = format!("{}/manifest", mock_server.uri());
+        let builder = LockfileBuilder::with_config(cache.clone(), config);
 
         // Mock manifest with package info (needs proper structure for resolver)
         let manifest_json = r#"{"repository": {"packages": {"testpkg": {"1.0.0": {"arch": {"x86_64": {"1.0.0-1": {"archive": "testpkg-1.0.0.tar.gz"}}}}}}}}"#;
@@ -784,11 +800,12 @@ build = {{
         let mock_server = MockServer::start().await;
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let builder = LockfileBuilder::new(cache.clone());
 
         // Setup config to use mock server
         let mut config = Config::load().unwrap();
         config.luarocks_manifest_url = format!("{}/manifest", mock_server.uri());
+
+        let builder = LockfileBuilder::with_config(cache.clone(), config);
 
         // Mock manifest
         let manifest_json = r#"{"repository": {"packages": {"testpkg": {"1.0.0": {"arch": {"x86_64": {"1.0.0-1": {"archive": "testpkg-1.0.0.tar.gz"}}}}}}}}"#;
@@ -974,11 +991,12 @@ build = {{
         let mock_server = MockServer::start().await;
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let builder = LockfileBuilder::new(cache.clone());
 
         // Setup config to use mock server
         let mut config = Config::load().unwrap();
         config.luarocks_manifest_url = format!("{}/manifest", mock_server.uri());
+
+        let builder = LockfileBuilder::with_config(cache.clone(), config);
 
         // Mock manifest
         let manifest_json = r#"{"repository": {"packages": {"dep1": {"1.0.0": {}}}}}"#;
@@ -1064,11 +1082,12 @@ build = {
         let mock_server = MockServer::start().await;
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let builder = LockfileBuilder::new(cache.clone());
 
         // Setup config to use mock server
         let mut config = Config::load().unwrap();
         config.luarocks_manifest_url = format!("{}/manifest", mock_server.uri());
+
+        let builder = LockfileBuilder::with_config(cache.clone(), config);
 
         // Mock manifest
         let manifest_json = r#"{"repository": {"packages": {"testpkg": {"1.0.0": {}}}}}"#;
@@ -1142,11 +1161,12 @@ build = {
         let mock_server = MockServer::start().await;
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let builder = LockfileBuilder::new(cache.clone());
 
         // Setup config to use mock server
         let mut config = Config::load().unwrap();
         config.luarocks_manifest_url = format!("{}/manifest", mock_server.uri());
+
+        let builder = LockfileBuilder::with_config(cache.clone(), config);
 
         // Mock manifest
         let manifest_json =
@@ -1180,11 +1200,12 @@ build = {
         let mock_server = MockServer::start().await;
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let builder = LockfileBuilder::new(cache.clone());
 
         // Setup config to use mock server
         let mut config = Config::load().unwrap();
         config.luarocks_manifest_url = format!("{}/manifest", mock_server.uri());
+
+        let builder = LockfileBuilder::with_config(cache.clone(), config);
 
         // Mock manifest
         let manifest_json = r#"{"repository": {"packages": {"testpkg": {"1.0.0": {}}}}}"#;
@@ -1231,11 +1252,12 @@ build = {{
         let mock_server = MockServer::start().await;
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let builder = LockfileBuilder::new(cache.clone());
 
         // Setup config to use mock server
         let mut config = Config::load().unwrap();
         config.luarocks_manifest_url = format!("{}/manifest", mock_server.uri());
+
+        let builder = LockfileBuilder::with_config(cache.clone(), config);
 
         // Mock manifest
         let manifest_json = r#"{"repository": {"packages": {"testpkg": {"1.0.0": {}}}}}"#;
@@ -1304,11 +1326,12 @@ build = {{
         let mock_server = MockServer::start().await;
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let builder = LockfileBuilder::new(cache.clone());
 
         // Setup config to use mock server
         let mut config = Config::load().unwrap();
         config.luarocks_manifest_url = format!("{}/manifest", mock_server.uri());
+
+        let builder = LockfileBuilder::with_config(cache.clone(), config);
 
         // Mock manifest
         let manifest_json = r#"{"repository": {"packages": {"testpkg": {"1.0.0": {}}}}}"#;
@@ -1379,11 +1402,12 @@ build = {{
         let mock_server = MockServer::start().await;
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let builder = LockfileBuilder::new(cache.clone());
 
         // Setup config to use mock server
         let mut config = Config::load().unwrap();
         config.luarocks_manifest_url = format!("{}/manifest", mock_server.uri());
+
+        let builder = LockfileBuilder::with_config(cache.clone(), config);
 
         // Mock manifest
         let manifest_json = r#"{"repository": {"packages": {"testpkg": {"1.0.0": {}}}}}"#;
@@ -1443,11 +1467,12 @@ build = {{
         let mock_server = MockServer::start().await;
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
-        let builder = LockfileBuilder::new(cache.clone());
 
         // Setup config to use mock server
         let mut config = Config::load().unwrap();
         config.luarocks_manifest_url = format!("{}/manifest", mock_server.uri());
+
+        let builder = LockfileBuilder::with_config(cache.clone(), config);
 
         // Mock manifest
         let manifest_json = r#"{"repository": {"packages": {"testpkg": {"1.0.0": {}}}}}"#;

@@ -234,6 +234,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_expand_path_vars_tilde() {
         let home = env::var("HOME").unwrap();
         let expanded = expand_path_vars("~/test");
@@ -241,6 +242,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_expand_path_vars_home_var() {
         let home = env::var("HOME").unwrap();
         let expanded = expand_path_vars("$HOME/test");
