@@ -304,8 +304,6 @@ mod tests {
         // This test may find different versions depending on what's installed
         // Just verify it returns a vec and doesn't panic
         let versions = LuaVersion::discover_installed();
-        // Should return a vec (may be empty if no Lua is installed)
-        assert!(versions.len() >= 0);
 
         // If versions are found, they should be sorted (newest first)
         for i in 1..versions.len() {
