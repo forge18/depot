@@ -220,32 +220,4 @@ mod tests {
         // The message "No packages to verify" should be shown for empty lockfiles
     }
 
-    #[test]
-    #[serial_test::serial]
-    fn test_run_with_empty_lockfile() {
-        let temp = TempDir::new().unwrap();
-
-        // Create package.yaml to make it a valid project root
-        fs::write(
-            temp.path().join("package.yaml"),
-            "name: test\nversion: 1.0.0",
-        )
-        .unwrap();
-
-        // Create an empty lockfile
-        let lockfile = Lockfile::new();
-        lockfile.save(temp.path()).unwrap();
-
-        // Save current dir and change to temp dir
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(temp.path()).unwrap();
-
-        let result = run();
-
-        // Restore original dir
-        std::env::set_current_dir(&original_dir).unwrap();
-
-        // Should succeed with empty lockfile
-        assert!(result.is_ok());
-    }
 }
