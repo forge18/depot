@@ -90,8 +90,11 @@ rusty-hook = "0.11.2"
 assert_cmd = "2.0"      # Test CLI binaries
 assert_fs = "1.0"       # Temporary file systems
 predicates = "3.0"      # Flexible assertions
-rexpect = "0.5"         # Terminal interaction testing
 wiremock = "0.6"        # Mock HTTP server (optional, for offline tests)
+
+# Unix-only: Terminal interaction testing (PTY not available on Windows)
+[target.'cfg(unix)'.dev-dependencies]
+rexpect = "0.5"
 
 [[bench]]
 name = "performance_benchmarks"

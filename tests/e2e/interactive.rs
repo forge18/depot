@@ -1,3 +1,6 @@
+// Interactive tests using rexpect - Unix only (PTY not available on Windows)
+#![cfg(unix)]
+
 use super::*;
 use rexpect::spawn;
 
