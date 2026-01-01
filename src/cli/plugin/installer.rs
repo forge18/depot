@@ -211,4 +211,29 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn test_install_plugin_not_found() {
+        // Test that install fails when plugin doesn't exist in registry
+        let result = PluginInstaller::install("nonexistent-plugin-xyz", None).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("not found") || err.to_string().contains("registry"));
+    }
+
+    #[tokio::test]
+    async fn test_install_with_version() {
+        // Test install with specific version - should fail for nonexistent plugin
+        let result = PluginInstaller::install("nonexistent-plugin-xyz", Some("1.0.0")).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_update_plugin_not_installed() {
+        // Test that update fails when plugin is not installed
+        let result = PluginInstaller::update("nonexistent-plugin-xyz").await;
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("not installed") || err.to_string().contains("registry"));
+    }
+
 }

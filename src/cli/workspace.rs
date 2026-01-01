@@ -196,4 +196,245 @@ packages:
         assert!(result.is_ok());
     }
 
+    #[tokio::test]
+    #[serial]
+    async fn test_list_workspace_with_packages() {
+        let temp = TempDir::new().unwrap();
+
+        // Create workspace.yaml
+        fs::write(
+            temp.path().join("workspace.yaml"),
+            r#"
+name: my-workspace
+packages:
+  - packages/*
+"#,
+        )
+        .unwrap();
+
+        // Create a package
+        let pkg_dir = temp.path().join("packages").join("pkg1");
+        fs::create_dir_all(&pkg_dir).unwrap();
+        fs::write(
+            pkg_dir.join("package.yaml"),
+            r#"
+name: pkg1
+version: 1.0.0
+dependencies:
+  lua: "5.1"
+"#,
+        )
+        .unwrap();
+
+        let result = list_from_dir(Some(temp.path())).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_info_empty_workspace() {
+        let temp = TempDir::new().unwrap();
+
+        // Save current dir and change to temp
+        let original_dir = env::current_dir().ok();
+        env::set_current_dir(temp.path()).unwrap();
+
+        // Create workspace.yaml
+        fs::write(
+            temp.path().join("workspace.yaml"),
+            r#"
+name: info-test
+packages:
+  - packages/*
+"#,
+        )
+        .unwrap();
+
+        fs::create_dir_all(temp.path().join("packages")).unwrap();
+
+        let result = info().await;
+
+        // Restore original dir
+        if let Some(dir) = original_dir {
+            let _ = env::set_current_dir(dir);
+        }
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_info_workspace_with_metadata() {
+        let temp = TempDir::new().unwrap();
+        let original_dir = env::current_dir().ok();
+        env::set_current_dir(temp.path()).unwrap();
+
+        // Create workspace with metadata
+        fs::write(
+            temp.path().join("workspace.yaml"),
+            r#"
+name: meta-workspace
+packages:
+  - packages/*
+exclude:
+  - packages/ignore/*
+dependencies:
+  lua: "5.1"
+  inspect: "3.0.0"
+dev_dependencies:
+  luaunit: "3.4"
+package_metadata:
+  version: "1.0.0"
+  license: "MIT"
+  authors:
+    - "Test Author"
+"#,
+        )
+        .unwrap();
+
+        fs::create_dir_all(temp.path().join("packages")).unwrap();
+
+        let result = info().await;
+
+        if let Some(dir) = original_dir {
+            let _ = env::set_current_dir(dir);
+        }
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_shared_deps_no_packages() {
+        let temp = TempDir::new().unwrap();
+        let original_dir = env::current_dir().ok();
+        env::set_current_dir(temp.path()).unwrap();
+
+        fs::write(
+            temp.path().join("workspace.yaml"),
+            r#"
+name: shared-test
+packages:
+  - packages/*
+"#,
+        )
+        .unwrap();
+
+        fs::create_dir_all(temp.path().join("packages")).unwrap();
+
+        let result = shared_deps().await;
+
+        if let Some(dir) = original_dir {
+            let _ = env::set_current_dir(dir);
+        }
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_shared_deps_with_shared_dependency() {
+        let temp = TempDir::new().unwrap();
+        let original_dir = env::current_dir().ok();
+        env::set_current_dir(temp.path()).unwrap();
+
+        fs::write(
+            temp.path().join("workspace.yaml"),
+            r#"
+name: shared-workspace
+packages:
+  - packages/*
+"#,
+        )
+        .unwrap();
+
+        // Create two packages with shared dependency
+        let pkg1 = temp.path().join("packages").join("pkg1");
+        fs::create_dir_all(&pkg1).unwrap();
+        fs::write(
+            pkg1.join("package.yaml"),
+            r#"
+name: pkg1
+version: 1.0.0
+dependencies:
+  inspect: "3.0.0"
+"#,
+        )
+        .unwrap();
+
+        let pkg2 = temp.path().join("packages").join("pkg2");
+        fs::create_dir_all(&pkg2).unwrap();
+        fs::write(
+            pkg2.join("package.yaml"),
+            r#"
+name: pkg2
+version: 1.0.0
+dependencies:
+  inspect: "3.0.0"
+"#,
+        )
+        .unwrap();
+
+        let result = shared_deps().await;
+
+        if let Some(dir) = original_dir {
+            let _ = env::set_current_dir(dir);
+        }
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_shared_deps_version_conflict() {
+        let temp = TempDir::new().unwrap();
+        let original_dir = env::current_dir().ok();
+        env::set_current_dir(temp.path()).unwrap();
+
+        fs::write(
+            temp.path().join("workspace.yaml"),
+            r#"
+name: conflict-workspace
+packages:
+  - packages/*
+"#,
+        )
+        .unwrap();
+
+        // Create packages with version conflicts
+        let pkg1 = temp.path().join("packages").join("pkg1");
+        fs::create_dir_all(&pkg1).unwrap();
+        fs::write(
+            pkg1.join("package.yaml"),
+            r#"
+name: pkg1
+version: 1.0.0
+dependencies:
+  inspect: "3.0.0"
+"#,
+        )
+        .unwrap();
+
+        let pkg2 = temp.path().join("packages").join("pkg2");
+        fs::create_dir_all(&pkg2).unwrap();
+        fs::write(
+            pkg2.join("package.yaml"),
+            r#"
+name: pkg2
+version: 1.0.0
+dependencies:
+  inspect: "3.1.0"
+"#,
+        )
+        .unwrap();
+
+        let result = shared_deps().await;
+
+        if let Some(dir) = original_dir {
+            let _ = env::set_current_dir(dir);
+        }
+
+        assert!(result.is_ok());
+    }
+
 }

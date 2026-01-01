@@ -220,4 +220,40 @@ mod tests {
         // The message "No packages to verify" should be shown for empty lockfiles
     }
 
+    #[test]
+    fn test_run_with_empty_lockfile() {
+        let temp = TempDir::new().unwrap();
+
+        // Create package.yaml
+        fs::write(
+            temp.path().join("package.yaml"),
+            "name: test\nversion: 1.0.0\n",
+        )
+        .unwrap();
+
+        // Create valid empty lockfile
+        let lockfile = Lockfile::new();
+        lockfile.save(temp.path()).unwrap();
+
+        // Create cache directory structure
+        fs::create_dir_all(temp.path().join(".lpm").join("cache")).unwrap();
+
+        // Change to temp dir
+        let original_dir = std::env::current_dir().ok();
+        std::env::set_current_dir(temp.path()).unwrap();
+
+        let result = run();
+
+        // Restore dir
+        if let Some(dir) = original_dir {
+            let _ = std::env::set_current_dir(dir);
+        }
+
+        // Should succeed with empty lockfile (prints "No packages to verify")
+        if let Err(e) = &result {
+            eprintln!("Error: {}", e);
+        }
+        assert!(result.is_ok());
+    }
+
 }
