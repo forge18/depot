@@ -160,11 +160,11 @@ mod tests {
         // This will fail because we're not in a project root, but tests the error path
         let result = run("nonexistent-script".to_string(), vec![]);
         assert!(result.is_err());
-        // Error could be "not found" or "package.yaml not found" depending on path
+        // Error could be "not found", "package.yaml not found", or IO error depending on environment
         let error_msg = result.unwrap_err().to_string();
         assert!(
-            error_msg.contains("not found") || error_msg.contains("package.yaml"),
-            "Error message should mention 'not found' or 'package.yaml', got: {}",
+            error_msg.contains("not found") || error_msg.contains("package.yaml") || error_msg.contains("IO error"),
+            "Error message should mention an error, got: {}",
             error_msg
         );
     }

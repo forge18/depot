@@ -30,12 +30,12 @@ mod tests {
 
     /// Guard that restores the current directory when dropped
     struct DirGuard {
-        original_dir: PathBuf,
+        original_dir: Option<PathBuf>,
     }
 
     impl DirGuard {
         fn new(new_dir: &std::path::Path) -> std::io::Result<Self> {
-            let original_dir = env::current_dir()?;
+            let original_dir = env::current_dir().ok();
             env::set_current_dir(new_dir)?;
             Ok(Self { original_dir })
         }
@@ -43,7 +43,9 @@ mod tests {
 
     impl Drop for DirGuard {
         fn drop(&mut self) {
-            let _ = env::set_current_dir(&self.original_dir);
+            if let Some(ref dir) = self.original_dir {
+                let _ = env::set_current_dir(dir);
+            }
         }
     }
 
