@@ -1708,4 +1708,53 @@ build = {
         // This exercises the else branch where current_version is None
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_update_diff_calculate_file_changes() {
+        let temp = TempDir::new().unwrap();
+        let lockfile = Some(Lockfile::new());
+        let mut resolved_versions = HashMap::new();
+        resolved_versions.insert("new-pkg".to_string(), Version::new(1, 0, 0));
+        let resolved_dev_versions = HashMap::new();
+
+        let mut diff = UpdateDiff::calculate(&lockfile, &resolved_versions, &resolved_dev_versions);
+
+        // Call calculate_file_changes
+        diff.calculate_file_changes(temp.path());
+
+        // Verify diff still has changes
+        assert!(diff.has_changes());
+    }
+
+    #[tokio::test]
+    async fn test_update_workspace_filtered_no_matching_packages() {
+        use lpm::workspace::Workspace;
+        use tempfile::TempDir;
+
+        let temp = TempDir::new().unwrap();
+
+        // Create a workspace with one package
+        std::fs::write(
+            temp.path().join("package.yaml"),
+            "name: root\nversion: 1.0.0\n[workspace]\nmembers = [\"packages/pkg1\"]\n",
+        )
+        .unwrap();
+
+        let pkg1_dir = temp.path().join("packages/pkg1");
+        std::fs::create_dir_all(&pkg1_dir).unwrap();
+        std::fs::write(
+            pkg1_dir.join("package.yaml"),
+            "name: pkg1\nversion: 1.0.0\n",
+        )
+        .unwrap();
+
+        let workspace = Workspace::load(temp.path()).unwrap();
+
+        // Use filter that matches nothing
+        let result =
+            update_workspace_filtered(&workspace, &["nonexistent".to_string()], None).await;
+
+        // Should succeed but do nothing (lines 310-312)
+        assert!(result.is_ok());
+    }
 }
