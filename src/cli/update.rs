@@ -693,8 +693,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_no_project_root() {
-        use tempfile::TempDir;
         use std::env;
+        use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
         let subdir = temp.path().join("subdir");
@@ -714,9 +714,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_with_filter_not_workspace() {
-        use tempfile::TempDir;
         use std::env;
         use std::fs;
+        use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
         let original_dir = env::current_dir().ok();
@@ -737,27 +737,23 @@ mod tests {
 
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("filter") || err.to_string().contains("workspace"));
+        assert!(err.to_string().contains("filter") || err.to_string().contains("workspace"));
     }
 
     #[tokio::test]
     async fn test_update_package_with_mocks() {
-        use tempfile::TempDir;
-        use lpm::di::mocks::{MockConfigProvider, MockCacheProvider, MockPackageClient, MockSearchProvider};
+        use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
         use lpm::di::PackageClient;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
         use lpm::package::installer::PackageInstaller;
+        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
         use std::sync::Arc;
+        use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
         let mut manifest = PackageManifest::default("test".to_string());
 
         // Don't add the package to dependencies
 
-        let config = Arc::new(MockConfigProvider::default());
-        let cache = Arc::new(MockCacheProvider::default());
         let client = Arc::new(MockPackageClient::default());
         let search = Arc::new(MockSearchProvider::default());
 
@@ -766,7 +762,8 @@ mod tests {
             ResolutionStrategy::Highest,
             client.clone(),
             search.clone(),
-        ).unwrap();
+        )
+        .unwrap();
 
         let installer = PackageInstaller::new(temp.path()).unwrap();
         let lockfile = None;
@@ -778,20 +775,23 @@ mod tests {
             "nonexistent-pkg",
             &lockfile,
             &installer,
-        ).await;
+        )
+        .await;
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("not found in dependencies"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("not found in dependencies"));
     }
 
     #[tokio::test]
     async fn test_update_all_packages_with_lockfile() {
-        use tempfile::TempDir;
-        use lpm::di::mocks::{MockConfigProvider, MockCacheProvider, MockPackageClient, MockSearchProvider};
+        use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
         use lpm::di::PackageClient;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
         use lpm::package::installer::PackageInstaller;
-        use lpm::core::version::Version;
+        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
         let mut manifest = PackageManifest::default("test".to_string());
@@ -807,7 +807,8 @@ mod tests {
             ResolutionStrategy::Highest,
             std::sync::Arc::new(client),
             std::sync::Arc::new(search),
-        ).unwrap();
+        )
+        .unwrap();
 
         let installer = PackageInstaller::new(temp.path()).unwrap();
 
@@ -822,7 +823,8 @@ mod tests {
             &resolved_versions,
             &resolved_dev_versions,
             &installer,
-        ).await;
+        )
+        .await;
 
         // Should succeed with empty packages
         assert!(result.is_ok());
@@ -830,17 +832,19 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_package_in_dev_dependencies() {
-        use tempfile::TempDir;
         use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
         use lpm::di::PackageClient;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
         use lpm::package::installer::PackageInstaller;
+        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
         let mut manifest = PackageManifest::default("test".to_string());
 
         // Add package to dev_dependencies only
-        manifest.dev_dependencies.insert("dev-pkg".to_string(), ">=1.0.0".to_string());
+        manifest
+            .dev_dependencies
+            .insert("dev-pkg".to_string(), ">=1.0.0".to_string());
 
         let client = MockPackageClient::default();
         let search = MockSearchProvider::default();
@@ -850,7 +854,8 @@ mod tests {
             ResolutionStrategy::Highest,
             std::sync::Arc::new(client),
             std::sync::Arc::new(search),
-        ).unwrap();
+        )
+        .unwrap();
 
         let installer = PackageInstaller::new(temp.path()).unwrap();
         let lockfile = None;
@@ -862,7 +867,8 @@ mod tests {
             "dev-pkg",
             &lockfile,
             &installer,
-        ).await;
+        )
+        .await;
 
         // Should fail because resolver won't find the package
         assert!(result.is_err());
@@ -870,12 +876,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_all_packages_with_versions() {
-        use tempfile::TempDir;
+        use lpm::core::version::Version;
         use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
         use lpm::di::PackageClient;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
         use lpm::package::installer::PackageInstaller;
-        use lpm::core::version::Version;
+        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
         let mut manifest = PackageManifest::default("test".to_string());
@@ -890,7 +896,8 @@ mod tests {
             ResolutionStrategy::Highest,
             std::sync::Arc::new(client),
             std::sync::Arc::new(search),
-        ).unwrap();
+        )
+        .unwrap();
 
         let installer = PackageInstaller::new(temp.path()).unwrap();
 
@@ -907,7 +914,8 @@ mod tests {
             &resolved_versions,
             &resolved_dev_versions,
             &installer,
-        ).await;
+        )
+        .await;
 
         // Will likely fail during install, but exercises the update logic
         assert!(result.is_err());
@@ -915,15 +923,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_package_version_parsing() {
-        use tempfile::TempDir;
         use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
         use lpm::di::PackageClient;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
         use lpm::package::installer::PackageInstaller;
+        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
         let mut manifest = PackageManifest::default("test".to_string());
-        manifest.dependencies.insert("test-pkg".to_string(), "1.0.0".to_string());
+        manifest
+            .dependencies
+            .insert("test-pkg".to_string(), "1.0.0".to_string());
 
         // Create lockfile with a different version
         let mut lockfile_data = Lockfile::new();
@@ -950,7 +960,8 @@ mod tests {
             ResolutionStrategy::Highest,
             std::sync::Arc::new(client),
             std::sync::Arc::new(search),
-        ).unwrap();
+        )
+        .unwrap();
 
         let installer = PackageInstaller::new(temp.path()).unwrap();
 
@@ -961,7 +972,8 @@ mod tests {
             "test-pkg",
             &lockfile,
             &installer,
-        ).await;
+        )
+        .await;
 
         // Should fail because resolver can't resolve the package
         assert!(result.is_err());
@@ -969,8 +981,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_filter_workspace_check() {
-        use tempfile::TempDir;
         use std::env;
+        use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
         let original_dir = env::current_dir().ok();
@@ -996,12 +1008,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_all_packages_dev_dependencies() {
-        use tempfile::TempDir;
+        use lpm::core::version::Version;
         use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
         use lpm::di::PackageClient;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
         use lpm::package::installer::PackageInstaller;
-        use lpm::core::version::Version;
+        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
         let mut manifest = PackageManifest::default("test".to_string());
@@ -1016,7 +1028,8 @@ mod tests {
             ResolutionStrategy::Highest,
             std::sync::Arc::new(client),
             std::sync::Arc::new(search),
-        ).unwrap();
+        )
+        .unwrap();
 
         let installer = PackageInstaller::new(temp.path()).unwrap();
 
@@ -1032,7 +1045,8 @@ mod tests {
             &resolved_versions,
             &resolved_dev_versions,
             &installer,
-        ).await;
+        )
+        .await;
 
         // Will fail during install
         assert!(result.is_err());
@@ -1040,12 +1054,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_all_packages_needs_update_check() {
-        use tempfile::TempDir;
+        use lpm::core::version::Version;
         use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
         use lpm::di::PackageClient;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
         use lpm::package::installer::PackageInstaller;
-        use lpm::core::version::Version;
+        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
         let mut manifest = PackageManifest::default("test".to_string());
@@ -1075,7 +1089,8 @@ mod tests {
             ResolutionStrategy::Highest,
             std::sync::Arc::new(client),
             std::sync::Arc::new(search),
-        ).unwrap();
+        )
+        .unwrap();
 
         let installer = PackageInstaller::new(temp.path()).unwrap();
 
@@ -1092,7 +1107,8 @@ mod tests {
             &resolved_versions,
             &resolved_dev_versions,
             &installer,
-        ).await;
+        )
+        .await;
 
         // Will fail during install attempt
         assert!(result.is_err());
@@ -1100,12 +1116,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_all_packages_no_lockfile() {
-        use tempfile::TempDir;
+        use lpm::core::version::Version;
         use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
         use lpm::di::PackageClient;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
         use lpm::package::installer::PackageInstaller;
-        use lpm::core::version::Version;
+        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
         let mut manifest = PackageManifest::default("test".to_string());
@@ -1121,7 +1137,8 @@ mod tests {
             ResolutionStrategy::Highest,
             std::sync::Arc::new(client),
             std::sync::Arc::new(search),
-        ).unwrap();
+        )
+        .unwrap();
 
         let installer = PackageInstaller::new(temp.path()).unwrap();
 
@@ -1137,7 +1154,8 @@ mod tests {
             &resolved_versions,
             &resolved_dev_versions,
             &installer,
-        ).await;
+        )
+        .await;
 
         // Will fail during install
         assert!(result.is_err());
@@ -1145,12 +1163,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_all_packages_version_parse_fail() {
-        use tempfile::TempDir;
+        use lpm::core::version::Version;
         use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
         use lpm::di::PackageClient;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
         use lpm::package::installer::PackageInstaller;
-        use lpm::core::version::Version;
+        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
         let mut manifest = PackageManifest::default("test".to_string());
@@ -1180,7 +1198,8 @@ mod tests {
             ResolutionStrategy::Highest,
             std::sync::Arc::new(client),
             std::sync::Arc::new(search),
-        ).unwrap();
+        )
+        .unwrap();
 
         let installer = PackageInstaller::new(temp.path()).unwrap();
 
@@ -1197,7 +1216,8 @@ mod tests {
             &resolved_versions,
             &resolved_dev_versions,
             &installer,
-        ).await;
+        )
+        .await;
 
         // Will fail during install
         assert!(result.is_err());
@@ -1205,17 +1225,19 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_package_success_path_structure() {
-        use tempfile::TempDir;
         use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
         use lpm::di::PackageClient;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
         use lpm::package::installer::PackageInstaller;
+        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
         let mut manifest = PackageManifest::default("test".to_string());
 
         // Add package to dependencies
-        manifest.dependencies.insert("test-pkg".to_string(), ">=1.0.0".to_string());
+        manifest
+            .dependencies
+            .insert("test-pkg".to_string(), ">=1.0.0".to_string());
 
         let client = MockPackageClient::default();
         let search = MockSearchProvider::default();
@@ -1225,7 +1247,8 @@ mod tests {
             ResolutionStrategy::Highest,
             std::sync::Arc::new(client),
             std::sync::Arc::new(search),
-        ).unwrap();
+        )
+        .unwrap();
 
         let installer = PackageInstaller::new(temp.path()).unwrap();
         let lockfile = None;
@@ -1237,7 +1260,8 @@ mod tests {
             "test-pkg",
             &lockfile,
             &installer,
-        ).await;
+        )
+        .await;
 
         // Will fail during resolution/install, but tests the success path structure
         assert!(result.is_err());
@@ -1245,12 +1269,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_all_packages_same_version_no_update() {
-        use tempfile::TempDir;
+        use lpm::core::version::Version;
         use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
         use lpm::di::PackageClient;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
         use lpm::package::installer::PackageInstaller;
-        use lpm::core::version::Version;
+        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
         let mut manifest = PackageManifest::default("test".to_string());
@@ -1280,7 +1304,8 @@ mod tests {
             ResolutionStrategy::Highest,
             std::sync::Arc::new(client),
             std::sync::Arc::new(search),
-        ).unwrap();
+        )
+        .unwrap();
 
         let installer = PackageInstaller::new(temp.path()).unwrap();
 
@@ -1297,7 +1322,8 @@ mod tests {
             &resolved_versions,
             &resolved_dev_versions,
             &installer,
-        ).await;
+        )
+        .await;
 
         // Should succeed since no updates needed
         assert!(result.is_ok());
@@ -1305,12 +1331,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_all_packages_dev_deps_same_version() {
-        use tempfile::TempDir;
+        use lpm::core::version::Version;
         use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
         use lpm::di::PackageClient;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
         use lpm::package::installer::PackageInstaller;
-        use lpm::core::version::Version;
+        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
         let mut manifest = PackageManifest::default("test".to_string());
@@ -1340,7 +1366,8 @@ mod tests {
             ResolutionStrategy::Highest,
             std::sync::Arc::new(client),
             std::sync::Arc::new(search),
-        ).unwrap();
+        )
+        .unwrap();
 
         let installer = PackageInstaller::new(temp.path()).unwrap();
 
@@ -1359,7 +1386,8 @@ mod tests {
             &resolved_versions,
             &resolved_dev_versions,
             &installer,
-        ).await;
+        )
+        .await;
 
         // Should succeed since no updates needed
         assert!(result.is_ok());
@@ -1367,12 +1395,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_all_packages_mixed_updates() {
-        use tempfile::TempDir;
+        use lpm::core::version::Version;
         use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
         use lpm::di::PackageClient;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
         use lpm::package::installer::PackageInstaller;
-        use lpm::core::version::Version;
+        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
         let mut manifest = PackageManifest::default("test".to_string());
@@ -1415,7 +1443,8 @@ mod tests {
             ResolutionStrategy::Highest,
             std::sync::Arc::new(client),
             std::sync::Arc::new(search),
-        ).unwrap();
+        )
+        .unwrap();
 
         let installer = PackageInstaller::new(temp.path()).unwrap();
 
@@ -1433,7 +1462,8 @@ mod tests {
             &resolved_versions,
             &resolved_dev_versions,
             &installer,
-        ).await;
+        )
+        .await;
 
         // Will fail during install, but tests the logic path
         assert!(result.is_err());
@@ -1441,17 +1471,19 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_package_with_existing_lockfile() {
-        use tempfile::TempDir;
         use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
         use lpm::di::PackageClient;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
         use lpm::package::installer::PackageInstaller;
+        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
         let mut manifest = PackageManifest::default("test".to_string());
 
         // Add package to dependencies
-        manifest.dependencies.insert("test-pkg".to_string(), ">=1.0.0".to_string());
+        manifest
+            .dependencies
+            .insert("test-pkg".to_string(), ">=1.0.0".to_string());
 
         // Create lockfile with the package
         let mut lockfile_data = Lockfile::new();
@@ -1481,7 +1513,8 @@ mod tests {
             ResolutionStrategy::Highest,
             std::sync::Arc::new(client),
             std::sync::Arc::new(search),
-        ).unwrap();
+        )
+        .unwrap();
 
         let installer = PackageInstaller::new(temp.path()).unwrap();
 
@@ -1492,7 +1525,8 @@ mod tests {
             "test-pkg",
             &lockfile,
             &installer,
-        ).await;
+        )
+        .await;
 
         // Will fail during install (installer.install_package), but covers resolution logic
         assert!(result.is_err());
@@ -1500,19 +1534,19 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_package_already_latest() {
-        use tempfile::TempDir;
         use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
-        use lpm::di::PackageClient;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
-        use lpm::package::installer::PackageInstaller;
-        use lpm::core::version::Version;
         use lpm::luarocks::manifest::{Manifest, PackageVersion};
+        use lpm::package::installer::PackageInstaller;
+        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
         let mut manifest = PackageManifest::default("test".to_string());
 
         // Add package to dependencies
-        manifest.dependencies.insert("current-pkg".to_string(), ">=1.0.0".to_string());
+        manifest
+            .dependencies
+            .insert("current-pkg".to_string(), ">=1.0.0".to_string());
 
         // Create lockfile with package ALREADY at latest version
         let mut lockfile_data = Lockfile::new();
@@ -1572,7 +1606,8 @@ build = {
             ResolutionStrategy::Highest,
             std::sync::Arc::new(client),
             std::sync::Arc::new(search),
-        ).unwrap();
+        )
+        .unwrap();
 
         let installer = PackageInstaller::new(temp.path()).unwrap();
 
@@ -1583,7 +1618,8 @@ build = {
             "current-pkg",
             &lockfile,
             &installer,
-        ).await;
+        )
+        .await;
 
         // Should succeed - package already at latest version (covers lines 194-201)
         // The function returns Ok(()) early when versions match
@@ -1592,18 +1628,19 @@ build = {
 
     #[tokio::test]
     async fn test_update_package_no_lockfile_entry() {
-        use tempfile::TempDir;
         use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
-        use lpm::di::PackageClient;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
-        use lpm::package::installer::PackageInstaller;
         use lpm::luarocks::manifest::{Manifest, PackageVersion};
+        use lpm::package::installer::PackageInstaller;
+        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
         let mut manifest = PackageManifest::default("test".to_string());
 
         // Add package to dependencies
-        manifest.dependencies.insert("new-pkg".to_string(), ">=1.0.0".to_string());
+        manifest
+            .dependencies
+            .insert("new-pkg".to_string(), ">=1.0.0".to_string());
 
         // Lockfile exists but doesn't have this package
         let lockfile = Some(Lockfile::new());
@@ -1623,7 +1660,8 @@ build = {
             "new-pkg".to_string(),
             vec![PackageVersion {
                 version: "1.5.0".to_string(),
-                rockspec_url: "https://luarocks.org/manifests/luarocks/new-pkg-1.5.0.rockspec".to_string(),
+                rockspec_url: "https://luarocks.org/manifests/luarocks/new-pkg-1.5.0.rockspec"
+                    .to_string(),
                 archive_url: Some("https://example.com/new-pkg-1.5.0.tar.gz".to_string()),
             }],
         );
@@ -1641,14 +1679,18 @@ build = {
     modules = {}
 }
 "#;
-        client.add_rockspec("https://luarocks.org/manifests/luarocks/new-pkg-1.5.0.rockspec".to_string(), rockspec_content.to_string());
+        client.add_rockspec(
+            "https://luarocks.org/manifests/luarocks/new-pkg-1.5.0.rockspec".to_string(),
+            rockspec_content.to_string(),
+        );
 
         let resolver = DependencyResolver::with_dependencies(
             luarocks_manifest,
             ResolutionStrategy::Highest,
             std::sync::Arc::new(client),
             std::sync::Arc::new(search),
-        ).unwrap();
+        )
+        .unwrap();
 
         let installer = PackageInstaller::new(temp.path()).unwrap();
 
@@ -1659,7 +1701,8 @@ build = {
             "new-pkg",
             &lockfile,
             &installer,
-        ).await;
+        )
+        .await;
 
         // Will fail at install, but covers the "no current version" path (lines 204-206)
         // This exercises the else branch where current_version is None

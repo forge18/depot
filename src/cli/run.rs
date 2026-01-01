@@ -163,7 +163,9 @@ mod tests {
         // Error could be "not found", "package.yaml not found", or IO error depending on environment
         let error_msg = result.unwrap_err().to_string();
         assert!(
-            error_msg.contains("not found") || error_msg.contains("package.yaml") || error_msg.contains("IO error"),
+            error_msg.contains("not found")
+                || error_msg.contains("package.yaml")
+                || error_msg.contains("IO error"),
             "Error message should mention an error, got: {}",
             error_msg
         );

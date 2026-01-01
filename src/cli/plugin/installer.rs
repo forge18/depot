@@ -235,5 +235,4 @@ mod tests {
         let err = result.unwrap_err();
         assert!(err.to_string().contains("not installed") || err.to_string().contains("registry"));
     }
-
 }

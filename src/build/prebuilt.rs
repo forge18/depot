@@ -295,12 +295,10 @@ mod tests {
 
         // Create a fake cached binary
         let lua_version_str = lua_version.major_minor();
-        let cache_path = manager.cache.rust_build_path(
-            "test-pkg",
-            "1.0.0",
-            &lua_version_str,
-            &target.triple,
-        );
+        let cache_path =
+            manager
+                .cache
+                .rust_build_path("test-pkg", "1.0.0", &lua_version_str, &target.triple);
         if let Some(parent) = cache_path.parent() {
             std::fs::create_dir_all(parent).unwrap();
         }
@@ -341,7 +339,8 @@ mod tests {
         let target_darwin = Target::new("x86_64-apple-darwin").unwrap();
         let lua_version = LuaVersion::new(5, 4, 0);
 
-        let url = PrebuiltBinaryManager::find_binary_url(&binary_urls, &target_darwin, &lua_version);
+        let url =
+            PrebuiltBinaryManager::find_binary_url(&binary_urls, &target_darwin, &lua_version);
         assert_eq!(url, Some("https://example.com/darwin.dylib".to_string()));
     }
 }

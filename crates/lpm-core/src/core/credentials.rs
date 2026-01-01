@@ -132,5 +132,4 @@ mod tests {
         assert!(CredentialStore::delete(test_key).is_ok());
         assert!(!CredentialStore::exists(test_key));
     }
-
 }
