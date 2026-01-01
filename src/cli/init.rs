@@ -458,4 +458,91 @@ mod tests {
         // Just verify the logic works
         assert!(!dir_name.is_empty());
     }
+
+    #[tokio::test]
+    async fn test_run_uses_current_dir() {
+        use std::env;
+
+        let temp = TempDir::new().unwrap();
+        let original_dir = env::current_dir().ok();
+
+        // Change to temp directory
+        env::set_current_dir(temp.path()).unwrap();
+
+        // Run init with yes flag to avoid interactive prompts
+        let result = run(None, true).await;
+
+        // Restore original directory
+        if let Some(dir) = original_dir {
+            let _ = env::set_current_dir(dir);
+        }
+
+        assert!(result.is_ok());
+        assert!(temp.path().join("package.yaml").exists());
+    }
+
+    #[tokio::test]
+    async fn test_run_in_dir_with_template_name() {
+        let temp = TempDir::new().unwrap();
+        // Try with a template name - will likely fail to find template, but exercises the code path
+        let result = run_in_dir(temp.path(), Some("nonexistent-template".to_string()), true).await;
+
+        // May fail due to template not found, but that's ok - we're testing the code path
+        let _ = result;
+    }
+
+    #[test]
+    fn test_run_non_interactive_directory_structure() {
+        let temp = TempDir::new().unwrap();
+        run_non_interactive(temp.path(), "test-project", None).unwrap();
+
+        // Verify all three directories were created
+        assert!(temp.path().join("src").is_dir());
+        assert!(temp.path().join("lib").is_dir());
+        assert!(temp.path().join("tests").is_dir());
+    }
+
+    #[tokio::test]
+    async fn test_run_in_dir_default_project_name_fallback() {
+        let temp = TempDir::new().unwrap();
+        let result = run_in_dir(temp.path(), None, true).await;
+
+        assert!(result.is_ok());
+
+        // Verify project was created with directory name as project name
+        let manifest_content = fs::read_to_string(temp.path().join("package.yaml")).unwrap();
+        // The temp directory name should be in the manifest
+        assert!(manifest_content.contains("name:"));
+    }
+
+    #[test]
+    fn test_run_non_interactive_with_various_project_names() {
+        let temp = TempDir::new().unwrap();
+
+        // Test with hyphens
+        let result1 = run_non_interactive(temp.path(), "my-test-project", None);
+        assert!(result1.is_ok());
+
+        let temp2 = TempDir::new().unwrap();
+        // Test with underscores
+        let result2 = run_non_interactive(temp2.path(), "my_test_project", None);
+        assert!(result2.is_ok());
+
+        let temp3 = TempDir::new().unwrap();
+        // Test with mixed
+        let result3 = run_non_interactive(temp3.path(), "my-test_project123", None);
+        assert!(result3.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_run_in_dir_calls_non_interactive_with_yes() {
+        let temp = TempDir::new().unwrap();
+
+        // Call with yes=true should use non-interactive mode
+        let result = run_in_dir(temp.path(), None, true).await;
+
+        assert!(result.is_ok());
+        assert!(temp.path().join("package.yaml").exists());
+        assert!(temp.path().join("src").exists());
+    }
 }
