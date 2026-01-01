@@ -8,6 +8,52 @@ use std::collections::HashMap;
 use std::env;
 use std::path::Path;
 
+// Trait for user input (for dependency injection in tests)
+pub trait UserInput {
+    fn prompt_string(&self, prompt: &str, default: &str) -> LpmResult<String>;
+    fn prompt_confirm(&self, prompt: &str, default: bool) -> LpmResult<bool>;
+    fn prompt_select(&self, prompt: &str, items: &[String], default: usize) -> LpmResult<usize>;
+    fn prompt_multiselect(&self, prompt: &str, items: &[String]) -> LpmResult<Vec<usize>>;
+}
+
+// Real implementation using dialoguer
+pub struct DialoguerInput;
+
+impl UserInput for DialoguerInput {
+    fn prompt_string(&self, prompt: &str, default: &str) -> LpmResult<String> {
+        Input::new()
+            .with_prompt(prompt)
+            .default(default.to_string())
+            .interact_text()
+            .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))
+    }
+
+    fn prompt_confirm(&self, prompt: &str, default: bool) -> LpmResult<bool> {
+        Confirm::new()
+            .with_prompt(prompt)
+            .default(default)
+            .interact()
+            .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))
+    }
+
+    fn prompt_select(&self, prompt: &str, items: &[String], default: usize) -> LpmResult<usize> {
+        Select::new()
+            .with_prompt(prompt)
+            .items(items)
+            .default(default)
+            .interact()
+            .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))
+    }
+
+    fn prompt_multiselect(&self, prompt: &str, items: &[String]) -> LpmResult<Vec<usize>> {
+        MultiSelect::new()
+            .with_prompt(prompt)
+            .items(items)
+            .interact()
+            .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))
+    }
+}
+
 pub async fn run(template: Option<String>, yes: bool) -> LpmResult<()> {
     let current_dir = env::current_dir()
         .map_err(|e| LpmError::Path(format!("Failed to get current directory: {}", e)))?;
@@ -43,56 +89,59 @@ async fn run_wizard(
     default_project_name: &str,
     template_name: Option<String>,
 ) -> LpmResult<()> {
+    run_wizard_with_input(
+        current_dir,
+        default_project_name,
+        template_name,
+        &DialoguerInput,
+    )
+    .await
+}
+
+async fn run_wizard_with_input(
+    current_dir: &Path,
+    default_project_name: &str,
+    template_name: Option<String>,
+    input: &dyn UserInput,
+) -> LpmResult<()> {
     println!("🚀 LPM Project Initialization Wizard\n");
 
     // Collect project name with validation
-    let project_name: String = Input::new()
-        .with_prompt("Project name")
-        .default(default_project_name.to_string())
-        .validate_with(|input: &String| -> Result<(), &str> {
-            if input.is_empty() {
-                Err("Project name cannot be empty")
-            } else if !input.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
-                Err("Project name can only contain alphanumeric characters, hyphens, and underscores")
-            } else {
-                Ok(())
-            }
-        })
-        .interact_text()
-        .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))?;
+    let project_name = input.prompt_string("Project name", default_project_name)?;
+
+    // Validate project name
+    if project_name.is_empty() {
+        return Err(LpmError::Config("Project name cannot be empty".to_string()));
+    }
+    if !project_name
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+    {
+        return Err(LpmError::Config(
+            "Project name can only contain alphanumeric characters, hyphens, and underscores"
+                .to_string(),
+        ));
+    }
 
     // Collect project version (defaults to 1.0.0)
-    let project_version: String = Input::new()
-        .with_prompt("Project version")
-        .default("1.0.0".to_string())
-        .interact_text()
-        .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))?;
+    let project_version = input.prompt_string("Project version", "1.0.0")?;
 
     // Collect optional project description
-    let description: String = Input::new()
-        .with_prompt("Description (optional)")
-        .allow_empty(true)
-        .interact_text()
-        .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))?;
+    let description = input.prompt_string("Description (optional)", "")?;
 
     // Select license from common options
     let licenses = vec![
-        "MIT",
-        "Apache-2.0",
-        "BSD-3-Clause",
-        "GPL-3.0",
-        "LGPL-3.0",
-        "ISC",
-        "Unlicense",
-        "None",
+        "MIT".to_string(),
+        "Apache-2.0".to_string(),
+        "BSD-3-Clause".to_string(),
+        "GPL-3.0".to_string(),
+        "LGPL-3.0".to_string(),
+        "ISC".to_string(),
+        "Unlicense".to_string(),
+        "None".to_string(),
     ];
-    let license_selection = Select::new()
-        .with_prompt("License")
-        .items(&licenses)
-        .default(0)
-        .interact()
-        .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))?;
-    let license = licenses[license_selection].to_string();
+    let license_selection = input.prompt_select("License", &licenses, 0)?;
+    let license = licenses[license_selection].clone();
 
     // Discover installed Lua versions dynamically
     let installed_versions = lpm::lua_version::LuaVersion::discover_installed();
@@ -120,12 +169,7 @@ async fn run_wizard(
         })
         .unwrap_or(lua_versions.len().saturating_sub(2)); // "latest" is last, so use second-to-last
 
-    let lua_selection = Select::new()
-        .with_prompt("Lua version")
-        .items(&lua_versions)
-        .default(default_index)
-        .interact()
-        .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))?;
+    let lua_selection = input.prompt_select("Lua version", &lua_versions, default_index)?;
     let lua_version = lua_versions[lua_selection].clone();
 
     // Select or use specified template
@@ -141,12 +185,8 @@ async fn run_wizard(
                 .collect();
             let mut all_items = vec!["None (empty project)".to_string()];
             all_items.extend(template_names);
-            let template_selection = Select::new()
-                .with_prompt("Use a template? (optional)")
-                .items(&all_items)
-                .default(0)
-                .interact()
-                .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))?;
+            let template_selection =
+                input.prompt_select("Use a template? (optional)", &all_items, 0)?;
 
             if template_selection > 0 {
                 Some(templates[template_selection - 1].clone())
@@ -159,11 +199,7 @@ async fn run_wizard(
     };
 
     // Prompt for initial dependency setup
-    let add_dependencies = Confirm::new()
-        .with_prompt("Add initial dependencies?")
-        .default(false)
-        .interact()
-        .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))?;
+    let add_dependencies = input.prompt_confirm("Add initial dependencies?", false)?;
 
     // Configure common npm-style scripts (dev, test, build, start)
     let common_scripts = [
@@ -178,11 +214,10 @@ async fn run_wizard(
         .map(|(name, desc)| format!("{} - {}", name, desc))
         .collect();
 
-    let script_selections = MultiSelect::new()
-        .with_prompt("Set up common scripts? (space to select, enter to confirm)")
-        .items(&script_options)
-        .interact()
-        .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))?;
+    let script_selections = input.prompt_multiselect(
+        "Set up common scripts? (space to select, enter to confirm)",
+        &script_options,
+    )?;
 
     // Step 9: Show summary
     println!("\n📋 Project Summary:");
@@ -210,11 +245,7 @@ async fn run_wizard(
         );
     }
 
-    let confirmed = Confirm::new()
-        .with_prompt("Create project?")
-        .default(true)
-        .interact()
-        .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))?;
+    let confirmed = input.prompt_confirm("Create project?", true)?;
 
     if !confirmed {
         println!("Cancelled.");
@@ -544,5 +575,167 @@ mod tests {
         assert!(result.is_ok());
         assert!(temp.path().join("package.yaml").exists());
         assert!(temp.path().join("src").exists());
+    }
+
+    // Mock implementation for testing
+    struct MockInput {
+        strings: HashMap<&'static str, String>,
+        confirms: HashMap<&'static str, bool>,
+        selects: HashMap<&'static str, usize>,
+        multiselects: HashMap<&'static str, Vec<usize>>,
+    }
+
+    impl MockInput {
+        fn new() -> Self {
+            Self {
+                strings: HashMap::new(),
+                confirms: HashMap::new(),
+                selects: HashMap::new(),
+                multiselects: HashMap::new(),
+            }
+        }
+
+        fn with_string(mut self, prompt: &'static str, value: String) -> Self {
+            self.strings.insert(prompt, value);
+            self
+        }
+
+        fn with_confirm(mut self, prompt: &'static str, value: bool) -> Self {
+            self.confirms.insert(prompt, value);
+            self
+        }
+
+        fn with_select(mut self, prompt: &'static str, value: usize) -> Self {
+            self.selects.insert(prompt, value);
+            self
+        }
+
+        fn with_multiselect(mut self, prompt: &'static str, value: Vec<usize>) -> Self {
+            self.multiselects.insert(prompt, value);
+            self
+        }
+    }
+
+    impl UserInput for MockInput {
+        fn prompt_string(&self, prompt: &str, default: &str) -> LpmResult<String> {
+            Ok(self
+                .strings
+                .get(prompt)
+                .cloned()
+                .unwrap_or_else(|| default.to_string()))
+        }
+
+        fn prompt_confirm(&self, prompt: &str, default: bool) -> LpmResult<bool> {
+            Ok(*self.confirms.get(prompt).unwrap_or(&default))
+        }
+
+        fn prompt_select(
+            &self,
+            prompt: &str,
+            _items: &[String],
+            default: usize,
+        ) -> LpmResult<usize> {
+            Ok(*self.selects.get(prompt).unwrap_or(&default))
+        }
+
+        fn prompt_multiselect(&self, prompt: &str, _items: &[String]) -> LpmResult<Vec<usize>> {
+            Ok(self.multiselects.get(prompt).cloned().unwrap_or_default())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_wizard_with_mock_input_basic() {
+        let temp = TempDir::new().unwrap();
+
+        let mock = MockInput::new()
+            .with_string("Project name", "test-wizard".to_string())
+            .with_string("Project version", "1.0.0".to_string())
+            .with_string("Description (optional)", "Test description".to_string())
+            .with_select("License", 0)
+            .with_select("Lua version", 0)
+            .with_confirm("Add initial dependencies?", false)
+            .with_multiselect(
+                "Set up common scripts? (space to select, enter to confirm)",
+                vec![],
+            )
+            .with_confirm("Create project?", true);
+
+        let result = run_wizard_with_input(temp.path(), "test-wizard", None, &mock).await;
+
+        assert!(result.is_ok());
+        assert!(temp.path().join("package.yaml").exists());
+    }
+
+    #[tokio::test]
+    async fn test_wizard_with_mock_input_cancel() {
+        let temp = TempDir::new().unwrap();
+
+        let mock = MockInput::new()
+            .with_string("Project name", "test-cancel".to_string())
+            .with_string("Project version", "2.0.0".to_string())
+            .with_string("Description (optional)", "".to_string())
+            .with_select("License", 1)
+            .with_select("Lua version", 1)
+            .with_confirm("Add initial dependencies?", false)
+            .with_multiselect(
+                "Set up common scripts? (space to select, enter to confirm)",
+                vec![],
+            )
+            .with_confirm("Create project?", false); // Cancel
+
+        let result = run_wizard_with_input(temp.path(), "test-cancel", None, &mock).await;
+
+        // Should succeed but not create project
+        assert!(result.is_ok());
+        assert!(!temp.path().join("package.yaml").exists());
+    }
+
+    #[tokio::test]
+    async fn test_wizard_with_mock_input_invalid_name() {
+        let temp = TempDir::new().unwrap();
+
+        let mock = MockInput::new().with_string("Project name", "invalid project!".to_string()); // Invalid characters
+
+        let result = run_wizard_with_input(temp.path(), "default", None, &mock).await;
+
+        // Should fail validation
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("alphanumeric"));
+    }
+
+    #[tokio::test]
+    async fn test_wizard_with_mock_input_empty_name() {
+        let temp = TempDir::new().unwrap();
+
+        let mock = MockInput::new().with_string("Project name", "".to_string()); // Empty name
+
+        let result = run_wizard_with_input(temp.path(), "default", None, &mock).await;
+
+        // Should fail validation
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("cannot be empty"));
+    }
+
+    #[tokio::test]
+    async fn test_wizard_with_mock_input_with_scripts() {
+        let temp = TempDir::new().unwrap();
+
+        let mock = MockInput::new()
+            .with_string("Project name", "test-scripts".to_string())
+            .with_string("Project version", "1.0.0".to_string())
+            .with_string("Description (optional)", "".to_string())
+            .with_select("License", 0)
+            .with_select("Lua version", 0)
+            .with_confirm("Add initial dependencies?", false)
+            .with_multiselect(
+                "Set up common scripts? (space to select, enter to confirm)",
+                vec![0, 2],
+            ) // Select dev and build
+            .with_confirm("Create project?", true);
+
+        let result = run_wizard_with_input(temp.path(), "test-scripts", None, &mock).await;
+
+        assert!(result.is_ok());
+        assert!(temp.path().join("package.yaml").exists());
     }
 }
