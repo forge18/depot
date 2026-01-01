@@ -23,6 +23,52 @@ use std::env;
 use std::fs;
 use std::path::Path;
 
+// Trait for user input (for dependency injection in tests)
+pub trait UserInput {
+    fn prompt_string(&self, prompt: &str) -> LpmResult<String>;
+    fn prompt_confirm(&self, prompt: &str, default: bool) -> LpmResult<bool>;
+    fn prompt_select(&self, prompt: &str, items: &[String], default: usize) -> LpmResult<usize>;
+    fn prompt_multiselect(&self, prompt: &str, items: &[String]) -> LpmResult<Vec<usize>>;
+}
+
+// Real implementation using dialoguer
+pub struct DialoguerInput;
+
+impl UserInput for DialoguerInput {
+    fn prompt_string(&self, prompt: &str) -> LpmResult<String> {
+        Input::new()
+            .with_prompt(prompt)
+            .allow_empty(false)
+            .interact_text()
+            .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))
+    }
+
+    fn prompt_confirm(&self, prompt: &str, default: bool) -> LpmResult<bool> {
+        Confirm::new()
+            .with_prompt(prompt)
+            .default(default)
+            .interact()
+            .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))
+    }
+
+    fn prompt_select(&self, prompt: &str, items: &[String], default: usize) -> LpmResult<usize> {
+        Select::new()
+            .with_prompt(prompt)
+            .items(items)
+            .default(default)
+            .interact()
+            .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))
+    }
+
+    fn prompt_multiselect(&self, prompt: &str, items: &[String]) -> LpmResult<Vec<usize>> {
+        MultiSelect::new()
+            .with_prompt(prompt)
+            .items(items)
+            .interact()
+            .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))
+    }
+}
+
 pub struct InstallOptions {
     pub package: Option<String>,
     pub dev: bool,
@@ -762,6 +808,16 @@ pub async fn run_interactive(
     dev: bool,
     manifest: &mut PackageManifest,
 ) -> LpmResult<()> {
+    run_interactive_with_input(project_root, dev, manifest, &DialoguerInput).await
+}
+
+/// Interactive package installation with dependency injection
+pub async fn run_interactive_with_input(
+    project_root: &Path,
+    dev: bool,
+    manifest: &mut PackageManifest,
+    input: &dyn UserInput,
+) -> LpmResult<()> {
     println!("🔍 Interactive Package Installation\n");
 
     // Fetch manifest
@@ -770,11 +826,7 @@ pub async fn run_interactive(
     let luarocks_manifest = container.package_client.fetch_manifest().await?;
 
     // Get search query
-    let query: String = Input::new()
-        .with_prompt("Search for packages")
-        .allow_empty(false)
-        .interact_text()
-        .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))?;
+    let query = input.prompt_string("Search for packages")?;
 
     // Search packages (fuzzy match)
     let matcher = SkimMatcherV2::default();
@@ -810,11 +862,10 @@ pub async fn run_interactive(
     }
 
     // Select packages
-    let selections = MultiSelect::new()
-        .with_prompt("Select packages to install (space to select, enter to confirm)")
-        .items(&package_names)
-        .interact()
-        .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))?;
+    let selections = input.prompt_multiselect(
+        "Select packages to install (space to select, enter to confirm)",
+        &package_names,
+    )?;
 
     if selections.is_empty() {
         println!("No packages selected.");
@@ -858,12 +909,7 @@ pub async fn run_interactive(
 
         // Select version
         println!("Package: {}", package_name);
-        let version_selection = Select::new()
-            .with_prompt("Select version")
-            .items(&sorted_versions)
-            .default(0) // Default to latest
-            .interact()
-            .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))?;
+        let version_selection = input.prompt_select("Select version", &sorted_versions, 0)?;
 
         let selected_version = sorted_versions[version_selection].clone();
 
@@ -887,15 +933,14 @@ pub async fn run_interactive(
         let rockspec = container.package_client.parse_rockspec(&rockspec_content)?;
 
         // Select dependency type (dev or prod)
-        let dep_type_options = vec!["Production dependency", "Development dependency"];
+        let dep_type_options = vec![
+            "Production dependency".to_string(),
+            "Development dependency".to_string(),
+        ];
         let default_dep_type = if dev { 1 } else { 0 };
 
-        let dep_type_selection = Select::new()
-            .with_prompt("Dependency type")
-            .items(&dep_type_options)
-            .default(default_dep_type)
-            .interact()
-            .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))?;
+        let dep_type_selection =
+            input.prompt_select("Dependency type", &dep_type_options, default_dep_type)?;
 
         let is_dev = dep_type_selection == 1;
 
@@ -948,11 +993,10 @@ pub async fn run_interactive(
         println!(); // Empty line between packages
     }
 
-    let confirmed = Confirm::new()
-        .with_prompt(format!("Install {} package(s)?", package_selections.len()))
-        .default(true)
-        .interact()
-        .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))?;
+    let confirmed = input.prompt_confirm(
+        &format!("Install {} package(s)?", package_selections.len()),
+        true,
+    )?;
 
     if !confirmed {
         println!("Cancelled.");
@@ -1143,8 +1187,83 @@ async fn install_workspace_filtered(
 mod tests {
     use super::*;
     use lpm::package::manifest::PackageManifest;
+    use std::collections::HashMap;
     use std::fs;
     use tempfile::TempDir;
+
+    // Mock UserInput for testing
+    struct MockInput {
+        strings: HashMap<&'static str, String>,
+        confirms: HashMap<&'static str, bool>,
+        selects: HashMap<&'static str, usize>,
+        multiselects: HashMap<&'static str, Vec<usize>>,
+    }
+
+    impl MockInput {
+        fn new() -> Self {
+            Self {
+                strings: HashMap::new(),
+                confirms: HashMap::new(),
+                selects: HashMap::new(),
+                multiselects: HashMap::new(),
+            }
+        }
+
+        fn with_string(mut self, prompt: &'static str, value: String) -> Self {
+            self.strings.insert(prompt, value);
+            self
+        }
+
+        fn with_confirm(mut self, prompt: &'static str, value: bool) -> Self {
+            self.confirms.insert(prompt, value);
+            self
+        }
+
+        fn with_select(mut self, prompt: &'static str, index: usize) -> Self {
+            self.selects.insert(prompt, index);
+            self
+        }
+
+        fn with_multiselect(mut self, prompt: &'static str, indices: Vec<usize>) -> Self {
+            self.multiselects.insert(prompt, indices);
+            self
+        }
+    }
+
+    impl UserInput for MockInput {
+        fn prompt_string(&self, prompt: &str) -> LpmResult<String> {
+            self.strings
+                .get(prompt)
+                .cloned()
+                .ok_or_else(|| LpmError::Config(format!("Unexpected prompt: {}", prompt)))
+        }
+
+        fn prompt_confirm(&self, prompt: &str, _default: bool) -> LpmResult<bool> {
+            self.confirms
+                .get(prompt)
+                .copied()
+                .ok_or_else(|| LpmError::Config(format!("Unexpected prompt: {}", prompt)))
+        }
+
+        fn prompt_select(
+            &self,
+            prompt: &str,
+            _items: &[String],
+            _default: usize,
+        ) -> LpmResult<usize> {
+            self.selects
+                .get(prompt)
+                .copied()
+                .ok_or_else(|| LpmError::Config(format!("Unexpected prompt: {}", prompt)))
+        }
+
+        fn prompt_multiselect(&self, prompt: &str, _items: &[String]) -> LpmResult<Vec<usize>> {
+            self.multiselects
+                .get(prompt)
+                .cloned()
+                .ok_or_else(|| LpmError::Config(format!("Unexpected prompt: {}", prompt)))
+        }
+    }
 
     #[test]
     fn test_parse_package_spec_with_version() {
@@ -1671,5 +1790,228 @@ mod tests {
         };
         assert_eq!(name, "pkg");
         assert_eq!(version, Some("v1@v2".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_run_conflicting_flags_no_dev_and_dev_only() {
+        let options = InstallOptions {
+            package: None,
+            dev: false,
+            path: None,
+            no_dev: true,
+            dev_only: true,
+            global: false,
+            interactive: false,
+            filter: vec![],
+        };
+
+        let result = run(options).await;
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Cannot use both --no-dev and --dev-only"));
+    }
+
+    #[tokio::test]
+    async fn test_run_global_without_package() {
+        let options = InstallOptions {
+            package: None,
+            dev: false,
+            path: None,
+            no_dev: false,
+            dev_only: false,
+            global: true,
+            interactive: false,
+            filter: vec![],
+        };
+
+        let result = run(options).await;
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Global installation requires a package name"));
+    }
+
+    #[tokio::test]
+    async fn test_run_global_with_path() {
+        let options = InstallOptions {
+            package: Some("test-pkg".to_string()),
+            dev: false,
+            path: Some("/some/path".to_string()),
+            no_dev: false,
+            dev_only: false,
+            global: true,
+            interactive: false,
+            filter: vec![],
+        };
+
+        let result = run(options).await;
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Cannot install from local path globally"));
+    }
+
+    #[tokio::test]
+    async fn test_run_filter_without_workspace() {
+        let temp = TempDir::new().unwrap();
+
+        // Create a non-workspace project
+        fs::write(
+            temp.path().join("package.yaml"),
+            "name: test\nversion: 1.0.0\n",
+        )
+        .unwrap();
+
+        let original_dir = std::env::current_dir().ok();
+        std::env::set_current_dir(temp.path()).unwrap();
+
+        let options = InstallOptions {
+            package: None,
+            dev: false,
+            path: None,
+            no_dev: false,
+            dev_only: false,
+            global: false,
+            interactive: false,
+            filter: vec!["pkg1".to_string()],
+        };
+
+        let result = run(options).await;
+
+        if let Some(dir) = original_dir {
+            let _ = std::env::set_current_dir(dir);
+        }
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("--filter can only be used in workspace mode"));
+    }
+
+    #[tokio::test]
+    async fn test_run_with_package_and_path() {
+        let temp = TempDir::new().unwrap();
+
+        fs::write(
+            temp.path().join("package.yaml"),
+            "name: test\nversion: 1.0.0\n",
+        )
+        .unwrap();
+
+        let original_dir = std::env::current_dir().ok();
+        std::env::set_current_dir(temp.path()).unwrap();
+
+        let options = InstallOptions {
+            package: Some("test-pkg".to_string()),
+            dev: false,
+            path: Some("/some/path".to_string()),
+            no_dev: false,
+            dev_only: false,
+            global: false,
+            interactive: false,
+            filter: vec![],
+        };
+
+        let result = run(options).await;
+
+        if let Some(dir) = original_dir {
+            let _ = std::env::set_current_dir(dir);
+        }
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Cannot specify both package and --path"));
+    }
+
+    #[tokio::test]
+    async fn test_run_interactive_cancelled() {
+        let temp = TempDir::new().unwrap();
+        let mut manifest = PackageManifest::default("test".to_string());
+
+        let input = MockInput::new()
+            .with_string("Search for packages", "test".to_string())
+            .with_multiselect(
+                "Select packages to install (space to select, enter to confirm)",
+                vec![],
+            );
+
+        let result = run_interactive_with_input(temp.path(), false, &mut manifest, &input).await;
+
+        // Should succeed but do nothing (no packages selected)
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_run_interactive_no_matches() {
+        let temp = TempDir::new().unwrap();
+        let mut manifest = PackageManifest::default("test".to_string());
+
+        let input = MockInput::new().with_string(
+            "Search for packages",
+            "nonexistent-package-xyz-123".to_string(),
+        );
+
+        let result = run_interactive_with_input(temp.path(), false, &mut manifest, &input).await;
+
+        // Should succeed (no packages found)
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_dialoguer_input_trait() {
+        // Test that DialoguerInput implements UserInput
+        let _input: &dyn UserInput = &DialoguerInput;
+    }
+
+    #[test]
+    fn test_mock_input_with_string() {
+        let input = MockInput::new().with_string("Test prompt", "test value".to_string());
+        let result = input.prompt_string("Test prompt");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "test value");
+    }
+
+    #[test]
+    fn test_mock_input_with_confirm() {
+        let input = MockInput::new().with_confirm("Confirm?", true);
+        let result = input.prompt_confirm("Confirm?", false);
+        assert!(result.is_ok());
+        assert!(result.unwrap());
+    }
+
+    #[test]
+    fn test_mock_input_with_select() {
+        let input = MockInput::new().with_select("Choose", 2);
+        let items = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+        let result = input.prompt_select("Choose", &items, 0);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 2);
+    }
+
+    #[test]
+    fn test_mock_input_with_multiselect() {
+        let input = MockInput::new().with_multiselect("Choose", vec![0, 2]);
+        let items = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+        let result = input.prompt_multiselect("Choose", &items);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), vec![0, 2]);
+    }
+
+    #[test]
+    fn test_mock_input_unexpected_prompt() {
+        let input = MockInput::new();
+        let result = input.prompt_string("Unexpected");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Unexpected prompt"));
     }
 }
