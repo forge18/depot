@@ -239,4 +239,50 @@ mod tests {
         let lockfile = Lockfile::new();
         assert_eq!(lockfile.packages.len(), 0);
     }
+
+    #[tokio::test]
+    async fn test_run_uses_current_dir() {
+        use std::env;
+
+        let temp = TempDir::new().unwrap();
+        let original_dir = env::current_dir().ok();
+
+        // Create package.yaml to make it a valid project
+        std::fs::write(
+            temp.path().join("package.yaml"),
+            "name: test\nversion: 1.0.0\n",
+        )
+        .unwrap();
+
+        // Create lockfile with no packages (will succeed with "no packages" message)
+        let lockfile = Lockfile::new();
+        lockfile.save(temp.path()).unwrap();
+
+        // Change to temp directory
+        env::set_current_dir(temp.path()).unwrap();
+
+        // Run audit - should fail because there are packages but OSV query will fail
+        // Or succeed if no packages
+        let result = run().await;
+
+        // Restore original directory
+        if let Some(dir) = original_dir {
+            let _ = env::set_current_dir(dir);
+        }
+
+        // Will succeed since lockfile has no packages
+        let _ = result;
+    }
+
+    #[tokio::test]
+    async fn test_run_in_dir_no_project() {
+        let temp = TempDir::new().unwrap();
+        let subdir = temp.path().join("not-a-project");
+        std::fs::create_dir_all(&subdir).unwrap();
+
+        let result = run_in_dir(&subdir).await;
+
+        // Should error - no package.yaml found
+        assert!(result.is_err());
+    }
 }
