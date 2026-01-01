@@ -255,4 +255,67 @@ mod tests {
         }
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn test_run_current_dir_success() {
+        use std::env;
+
+        let temp = TempDir::new().unwrap();
+        let original_dir = env::current_dir().ok();
+
+        // Create package.yaml
+        fs::write(
+            temp.path().join("package.yaml"),
+            "name: test\nversion: 1.0.0\n",
+        )
+        .unwrap();
+
+        // Create empty lockfile
+        let lockfile = Lockfile::new();
+        lockfile.save(temp.path()).unwrap();
+
+        // Create cache directory
+        fs::create_dir_all(temp.path().join(".lpm").join("cache")).unwrap();
+
+        // Change to temp directory
+        env::set_current_dir(temp.path()).unwrap();
+
+        // Run verify - should succeed with empty lockfile
+        let result = run();
+
+        // Restore original directory
+        if let Some(dir) = original_dir {
+            let _ = env::set_current_dir(dir);
+        }
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_lockfile_load_and_structure() {
+        let temp = TempDir::new().unwrap();
+
+        // Create a lockfile with package data
+        let mut lockfile = Lockfile::new();
+        let package = LockedPackage {
+            version: "1.0.0".to_string(),
+            source: "luarocks".to_string(),
+            rockspec_url: Some("https://example.com/pkg.rockspec".to_string()),
+            source_url: Some("https://example.com/pkg.tar.gz".to_string()),
+            checksum: "blake3:abc123".to_string(),
+            size: Some(1234),
+            dependencies: HashMap::new(),
+            build: None,
+        };
+        lockfile.add_package("test-pkg".to_string(), package);
+
+        // Save and reload
+        lockfile.save(temp.path()).unwrap();
+        let loaded = Lockfile::load(temp.path()).unwrap();
+
+        assert!(loaded.is_some());
+        let loaded = loaded.unwrap();
+        assert!(loaded.has_package("test-pkg"));
+        assert_eq!(loaded.packages.len(), 1);
+    }
 }
