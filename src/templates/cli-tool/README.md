@@ -6,7 +6,7 @@ A command-line tool written in Lua.
 
 ```bash
 # Install dependencies
-lpm install
+depot install
 
 # Make executable (Unix)
 chmod +x src/main.lua
@@ -35,17 +35,17 @@ lua src/main.lua input.txt -o output.txt --verbose
 
 ```bash
 # Install dependencies
-lpm install
+depot install
 
 # Run tests
-lpm run test
+depot run test
 ```
 
 ## Building
 
-To create a standalone executable, you can use `lpm bundle`:
+To create a standalone executable, you can use `depot bundle`:
 
 ```bash
-lpm bundle src/main.lua -o {{project_name}}
+depot bundle src/main.lua -o {{project_name}}
 ```
 

@@ -1,6 +1,6 @@
 //! Tests for `lpm package` command
 
-use super::common::lpm_command;
+use super::common::depot_command;
 use std::fs;
 use tempfile::TempDir;
 
@@ -16,7 +16,7 @@ fn test_package_command() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("package")
         .current_dir(project_root)
         .output()
@@ -38,7 +38,7 @@ fn test_package_without_build_config() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("package")
         .current_dir(project_root)
         .output()
@@ -66,7 +66,7 @@ build:
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("package")
         .current_dir(project_root)
         .output()
@@ -93,7 +93,7 @@ build:
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("package")
         .arg("--target")
         .arg("x86_64-unknown-linux-gnu")

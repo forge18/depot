@@ -7,7 +7,7 @@ fn test_update_all_packages() {
     let ctx = TestContext::new();
 
     // Install an older version
-    ctx.lpm()
+    ctx.depot()
         .arg("install")
         .arg(format!(
             "{}@{}",
@@ -18,7 +18,7 @@ fn test_update_all_packages() {
         .success();
 
     // Update all packages
-    ctx.lpm().arg("update").assert().success();
+    ctx.depot().arg("update").assert().success();
 
     // Verify package is still installed (update should keep it)
     ctx.temp
@@ -33,7 +33,7 @@ fn test_update_specific_package() {
     let ctx = TestContext::new();
 
     // Install a package
-    ctx.lpm()
+    ctx.depot()
         .arg("install")
         .arg(format!(
             "{}@{}",
@@ -44,7 +44,7 @@ fn test_update_specific_package() {
         .success();
 
     // Update specific package
-    ctx.lpm().arg("update").arg("penlight").assert().success();
+    ctx.depot().arg("update").arg("penlight").assert().success();
 
     // Verify package is still installed
     ctx.temp

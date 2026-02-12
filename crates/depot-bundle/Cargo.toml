@@ -1,0 +1,38 @@
+[package]
+name = "depot-bundle"
+version = "0.1.0"
+edition = "2021"
+authors = ["Depot Contributors"]
+description = "Bundle Lua files into a single file (experimental)"
+license = "MIT"
+repository = "https://github.com/yourusername/depot"
+
+[[bin]]
+name = "depot-bundle"
+path = "src/main.rs"
+
+[dependencies]
+# Core Depot utilities
+depot-core = { path = "../depot-core" }
+
+# CLI
+clap = { version = "4.4", features = ["derive"] }
+
+# Regex for require() extraction
+regex = "1.10"
+
+# JSON for source maps
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# YAML parsing (for package.yaml)
+serde_yaml = "0.9"
+
+# Lua parser for better static analysis
+full_moon = "2.1"
+
+# File watching for incremental bundling and watch mode
+notify = "6.1"
+notify-debouncer-mini = "0.3"
+globset = "0.4"
+tokio = { version = "1.35", features = ["full"] }

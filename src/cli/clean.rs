@@ -1,11 +1,11 @@
-use lpm::core::path::{find_project_root, lua_modules_dir};
-use lpm::core::{LpmError, LpmResult};
+use depot::core::path::{find_project_root, lua_modules_dir};
+use depot::core::{DepotError, DepotResult};
 use std::env;
 use std::fs;
 
-pub fn run() -> LpmResult<()> {
+pub fn run() -> DepotResult<()> {
     let current_dir = env::current_dir()
-        .map_err(|e| LpmError::Path(format!("Failed to get current directory: {}", e)))?;
+        .map_err(|e| DepotError::Path(format!("Failed to get current directory: {}", e)))?;
 
     let project_root = find_project_root(&current_dir)?;
     let lua_modules = lua_modules_dir(&project_root);
@@ -29,7 +29,7 @@ pub fn run() -> LpmResult<()> {
     Ok(())
 }
 
-fn count_packages(lua_modules: &std::path::Path) -> LpmResult<usize> {
+fn count_packages(lua_modules: &std::path::Path) -> DepotResult<usize> {
     let mut count = 0;
 
     if lua_modules.exists() {
@@ -37,11 +37,11 @@ fn count_packages(lua_modules: &std::path::Path) -> LpmResult<usize> {
             let entry = entry?;
             let path = entry.path();
 
-            // Skip .lpm metadata directory
+            // Skip .depot metadata directory
             if path
                 .file_name()
                 .and_then(|n| n.to_str())
-                .map(|n| n == ".lpm")
+                .map(|n| n == ".depot")
                 .unwrap_or(false)
             {
                 continue;
@@ -85,11 +85,11 @@ mod tests {
 
         // Create package directories
         fs::create_dir_all(lua_modules.join("package1")).unwrap();
-        // Create .lpm metadata directory (should be skipped)
-        fs::create_dir_all(lua_modules.join(".lpm")).unwrap();
+        // Create .depot metadata directory (should be skipped)
+        fs::create_dir_all(lua_modules.join(".depot")).unwrap();
 
         let count = count_packages(&lua_modules).unwrap();
-        assert_eq!(count, 1); // .lpm should be skipped
+        assert_eq!(count, 1); // .depot should be skipped
     }
 
     #[test]

@@ -1,6 +1,6 @@
-//! Tests for `lpm publish` command
+//! Tests for `depot publish` command
 
-use super::common::lpm_command;
+use super::common::depot_command;
 use std::fs;
 use tempfile::TempDir;
 
@@ -9,7 +9,7 @@ fn test_publish_without_package_yaml() {
     let temp = TempDir::new().unwrap();
     let project_root = temp.path();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("publish")
         .current_dir(project_root)
         .output()
@@ -40,7 +40,7 @@ description: Test project
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("publish")
         .current_dir(project_root)
         .output()
@@ -79,7 +79,7 @@ version: ""
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("publish")
         .current_dir(project_root)
         .output()
@@ -118,7 +118,7 @@ description: Test project
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("publish")
         .current_dir(project_root)
         .output()
@@ -141,7 +141,7 @@ fn test_publish_error_recovery() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("publish")
         .current_dir(project_root)
         .output()

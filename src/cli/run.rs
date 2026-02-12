@@ -1,11 +1,11 @@
-use lpm::core::path::find_project_root;
-use lpm::core::{LpmError, LpmResult};
-use lpm::package::manifest::PackageManifest;
-use lpm::path_setup::{LuaRunner, PathSetup, RunOptions};
-use lpm::workspace::{Workspace, WorkspaceFilter};
+use depot::core::path::find_project_root;
+use depot::core::{DepotError, DepotResult};
+use depot::package::manifest::PackageManifest;
+use depot::path_setup::{LuaRunner, PathSetup, RunOptions};
+use depot::workspace::{Workspace, WorkspaceFilter};
 use std::env;
 
-pub fn run(script_name: String, filter: Vec<String>) -> LpmResult<()> {
+pub fn run(script_name: String, filter: Vec<String>) -> DepotResult<()> {
     let current_dir = env::current_dir()?;
     let project_root = find_project_root(&current_dir)?;
 
@@ -15,7 +15,7 @@ pub fn run(script_name: String, filter: Vec<String>) -> LpmResult<()> {
             let workspace = Workspace::load(&project_root)?;
             return run_workspace_filtered(&workspace, &filter, &script_name);
         } else {
-            return Err(LpmError::Package(
+            return Err(DepotError::Package(
                 "--filter can only be used in workspace mode".to_string(),
             ));
         }
@@ -26,7 +26,7 @@ pub fn run(script_name: String, filter: Vec<String>) -> LpmResult<()> {
 
     // Find the script
     let script_command = manifest.scripts.get(&script_name).ok_or_else(|| {
-        LpmError::Package(format!(
+        DepotError::Package(format!(
             "Script '{}' not found in package.yaml",
             script_name
         ))
@@ -38,7 +38,7 @@ pub fn run(script_name: String, filter: Vec<String>) -> LpmResult<()> {
     // Parse the script command (e.g., "lua src/main.lua" or "luajit -e 'print(1)'")
     let parts: Vec<&str> = script_command.split_whitespace().collect();
     if parts.is_empty() {
-        return Err(LpmError::Package(format!(
+        return Err(DepotError::Package(format!(
             "Script '{}' has no command",
             script_name
         )));
@@ -53,7 +53,7 @@ fn run_workspace_filtered(
     workspace: &Workspace,
     filter_patterns: &[String],
     script_name: &str,
-) -> LpmResult<()> {
+) -> DepotResult<()> {
     // Create filter
     let filter = WorkspaceFilter::new(filter_patterns.to_vec());
 
@@ -138,7 +138,7 @@ fn run_workspace_filtered(
     }
 
     if any_failed {
-        return Err(LpmError::Package(
+        return Err(DepotError::Package(
             "One or more script executions failed".to_string(),
         ));
     }
@@ -203,7 +203,7 @@ mod tests {
 
     #[test]
     fn test_run_function_signature() {
-        let _func: fn(String, Vec<String>) -> LpmResult<()> = run;
+        let _func: fn(String, Vec<String>) -> DepotResult<()> = run;
     }
 
     #[test]

@@ -1,5 +1,5 @@
 use crate::core::version::parse_constraint;
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use crate::package::manifest::PackageManifest;
 use std::collections::HashSet;
 
@@ -8,7 +8,7 @@ pub struct ManifestValidator;
 
 impl ManifestValidator {
     /// Validate a manifest with comprehensive checks
-    pub fn validate(manifest: &PackageManifest) -> LpmResult<()> {
+    pub fn validate(manifest: &PackageManifest) -> DepotResult<()> {
         // Basic validation (already done in manifest.validate())
         manifest.validate()?;
 
@@ -24,10 +24,10 @@ impl ManifestValidator {
         Ok(())
     }
 
-    fn validate_name(name: &str) -> LpmResult<()> {
+    fn validate_name(name: &str) -> DepotResult<()> {
         // Name should be valid identifier
         if name.is_empty() {
-            return Err(LpmError::Package(
+            return Err(DepotError::Package(
                 "Package name cannot be empty".to_string(),
             ));
         }
@@ -37,7 +37,7 @@ impl ManifestValidator {
             .chars()
             .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
         {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Package name '{}' contains invalid characters. Use only alphanumeric, hyphen, or underscore",
                 name
             )));
@@ -45,7 +45,7 @@ impl ManifestValidator {
 
         // Name should not start with hyphen or underscore
         if name.starts_with('-') || name.starts_with('_') {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Package name '{}' cannot start with '-' or '_'",
                 name
             )));
@@ -54,16 +54,16 @@ impl ManifestValidator {
         Ok(())
     }
 
-    fn validate_version_format(version: &str) -> LpmResult<()> {
+    fn validate_version_format(version: &str) -> DepotResult<()> {
         // Try to parse as version to validate format
         if version.is_empty() {
-            return Err(LpmError::Package("Version cannot be empty".to_string()));
+            return Err(DepotError::Package("Version cannot be empty".to_string()));
         }
 
         // Basic SemVer check (major.minor.patch)
         let parts: Vec<&str> = version.split('.').collect();
         if parts.len() > 3 {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Invalid version format '{}'. Expected SemVer format (e.g., '1.2.3')",
                 version
             )));
@@ -72,7 +72,7 @@ impl ManifestValidator {
         // Check each part is numeric
         for part in &parts {
             if !part.chars().all(|c| c.is_ascii_digit()) {
-                return Err(LpmError::Package(format!(
+                return Err(DepotError::Package(format!(
                     "Invalid version format '{}'. Version parts must be numeric",
                     version
                 )));
@@ -82,16 +82,18 @@ impl ManifestValidator {
         Ok(())
     }
 
-    fn validate_lua_version(lua_version: &str) -> LpmResult<()> {
+    fn validate_lua_version(lua_version: &str) -> DepotResult<()> {
         if lua_version.is_empty() {
-            return Err(LpmError::Package("lua_version cannot be empty".to_string()));
+            return Err(DepotError::Package(
+                "lua_version cannot be empty".to_string(),
+            ));
         }
 
         // Check for valid constraint format
         // Allow: "5.4", ">=5.1", "5.1 || 5.3 || 5.4", etc.
         // For now, just check it's not empty and has reasonable length
         if lua_version.len() > 100 {
-            return Err(LpmError::Package(
+            return Err(DepotError::Package(
                 "lua_version constraint is too long".to_string(),
             ));
         }
@@ -99,13 +101,13 @@ impl ManifestValidator {
         Ok(())
     }
 
-    fn validate_dependencies(deps: &std::collections::HashMap<String, String>) -> LpmResult<()> {
+    fn validate_dependencies(deps: &std::collections::HashMap<String, String>) -> DepotResult<()> {
         let mut seen = HashSet::new();
 
         for (name, version) in deps {
             // Check for duplicate dependencies
             if seen.contains(name) {
-                return Err(LpmError::Package(format!(
+                return Err(DepotError::Package(format!(
                     "Duplicate dependency '{}' found",
                     name
                 )));
@@ -117,7 +119,7 @@ impl ManifestValidator {
 
             // Validate version constraint
             parse_constraint(version).map_err(|e| {
-                LpmError::Package(format!(
+                DepotError::Package(format!(
                     "Invalid version constraint '{}' for dependency '{}': {}",
                     version, name, e
                 ))
@@ -129,20 +131,20 @@ impl ManifestValidator {
 
     fn validate_dev_dependencies(
         deps: &std::collections::HashMap<String, String>,
-    ) -> LpmResult<()> {
+    ) -> DepotResult<()> {
         // Same validation as regular dependencies
         Self::validate_dependencies(deps)
     }
 
     fn validate_build_config(
         build: &Option<crate::package::manifest::BuildConfig>,
-    ) -> LpmResult<()> {
+    ) -> DepotResult<()> {
         if let Some(build) = build {
             // Validate build type
             match build.build_type.as_str() {
                 "rust" | "builtin" | "none" => {}
                 _ => {
-                    return Err(LpmError::Package(format!(
+                    return Err(DepotError::Package(format!(
                         "Invalid build type '{}'. Supported types: rust, builtin, none",
                         build.build_type
                     )));
@@ -154,7 +156,7 @@ impl ManifestValidator {
             if build.build_type == "rust" {
                 if let Some(manifest) = &build.manifest {
                     if !manifest.ends_with("Cargo.toml") {
-                        return Err(LpmError::Package(format!(
+                        return Err(DepotError::Package(format!(
                             "Rust build manifest should be 'Cargo.toml', got '{}'",
                             manifest
                         )));
@@ -163,7 +165,7 @@ impl ManifestValidator {
 
                 // Rust builds must specify modules (native Lua modules, not standalone libraries)
                 if build.modules.is_empty() {
-                    return Err(LpmError::Package(
+                    return Err(DepotError::Package(
                         "Rust build must specify 'modules' mapping to native Lua module paths. \
                         Rust code must be compiled as dynamic libraries (.so/.dylib/.dll) \
                         that are part of a Lua module package, not standalone Rust libraries."
@@ -176,14 +178,16 @@ impl ManifestValidator {
         Ok(())
     }
 
-    fn validate_scripts(scripts: &std::collections::HashMap<String, String>) -> LpmResult<()> {
+    fn validate_scripts(scripts: &std::collections::HashMap<String, String>) -> DepotResult<()> {
         for (name, command) in scripts {
             if name.is_empty() {
-                return Err(LpmError::Package("Script name cannot be empty".to_string()));
+                return Err(DepotError::Package(
+                    "Script name cannot be empty".to_string(),
+                ));
             }
 
             if command.is_empty() {
-                return Err(LpmError::Package(format!(
+                return Err(DepotError::Package(format!(
                     "Script '{}' has no command",
                     name
                 )));
@@ -198,7 +202,7 @@ impl ManifestValidator {
                 "publish",
             ];
             if reserved.contains(&name.as_str()) {
-                return Err(LpmError::Package(format!(
+                return Err(DepotError::Package(format!(
                     "Script name '{}' is reserved and cannot be used",
                     name
                 )));

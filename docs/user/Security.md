@@ -1,12 +1,12 @@
 # Security
 
-LPM is designed with security as a priority. This guide covers security features and best practices.
+Depot is designed with security as a priority. This guide covers security features and best practices.
 
 ## Security Features
 
 ### Checksums
 
-All packages are verified using BLAKE3 checksums stored in `lpm.lock`:
+All packages are verified using BLAKE3 checksums stored in `depot.lock`:
 
 ```yaml
 packages:
@@ -20,12 +20,12 @@ BLAKE3 provides faster hashing with cryptographic security guarantees, making pa
 Verify checksums:
 
 ```bash
-lpm verify
+depot verify
 ```
 
 ### No Postinstall Scripts
 
-LPM does not execute arbitrary code during installation. Packages are installed as-is, with no script execution.
+Depot does not execute arbitrary code during installation. Packages are installed as-is, with no script execution.
 
 ### Sandboxed Builds
 
@@ -36,13 +36,13 @@ Rust extensions are built in sandboxed environments with restricted access to:
 
 ### Secure Credential Storage
 
-LPM stores LuaRocks credentials using OS keychains:
+Depot stores LuaRocks credentials using OS keychains:
 - **macOS**: Keychain
 - **Windows**: Credential Manager
 - **Linux**: Secret Service (libsecret)
 
 ```bash
-lpm login  # Credentials stored securely
+depot login  # Credentials stored securely
 ```
 
 ## Security Audit
@@ -50,7 +50,7 @@ lpm login  # Credentials stored securely
 Run security audits on your dependencies:
 
 ```bash
-lpm audit
+depot audit
 ```
 
 Checks for known vulnerabilities using:
@@ -70,23 +70,23 @@ or
    Severity: HIGH
    CVE-2024-XXXXX: Buffer overflow in socket.connect
    Fixed in: 3.0.1
-   Update: lpm update luasocket
+   Update: depot update luasocket
 
 2. penlight@1.12.0
    Severity: MEDIUM
    GHSA-XXXX: Path traversal vulnerability
    Fixed in: 1.13.0
-   Update: lpm update penlight
+   Update: depot update penlight
 ```
 
 ## Best Practices
 
 ### 1. Use Lockfiles
 
-Always commit `lpm.lock` to version control:
+Always commit `depot.lock` to version control:
 
 ```bash
-git add lpm.lock
+git add depot.lock
 git commit -m "Add lockfile"
 ```
 
@@ -101,13 +101,13 @@ Keep dependencies updated:
 
 ```bash
 # Check for updates
-lpm outdated
+depot outdated
 
 # Update all dependencies
-lpm update
+depot update
 
 # Run audit after updates
-lpm audit
+depot audit
 ```
 
 ### 3. Version Constraints
@@ -133,8 +133,8 @@ dependencies:
 Always verify packages before deployment:
 
 ```bash
-lpm verify
-lpm audit
+depot verify
+depot audit
 ```
 
 ### 5. Review Dependencies
@@ -142,13 +142,13 @@ lpm audit
 Regularly review your dependencies:
 
 ```bash
-lpm list --tree
+depot list --tree
 ```
 
 Remove unused dependencies:
 
 ```bash
-lpm remove unused-package
+depot remove unused-package
 ```
 
 ### 6. Use Dev Dependencies
@@ -164,23 +164,23 @@ dev_dependencies:
 Install production dependencies only:
 
 ```bash
-lpm install --no-dev
+depot install --no-dev
 ```
 
 ## Supply Chain Security Checklist
 
-- [ ] `lpm.lock` is committed to version control
-- [ ] Regular security audits (`lpm audit`)
+- [ ] `depot.lock` is committed to version control
+- [ ] Regular security audits (`depot audit`)
 - [ ] Dependencies are kept up to date
 - [ ] Version constraints are specific (not wildcards)
 - [ ] Dev dependencies are separated
-- [ ] Checksums are verified (`lpm verify`)
+- [ ] Checksums are verified (`depot verify`)
 - [ ] Unused dependencies are removed
 - [ ] Pre-built binaries are verified (if used)
 
 ## Reporting Vulnerabilities
 
-If you discover a vulnerability in LPM:
+If you discover a vulnerability in Depot:
 
 1. **Do not** open a public issue
 2. Email security@yourusername.github.io (or your security contact)

@@ -1,6 +1,6 @@
-//! Tests for `lpm remove` command
+//! Tests for `depot remove` command
 
-use super::common::lpm_command;
+use super::common::depot_command;
 use std::fs;
 use tempfile::TempDir;
 
@@ -15,7 +15,7 @@ fn test_remove_nonexistent_package() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("remove")
         .arg("nonexistent-package")
         .current_dir(project_root)
@@ -43,7 +43,7 @@ fn test_remove_package_workflow() {
     .unwrap();
 
     // Try to remove a package (should handle gracefully if not installed)
-    let output = lpm_command()
+    let output = depot_command()
         .arg("remove")
         .arg("nonexistent-package")
         .current_dir(project_root)

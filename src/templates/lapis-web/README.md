@@ -6,7 +6,7 @@ A Lapis web application for OpenResty.
 
 ```bash
 # Install dependencies
-lpm install
+depot install
 
 # Run with OpenResty
 openresty -p . -c nginx.conf
@@ -26,10 +26,10 @@ lapis server
 
 ```bash
 # Install dependencies
-lpm install
+depot install
 
 # Run development server
-lpm run dev
+depot run dev
 ```
 
 ## Resources

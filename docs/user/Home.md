@@ -1,19 +1,19 @@
-# Welcome to LPM Wiki
+# Welcome to Depot Wiki
 
-**LPM - Lua Package Manager**
+**Depot - Lua Package Manager**
 
 Local package management for Lua. Because global installs are legacy.
 
 ## Overview
 
-LPM provides local, project-scoped package management for Lua, similar to npm, cargo, or bundler. It solves the problem of global package installations that cause dependency conflicts and make CI/CD difficult.
+Depot provides local, project-scoped package management for Lua, similar to npm, cargo, or bundler. It solves the problem of global package installations that cause dependency conflicts and make CI/CD difficult.
 
 ## Quick Links
 
 ### User Documentation
 
-- **[Installation Guide](Installation)** - How to install LPM
-- **[Getting Started](Getting-Started)** - Your first LPM project
+- **[Installation Guide](Installation)** - How to install Depot
+- **[Getting Started](Getting-Started)** - Your first Depot project
 - **[CLI Commands](CLI-Commands)** - Complete command reference
 - **[Package Management](Package-Management)** - Managing dependencies
 - **[Lua Version Manager](Lua-Version-Manager)** - Managing Lua versions
@@ -25,19 +25,19 @@ LPM provides local, project-scoped package management for Lua, similar to npm, c
 
 ### Contributor Documentation
 
-- **[Contributing](Contributing)** - How to contribute to LPM
+- **[Contributing](Contributing)** - How to contribute to Depot
 - **[Development Setup](Development-Setup)** - Setting up a development environment
-- **[Architecture](Architecture)** - LPM architecture and design
-- **[Plugin Development](Plugin-Development)** - Creating LPM plugins
+- **[Architecture](Architecture)** - Depot architecture and design
+- **[Plugin Development](Plugin-Development)** - Creating Depot plugins
 - **[Testing](Testing)** - Testing guidelines
 - **[Release Process](Release-Process)** - How releases are created
 
 ## Key Features
 
 - **Local installation** - Dependencies install to `./lua_modules/`, not globally
-- **Lua version manager** - Manage multiple Lua versions (5.1, 5.3, 5.4) with `lpm lua`
-- **Global tool installation** - Install dev tools globally with `lpm install -g` (like npm)
-- **Lockfile support** - Reproducible builds with `lpm.lock`
+- **Lua version manager** - Manage multiple Lua versions (5.1, 5.3, 5.4) with `depot lua`
+- **Global tool installation** - Install dev tools globally with `depot install -g` (like npm)
+- **Lockfile support** - Reproducible builds with `depot.lock`
 - **SemVer version resolution** - Proper dependency conflict resolution
 - **LuaRocks compatible** - Uses LuaRocks as upstream package source
 - **Rust extensions** - Build native Lua modules with Rust, or install Rust packages from LuaRocks

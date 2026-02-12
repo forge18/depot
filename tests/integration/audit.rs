@@ -1,6 +1,6 @@
-//! Tests for `lpm audit` command
+//! Tests for `depot audit` command
 
-use super::common::lpm_command;
+use super::common::depot_command;
 use std::fs;
 use tempfile::TempDir;
 
@@ -15,7 +15,7 @@ fn test_audit_with_no_dependencies() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("audit")
         .current_dir(project_root)
         .output()
@@ -36,7 +36,7 @@ fn test_audit_without_lockfile() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("audit")
         .current_dir(project_root)
         .output()
@@ -44,7 +44,7 @@ fn test_audit_without_lockfile() {
 
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("No lockfile") || stderr.contains("Run 'lpm install'"));
+    assert!(stderr.contains("No lockfile") || stderr.contains("Run 'depot install'"));
 }
 
 #[test]
@@ -73,7 +73,7 @@ packages:
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("audit")
         .current_dir(project_root)
         .output()

@@ -3,7 +3,7 @@
 use super::traits::{CacheProvider, ConfigProvider, PackageClient, SearchProvider};
 use crate::cache::Cache;
 use crate::config::Config;
-use crate::core::LpmResult;
+use crate::core::DepotResult;
 use crate::luarocks::client::LuaRocksClient;
 use crate::luarocks::search_api::SearchAPI;
 use std::sync::Arc;
@@ -22,9 +22,9 @@ use std::sync::Arc;
 /// # Example (Production)
 ///
 /// ```no_run
-/// use lpm::di::ServiceContainer;
+/// use depot::di::ServiceContainer;
 ///
-/// # fn example() -> lpm::core::LpmResult<()> {
+/// # fn example() -> depot::core::DepotResult<()> {
 /// let container = ServiceContainer::new()?;
 /// let config = container.config();
 /// println!("Manifest URL: {}", config.luarocks_manifest_url());
@@ -35,7 +35,7 @@ use std::sync::Arc;
 /// # Example (Testing)
 ///
 /// ```
-/// use lpm::di::{ServiceContainer, mocks::*};
+/// use depot::di::{ServiceContainer, mocks::*};
 /// use std::sync::Arc;
 ///
 /// # fn example() {
@@ -68,7 +68,7 @@ impl ServiceContainer {
     /// Returns an error if:
     /// - Config file cannot be loaded or created
     /// - Cache directory cannot be created
-    pub fn new() -> LpmResult<Self> {
+    pub fn new() -> DepotResult<Self> {
         let config = Config::load()?;
         let cache = Cache::new(config.get_cache_dir()?)?;
 
@@ -88,7 +88,7 @@ impl ServiceContainer {
     /// # Example
     ///
     /// ```
-    /// use lpm::di::{ServiceContainer, mocks::*};
+    /// use depot::di::{ServiceContainer, mocks::*};
     /// use std::sync::Arc;
     ///
     /// # fn example() {
@@ -137,5 +137,143 @@ impl ServiceContainer {
     /// Get the search provider
     pub fn search_provider(&self) -> &dyn SearchProvider {
         self.search_provider.as_ref()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::di::mocks::*;
+
+    #[test]
+    fn test_container_with_providers() {
+        let config = Arc::new(MockConfigProvider::default());
+        let cache = Arc::new(MockCacheProvider::new());
+        let client = Arc::new(MockPackageClient::new());
+        let search = Arc::new(MockSearchProvider::new());
+
+        let container = ServiceContainer::with_providers(
+            config.clone(),
+            cache.clone(),
+            client.clone(),
+            search.clone(),
+        );
+
+        // Verify providers are accessible
+        assert_eq!(
+            container.config().luarocks_manifest_url(),
+            "https://luarocks.org/manifests/luarocks/manifest"
+        );
+    }
+
+    #[test]
+    fn test_container_accessor_methods() {
+        let config = Arc::new(MockConfigProvider::default());
+        let cache = Arc::new(MockCacheProvider::new());
+        let client = Arc::new(MockPackageClient::new());
+        let search = Arc::new(MockSearchProvider::new());
+
+        let container = ServiceContainer::with_providers(
+            config.clone(),
+            cache.clone(),
+            client.clone(),
+            search.clone(),
+        );
+
+        // Test all accessor methods return valid trait objects
+        let _ = container.config();
+        let _ = container.cache();
+        let _ = container.package_client();
+        let _ = container.search_provider();
+    }
+
+    #[test]
+    fn test_container_config_provider() {
+        let config = MockConfigProvider {
+            manifest_url: "https://custom.manifest.org".to_string(),
+            ..Default::default()
+        };
+
+        let container = ServiceContainer::with_providers(
+            Arc::new(config),
+            Arc::new(MockCacheProvider::new()),
+            Arc::new(MockPackageClient::new()),
+            Arc::new(MockSearchProvider::new()),
+        );
+
+        assert_eq!(
+            container.config().luarocks_manifest_url(),
+            "https://custom.manifest.org"
+        );
+    }
+
+    #[test]
+    fn test_container_clone() {
+        let config = Arc::new(MockConfigProvider::default());
+        let cache = Arc::new(MockCacheProvider::new());
+        let client = Arc::new(MockPackageClient::new());
+        let search = Arc::new(MockSearchProvider::new());
+
+        let container = ServiceContainer::with_providers(
+            config.clone(),
+            cache.clone(),
+            client.clone(),
+            search.clone(),
+        );
+
+        let cloned = container.clone();
+
+        // Both should have access to the same providers
+        assert_eq!(
+            container.config().luarocks_manifest_url(),
+            cloned.config().luarocks_manifest_url()
+        );
+    }
+
+    #[test]
+    fn test_container_cache_provider() {
+        let cache = MockCacheProvider::new();
+        let container = ServiceContainer::with_providers(
+            Arc::new(MockConfigProvider::default()),
+            Arc::new(cache),
+            Arc::new(MockPackageClient::new()),
+            Arc::new(MockSearchProvider::new()),
+        );
+
+        let provider = container.cache();
+        assert!(!provider.exists(std::path::Path::new("/nonexistent")));
+    }
+
+    #[test]
+    fn test_container_package_client() {
+        let client = MockPackageClient::new();
+        client.add_rockspec(
+            "https://example.com/test-pkg-1.0.0.rockspec".to_string(),
+            "-- test rockspec".to_string(),
+        );
+
+        let container = ServiceContainer::with_providers(
+            Arc::new(MockConfigProvider::default()),
+            Arc::new(MockCacheProvider::new()),
+            Arc::new(client),
+            Arc::new(MockSearchProvider::new()),
+        );
+
+        let _ = container.package_client();
+    }
+
+    #[test]
+    fn test_container_search_provider() {
+        let search = MockSearchProvider::new();
+        search.add_latest_version("test-pkg".to_string(), "2.0.0".to_string());
+
+        let container = ServiceContainer::with_providers(
+            Arc::new(MockConfigProvider::default()),
+            Arc::new(MockCacheProvider::new()),
+            Arc::new(MockPackageClient::new()),
+            Arc::new(search),
+        );
+
+        let _ = container.search_provider();
     }
 }

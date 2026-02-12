@@ -1,4 +1,4 @@
-use lpm_core::LpmResult;
+use depot_core::DepotResult;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -21,10 +21,10 @@ pub struct TemplateVariable {
 }
 
 impl TemplateMetadata {
-    pub fn load(template_dir: &Path) -> LpmResult<Self> {
+    pub fn load(template_dir: &Path) -> DepotResult<Self> {
         let metadata_path = template_dir.join("template.yaml");
         if !metadata_path.exists() {
-            return Err(lpm_core::LpmError::Config(format!(
+            return Err(depot_core::DepotError::Config(format!(
                 "Template metadata not found: {}",
                 metadata_path.display()
             )));

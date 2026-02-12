@@ -6,7 +6,7 @@ fn test_global_install() {
     TestContext::require_network();
     let ctx = TestContext::new();
 
-    ctx.lpm()
+    ctx.depot()
         .arg("install")
         .arg("-g")
         .arg(format!(
@@ -19,7 +19,7 @@ fn test_global_install() {
 
     // Verify global installation directory exists
     // Note: Each test gets its own isolated global directory via TestContext
-    let global_dir = ctx.lpm_home.join("global");
+    let global_dir = ctx.depot_home.join("global");
     assert!(global_dir.exists(), "Global directory not created");
 }
 
@@ -30,7 +30,7 @@ fn test_global_list() {
     let ctx = TestContext::new();
 
     // Install a global package first
-    ctx.lpm()
+    ctx.depot()
         .arg("install")
         .arg("-g")
         .arg(format!(
@@ -42,7 +42,7 @@ fn test_global_list() {
         .success();
 
     // List global packages
-    ctx.lpm()
+    ctx.depot()
         .arg("list")
         .arg("--global")
         .assert()
@@ -57,7 +57,7 @@ fn test_global_remove() {
     let ctx = TestContext::new();
 
     // Install then remove
-    ctx.lpm()
+    ctx.depot()
         .arg("install")
         .arg("-g")
         .arg(format!(
@@ -68,7 +68,7 @@ fn test_global_remove() {
         .assert()
         .success();
 
-    ctx.lpm()
+    ctx.depot()
         .arg("remove")
         .arg("-g")
         .arg("luacheck")
@@ -76,7 +76,7 @@ fn test_global_remove() {
         .success();
 
     // Verify it's gone
-    ctx.lpm()
+    ctx.depot()
         .arg("list")
         .arg("--global")
         .assert()

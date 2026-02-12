@@ -1,14 +1,14 @@
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use std::path::{Path, PathBuf};
 
 // Re-export all path functions from lpm-core
-pub use lpm_core::core::path::*;
+pub use depot_core::core::path::*;
 
 /// Find the project root by looking for package.yaml or workspace.yaml
 /// 
 /// This is an enhanced version that includes workspace support.
 /// It checks for workspace.yaml first, then falls back to package.yaml.
-pub fn find_project_root(start: &Path) -> LpmResult<PathBuf> {
+pub fn find_project_root(start: &Path) -> DepotResult<PathBuf> {
     let mut current = start.to_path_buf();
 
     loop {
@@ -26,7 +26,7 @@ pub fn find_project_root(start: &Path) -> LpmResult<PathBuf> {
         if let Some(parent) = current.parent() {
             current = parent.to_path_buf();
         } else {
-            return Err(LpmError::Path(
+            return Err(DepotError::Path(
                 "Could not find package.yaml or workspace.yaml in current directory or parents".to_string(),
             ));
         }

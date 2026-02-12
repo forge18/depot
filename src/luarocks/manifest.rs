@@ -1,4 +1,4 @@
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -45,9 +45,9 @@ impl Manifest {
     ///     }
     ///   }
     /// }
-    pub fn parse_json(content: &str) -> LpmResult<Self> {
+    pub fn parse_json(content: &str) -> DepotResult<Self> {
         let json: ManifestJson = serde_json::from_str(content)
-            .map_err(|e| LpmError::Package(format!("Failed to parse manifest JSON: {}", e)))?;
+            .map_err(|e| DepotError::Package(format!("Failed to parse manifest JSON: {}", e)))?;
 
         // The JSON structure is: {"repository": {"package_name": {"version": [...]}}}
         // So json.repository is already the packages map
@@ -90,8 +90,8 @@ impl Manifest {
     }
 
     /// Parse manifest from Lua table format (legacy, not implemented)
-    pub fn parse_lua(_content: &str) -> LpmResult<Self> {
-        Err(LpmError::NotImplemented(
+    pub fn parse_lua(_content: &str) -> DepotResult<Self> {
+        Err(DepotError::NotImplemented(
             "Lua manifest parsing not implemented. Use JSON format instead.".to_string(),
         ))
     }
@@ -245,7 +245,7 @@ mod tests {
         let result = Manifest::parse_lua("some lua content");
         assert!(result.is_err());
         match result {
-            Err(LpmError::NotImplemented(_)) => {}
+            Err(DepotError::NotImplemented(_)) => {}
             _ => panic!("Expected NotImplemented error"),
         }
     }

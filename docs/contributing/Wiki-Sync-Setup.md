@@ -1,6 +1,6 @@
 # Wiki Sync Setup Guide
 
-This guide will help you set up automatic wiki synchronization for the LPM project.
+This guide will help you set up automatic wiki synchronization for the Depot project.
 
 ## Quick Setup (5 minutes)
 
@@ -9,7 +9,7 @@ This guide will help you set up automatic wiki synchronization for the LPM proje
 1. Go to: https://github.com/settings/tokens
 2. Click **"Generate new token"** → **"Generate new token (classic)"**
 3. Fill in the form:
-   - **Note:** `LPM Wiki Sync` (or any descriptive name)
+   - **Note:** `Depot Wiki Sync` (or any descriptive name)
    - **Expiration:** Choose your preference (90 days, 1 year, or no expiration)
    - **Scopes:** Check the `repo` checkbox (this gives "Full control of private repositories")
 4. Scroll down and click **"Generate token"**
@@ -17,7 +17,7 @@ This guide will help you set up automatic wiki synchronization for the LPM proje
 
 ### Step 2: Add Token as Repository Secret
 
-1. Go to your LPM repository on GitHub
+1. Go to your Depot repository on GitHub
 2. Click **Settings** (top menu)
 3. In the left sidebar, click **Secrets and variables** → **Actions**
 4. Click **"New repository secret"**

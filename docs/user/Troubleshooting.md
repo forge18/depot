@@ -1,17 +1,17 @@
 # Troubleshooting
 
-Common issues and solutions when using LPM.
+Common issues and solutions when using Depot.
 
 ## Installation Issues
 
 ### "command not found: lpm"
 
-**Problem**: LPM is not in your PATH.
+**Problem**: Depot is not in your PATH.
 
 **Solution**:
 ```bash
 # Run setup command
-lpm setup-path
+depot setup-path
 
 # Or manually add to PATH
 export PATH="$HOME/.cargo/bin:$PATH"
@@ -52,7 +52,7 @@ clang --version
 
 **Solution**:
 1. Check package name on [LuaRocks](https://luarocks.org/)
-2. Verify spelling: `lpm install luasocket` (not `luasoket`)
+2. Verify spelling: `depot install luasocket` (not `luasoket`)
 3. Try searching: Check LuaRocks for exact package name
 
 ### "Version conflict"
@@ -62,10 +62,10 @@ clang --version
 **Solution**:
 ```bash
 # See the conflict details
-lpm install
+depot install
 
 # Update to compatible versions
-lpm update <package>
+depot update <package>
 
 # Or manually edit package.yaml to resolve
 ```
@@ -77,12 +77,12 @@ lpm update <package>
 **Solution**:
 ```bash
 # Clean and reinstall
-lpm clean
-lpm install
+depot clean
+depot install
 
 # If problem persists, check network connection
 # or try updating the package
-lpm update <package>
+depot update <package>
 ```
 
 ## Build Issues
@@ -91,22 +91,22 @@ lpm update <package>
 
 **Problem**: macOS frameworks not found during cross-compilation.
 
-**Solution**: This is handled automatically by LPM. If it persists:
+**Solution**: This is handled automatically by Depot. If it persists:
 ```bash
 # Ensure SDK is available
 xcrun --show-sdk-path
 
 # Rebuild
-lpm build
+depot build
 ```
 
 ### Rust Extension: "OpenSSL not found" (Linux)
 
 **Problem**: OpenSSL required for native-tls.
 
-**Solution**: LPM uses `rustls-tls` by default (no OpenSSL needed). If you see this error:
+**Solution**: Depot uses `rustls-tls` by default (no OpenSSL needed). If you see this error:
 1. Check your `Cargo.toml` - ensure `reqwest` uses `rustls-tls`
-2. Rebuild: `lpm build`
+2. Rebuild: `depot build`
 
 ### "Target not supported"
 
@@ -114,7 +114,7 @@ lpm build
 
 **Solution**: Check supported targets:
 ```bash
-lpm build --help
+depot build --help
 ```
 
 Common targets:
@@ -131,20 +131,20 @@ Common targets:
 **Problem**: Module not in `package.path`.
 
 **Solution**:
-1. Ensure you're using LPM's loader:
+1. Ensure you're using Depot's loader:
    ```lua
    require("lpm.loader")  -- Sets up package.path
    local mymodule = require("mymodule")
    ```
 
-2. Or use `lpm exec`:
+2. Or use `depot exec`:
    ```bash
-   lpm exec lua main.lua
+   depot exec lua main.lua
    ```
 
 3. Verify package is installed:
    ```bash
-   lpm list
+   depot list
    ```
 
 ### "attempt to call a nil value"
@@ -155,11 +155,11 @@ Common targets:
 1. Check `package.cpath` includes `lua_modules/`
 2. Verify native module exists:
    ```bash
-   ls lua_modules/.lpm/native/
+   ls lua_modules/.depot/native/
    ```
 3. Rebuild if needed:
    ```bash
-   lpm build
+   depot build
    ```
 
 ## Performance Issues
@@ -174,12 +174,12 @@ Common targets:
 rm -rf ~/.cache/lpm
 
 # Try again
-lpm install
+depot install
 ```
 
 ### Large lockfile
 
-**Problem**: `lpm.lock` is very large.
+**Problem**: `depot.lock` is very large.
 
 **Solution**: This is normal for projects with many dependencies. The lockfile ensures reproducibility.
 
@@ -188,19 +188,19 @@ lpm install
 ### Enable Debug Output
 
 ```bash
-RUST_LOG=debug lpm install
+RUST_LOG=debug depot install
 ```
 
 ### Check Version
 
 ```bash
-lpm --version
+depot --version
 ```
 
 ### Verify Installation
 
 ```bash
-# Check if LPM can find itself
+# Check if Depot can find itself
 which lpm
 
 # Check PATH
@@ -209,9 +209,9 @@ echo $PATH
 
 ## Common Error Messages
 
-### "Already in an LPM project"
+### "Already in an Depot project"
 
-You're trying to run `lpm init` in a directory that already has `package.yaml`.
+You're trying to run `depot init` in a directory that already has `package.yaml`.
 
 **Solution**: Either remove `package.yaml` or work in a different directory.
 
@@ -222,17 +222,17 @@ Dependency resolution failed due to conflicts.
 **Solution**: 
 ```bash
 # See detailed error
-lpm install
+depot install
 
 # Try updating
-lpm update
+depot update
 
 # Or manually resolve in package.yaml
 ```
 
 ### "Permission denied"
 
-LPM doesn't have permission to write to `lua_modules/`.
+Depot doesn't have permission to write to `lua_modules/`.
 
 **Solution**:
 ```bash
@@ -249,7 +249,7 @@ chmod -R u+w lua_modules/
 2. Review the [CLI Commands](CLI-Commands) documentation
 3. Check [Security](Security) for security-related issues
 4. Open a new issue with:
-   - LPM version (`lpm --version`)
+   - Depot version (`depot --version`)
    - Error message
    - Steps to reproduce
    - Your `package.yaml` (if relevant)

@@ -1,8 +1,8 @@
-//! Performance benchmarks for LPM
+//! Performance benchmarks for Depot
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use lpm::core::version::{parse_constraint, Version};
-use lpm::package::manifest::PackageManifest;
+use depot::core::version::{parse_constraint, Version};
+use depot::package::manifest::PackageManifest;
 
 fn benchmark_version_parsing(c: &mut Criterion) {
     c.bench_function("parse_version", |b| {

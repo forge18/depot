@@ -1,5 +1,5 @@
 use super::*;
-use lpm::package::lockfile::Lockfile;
+use depot::package::lockfile::Lockfile;
 
 #[test]
 #[ignore = "requires network access to download packages"]
@@ -18,7 +18,7 @@ dependencies:
 
     // Note: No timeout - let CI handle overall job timeout
     // This test is marked #[ignore = "reason"] so it won't run in fast test suite
-    ctx.lpm()
+    ctx.depot()
         .arg("install")
         .assert()
         .success()
@@ -53,9 +53,9 @@ dependencies:
 "#,
     );
 
-    ctx.lpm().arg("install").assert().success();
+    ctx.depot().arg("install").assert().success();
 
-    // Verify lockfile structure by parsing it using LPM's actual parser
+    // Verify lockfile structure by parsing it using Depot's actual parser
     // This verifies the structure matches the expected format instead of string matching
     let lockfile = Lockfile::load(ctx.temp.path())
         .expect("Failed to load lockfile")
@@ -89,7 +89,7 @@ fn install_specific_package_adds_to_yaml() {
 
     ctx.create_package_yaml("name: test\nversion: 1.0.0\n");
 
-    ctx.lpm()
+    ctx.depot()
         .arg("install")
         .arg("penlight@1.13.1")
         .assert()
@@ -113,7 +113,7 @@ fn install_with_dev_flag() {
 
     ctx.create_package_yaml("name: test\nversion: 1.0.0\n");
 
-    ctx.lpm()
+    ctx.depot()
         .arg("install")
         .arg("--dev")
         .arg("busted@2.0.0")
@@ -133,7 +133,7 @@ fn install_with_dev_flag() {
 fn install_without_package_yaml_fails() {
     let ctx = TestContext::new();
 
-    ctx.lpm().arg("install").assert().failure().stderr(
+    ctx.depot().arg("install").assert().failure().stderr(
         predicate::str::contains("package.yaml")
             .or(predicate::str::contains("Could not find"))
             .or(predicate::str::contains("not found")),
@@ -148,7 +148,7 @@ fn install_with_invalid_version_fails() {
 
     ctx.create_package_yaml("name: test\nversion: 1.0.0\n");
 
-    ctx.lpm()
+    ctx.depot()
         .arg("install")
         .arg("penlight@999.999.999")
         .assert()
@@ -167,7 +167,7 @@ fn install_nonexistent_package_fails() {
 
     ctx.create_package_yaml("name: test\nversion: 1.0.0\n");
 
-    ctx.lpm()
+    ctx.depot()
         .arg("install")
         .arg("nonexistent-package-xyz-12345")
         .assert()

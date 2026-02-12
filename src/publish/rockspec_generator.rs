@@ -1,5 +1,5 @@
 use crate::core::version::{parse_constraint, Version, VersionConstraint};
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use crate::luarocks::version::to_luarocks_version;
 use crate::package::manifest::PackageManifest;
 
@@ -8,7 +8,7 @@ pub struct RockspecGenerator;
 
 impl RockspecGenerator {
     /// Generate a rockspec file content from a PackageManifest
-    pub fn generate(manifest: &PackageManifest) -> LpmResult<String> {
+    pub fn generate(manifest: &PackageManifest) -> DepotResult<String> {
         // Convert version to LuaRocks format (e.g., "1.2.3" -> "1.2-1")
         let luarocks_version = to_luarocks_version(&Version::parse(&manifest.version)?);
 
@@ -80,7 +80,7 @@ impl RockspecGenerator {
                     rockspec.push_str("  type = \"none\",\n");
                 }
                 _ => {
-                    return Err(LpmError::Package(format!(
+                    return Err(DepotError::Package(format!(
                         "Unsupported build type for rockspec: {}",
                         build.build_type
                     )));
@@ -95,7 +95,7 @@ impl RockspecGenerator {
     }
 
     /// Format a dependency in LuaRocks format
-    fn format_dependency(name: &str, version: &str) -> LpmResult<String> {
+    fn format_dependency(name: &str, version: &str) -> DepotResult<String> {
         if version == "*" || version.is_empty() {
             return Ok(name.to_string());
         }

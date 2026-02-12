@@ -1,10 +1,10 @@
-//! Tests for `lpm plugin` commands
+//! Tests for `depot plugin` commands
 
-use super::common::lpm_command;
+use super::common::depot_command;
 
 #[test]
 fn test_plugin_list() {
-    let output = lpm_command().arg("plugin").arg("list").output().unwrap();
+    let output = depot_command().arg("plugin").arg("list").output().unwrap();
 
     // Should succeed (may show empty list)
     assert!(output.status.code().is_some());
@@ -12,7 +12,7 @@ fn test_plugin_list() {
 
 #[test]
 fn test_plugin_info_nonexistent() {
-    let output = lpm_command()
+    let output = depot_command()
         .arg("plugin")
         .arg("info")
         .arg("nonexistent-plugin")
@@ -25,7 +25,11 @@ fn test_plugin_info_nonexistent() {
 
 #[test]
 fn test_plugin_search() {
-    let output = lpm_command().arg("plugin").arg("search").output().unwrap();
+    let output = depot_command()
+        .arg("plugin")
+        .arg("search")
+        .output()
+        .unwrap();
 
     // May succeed or fail depending on network/registry
     assert!(output.status.code().is_some());
@@ -33,7 +37,7 @@ fn test_plugin_search() {
 
 #[test]
 fn test_plugin_search_with_query() {
-    let output = lpm_command()
+    let output = depot_command()
         .arg("plugin")
         .arg("search")
         .arg("test")
@@ -46,7 +50,7 @@ fn test_plugin_search_with_query() {
 
 #[test]
 fn test_plugin_outdated() {
-    let output = lpm_command()
+    let output = depot_command()
         .arg("plugin")
         .arg("outdated")
         .output()
@@ -58,7 +62,7 @@ fn test_plugin_outdated() {
 
 #[test]
 fn test_plugin_config_get_nonexistent() {
-    let output = lpm_command()
+    let output = depot_command()
         .arg("plugin")
         .arg("config")
         .arg("get")
@@ -74,7 +78,7 @@ fn test_plugin_config_get_nonexistent() {
 
 #[test]
 fn test_plugin_config_show_nonexistent() {
-    let output = lpm_command()
+    let output = depot_command()
         .arg("plugin")
         .arg("config")
         .arg("show")
@@ -89,7 +93,7 @@ fn test_plugin_config_show_nonexistent() {
 
 #[test]
 fn test_plugin_update_nonexistent() {
-    let output = lpm_command()
+    let output = depot_command()
         .arg("plugin")
         .arg("update")
         .arg("nonexistent-plugin")

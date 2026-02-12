@@ -1,7 +1,7 @@
 use clap::Subcommand;
-use lpm::core::path::lpm_home;
-use lpm::core::{LpmError, LpmResult};
-use lpm::lua_manager::{LuaDownloader, VersionSwitcher, WrapperGenerator};
+use depot::core::path::depot_home;
+use depot::core::{DepotError, DepotResult};
+use depot::lua_manager::{LuaDownloader, VersionSwitcher, WrapperGenerator};
 use std::env;
 use std::path::Path;
 use std::process::Command;
@@ -47,30 +47,30 @@ pub enum LuaCommands {
     },
 }
 
-pub async fn run(command: LuaCommands) -> LpmResult<()> {
-    let lpm_home = lpm_home()?;
-    let cache_dir = lpm::core::path::cache_dir()?;
+pub async fn run(command: LuaCommands) -> DepotResult<()> {
+    let depot_home = depot_home()?;
+    let cache_dir = depot::core::path::cache_dir()?;
 
     match command {
-        LuaCommands::List => list_installed(&lpm_home),
+        LuaCommands::List => list_installed(&depot_home),
         LuaCommands::ListRemote => list_remote(&cache_dir),
-        LuaCommands::Install { version } => install(&lpm_home, &cache_dir, &version).await,
-        LuaCommands::Use { version } => use_version(&lpm_home, &version),
-        LuaCommands::Local { version } => set_local(&lpm_home, &version),
-        LuaCommands::Current => show_current(&lpm_home),
-        LuaCommands::Which => show_which(&lpm_home),
-        LuaCommands::Uninstall { version } => uninstall(&lpm_home, &version),
-        LuaCommands::Exec { version, command } => exec(&lpm_home, &version, command),
+        LuaCommands::Install { version } => install(&depot_home, &cache_dir, &version).await,
+        LuaCommands::Use { version } => use_version(&depot_home, &version),
+        LuaCommands::Local { version } => set_local(&depot_home, &version),
+        LuaCommands::Current => show_current(&depot_home),
+        LuaCommands::Which => show_which(&depot_home),
+        LuaCommands::Uninstall { version } => uninstall(&depot_home, &version),
+        LuaCommands::Exec { version, command } => exec(&depot_home, &version, command),
     }
 }
 
-fn list_installed(lpm_home: &Path) -> LpmResult<()> {
-    let switcher = VersionSwitcher::new(lpm_home);
+fn list_installed(depot_home: &Path) -> DepotResult<()> {
+    let switcher = VersionSwitcher::new(depot_home);
     let versions = switcher.list_installed()?;
 
     if versions.is_empty() {
         println!("No Lua versions installed.");
-        println!("Install one with: lpm lua install <version>");
+        println!("Install one with: depot lua install <version>");
         return Ok(());
     }
 
@@ -86,7 +86,7 @@ fn list_installed(lpm_home: &Path) -> LpmResult<()> {
     Ok(())
 }
 
-fn list_remote(_cache_dir: &Path) -> LpmResult<()> {
+fn list_remote(_cache_dir: &Path) -> DepotResult<()> {
     // For now, just show the known versions
     // In the future, we could fetch from GitHub releases API
     println!("Available Lua versions:");
@@ -95,13 +95,13 @@ fn list_remote(_cache_dir: &Path) -> LpmResult<()> {
     println!("  5.4.8");
     println!();
     println!("Note: Other versions may be available with custom sources.");
-    println!("Configure with: lpm config set lua_binary_sources.<version> <url>");
+    println!("Configure with: depot config set lua_binary_sources.<version> <url>");
     Ok(())
 }
 
-async fn install(lpm_home: &Path, cache_dir: &Path, version: &str) -> LpmResult<()> {
+async fn install(depot_home: &Path, cache_dir: &Path, version: &str) -> DepotResult<()> {
     let downloader = LuaDownloader::new(cache_dir.to_path_buf())?;
-    let switcher = VersionSwitcher::new(lpm_home);
+    let switcher = VersionSwitcher::new(depot_home);
     let resolved_version = downloader.resolve_version(version);
 
     // Check if already installed
@@ -120,7 +120,7 @@ async fn install(lpm_home: &Path, cache_dir: &Path, version: &str) -> LpmResult<
         .await?;
 
     // Install to versions directory
-    let install_dir = lpm_home.join("versions").join(&resolved_version);
+    let install_dir = depot_home.join("versions").join(&resolved_version);
     let bin_dir = install_dir.join("bin");
     std::fs::create_dir_all(&bin_dir)?;
 
@@ -140,12 +140,12 @@ async fn install(lpm_home: &Path, cache_dir: &Path, version: &str) -> LpmResult<
     }
 
     // Generate wrappers (if first install)
-    let wrapper_gen = WrapperGenerator::new(lpm_home);
+    let wrapper_gen = WrapperGenerator::new(depot_home);
     wrapper_gen.generate()?; // Always generate/re-generate to ensure they are up-to-date
 
     println!("✓ Successfully installed Lua {}", resolved_version);
     println!();
-    println!("Use it with: lpm lua use {}", resolved_version);
+    println!("Use it with: depot lua use {}", resolved_version);
 
     // Auto-use if it's the first version installed
     if installed.is_empty() {
@@ -155,25 +155,25 @@ async fn install(lpm_home: &Path, cache_dir: &Path, version: &str) -> LpmResult<
     Ok(())
 }
 
-fn use_version(lpm_home: &Path, version: &str) -> LpmResult<()> {
-    let switcher = VersionSwitcher::new(lpm_home);
+fn use_version(depot_home: &Path, version: &str) -> DepotResult<()> {
+    let switcher = VersionSwitcher::new(depot_home);
     switcher.switch(version)
 }
 
-fn set_local(lpm_home: &Path, version: &str) -> LpmResult<()> {
-    let switcher = VersionSwitcher::new(lpm_home);
+fn set_local(depot_home: &Path, version: &str) -> DepotResult<()> {
+    let switcher = VersionSwitcher::new(depot_home);
     let current_dir = env::current_dir()?;
     switcher.set_local(version, &current_dir)
 }
 
-fn show_current(lpm_home: &Path) -> LpmResult<()> {
-    let switcher = VersionSwitcher::new(lpm_home);
+fn show_current(depot_home: &Path) -> DepotResult<()> {
+    let switcher = VersionSwitcher::new(depot_home);
     let version = switcher.current()?;
     println!("{}", version);
     Ok(())
 }
 
-fn show_which(lpm_home: &Path) -> LpmResult<()> {
+fn show_which(depot_home: &Path) -> DepotResult<()> {
     let current_dir = env::current_dir()?;
     let mut dir = current_dir.clone();
     let mut project_version = None;
@@ -197,7 +197,7 @@ fn show_which(lpm_home: &Path) -> LpmResult<()> {
     if let Some(ver) = project_version {
         println!("{} (from .lua-version)", ver);
     } else {
-        let switcher = VersionSwitcher::new(lpm_home);
+        let switcher = VersionSwitcher::new(depot_home);
         let version = switcher.current()?;
         println!("{} (global)", version);
     }
@@ -205,12 +205,12 @@ fn show_which(lpm_home: &Path) -> LpmResult<()> {
     Ok(())
 }
 
-fn uninstall(lpm_home: &Path, version: &str) -> LpmResult<()> {
-    let switcher = VersionSwitcher::new(lpm_home);
-    let version_dir = lpm_home.join("versions").join(version);
+fn uninstall(depot_home: &Path, version: &str) -> DepotResult<()> {
+    let switcher = VersionSwitcher::new(depot_home);
+    let version_dir = depot_home.join("versions").join(version);
 
     if !version_dir.exists() {
-        return Err(LpmError::Package(format!(
+        return Err(DepotError::Package(format!(
             "Lua {} is not installed.",
             version
         )));
@@ -219,9 +219,9 @@ fn uninstall(lpm_home: &Path, version: &str) -> LpmResult<()> {
     // Check if it's the current version
     if let Ok(current) = switcher.current() {
         if current == version {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Cannot uninstall Lua {} because it is currently active.\n\
-                 Switch to another version first: lpm lua use <version>",
+                 Switch to another version first: depot lua use <version>",
                 version
             )));
         }
@@ -232,17 +232,17 @@ fn uninstall(lpm_home: &Path, version: &str) -> LpmResult<()> {
     Ok(())
 }
 
-fn exec(lpm_home: &Path, version: &str, command: Vec<String>) -> LpmResult<()> {
+fn exec(depot_home: &Path, version: &str, command: Vec<String>) -> DepotResult<()> {
     if command.is_empty() {
-        return Err(LpmError::Package("No command provided".to_string()));
+        return Err(DepotError::Package("No command provided".to_string()));
     }
 
-    let version_dir = lpm_home.join("versions").join(version);
+    let version_dir = depot_home.join("versions").join(version);
     let lua_bin = version_dir.join("bin").join("lua");
 
     if !lua_bin.exists() {
-        return Err(LpmError::Package(format!(
-            "Lua {} is not installed. Run: lpm lua install {}",
+        return Err(DepotError::Package(format!(
+            "Lua {} is not installed. Run: depot lua install {}",
             version, version
         )));
     }

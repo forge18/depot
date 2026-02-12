@@ -1,6 +1,6 @@
-//! Tests for `lpm verify` command
+//! Tests for `depot verify` command
 
-use super::common::lpm_command;
+use super::common::depot_command;
 use std::fs;
 use tempfile::TempDir;
 
@@ -15,7 +15,7 @@ fn test_verify_with_no_lockfile() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("verify")
         .current_dir(project_root)
         .output()
@@ -46,7 +46,7 @@ fn test_verify_with_empty_lockfile() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("verify")
         .current_dir(project_root)
         .output()
@@ -62,7 +62,7 @@ fn test_verify_without_package_yaml() {
     let temp = TempDir::new().unwrap();
     let project_root = temp.path();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("verify")
         .current_dir(project_root)
         .output()

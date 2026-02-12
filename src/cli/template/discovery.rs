@@ -1,6 +1,6 @@
 use super::metadata::TemplateMetadata;
-use lpm_core::core::path::lpm_home;
-use lpm_core::{LpmError, LpmResult};
+use depot_core::core::path::depot_home;
+use depot_core::{DepotError, DepotResult};
 use std::path::{Path, PathBuf};
 
 /// Discovers available templates from built-in and user locations
@@ -8,8 +8,8 @@ pub struct TemplateDiscovery;
 
 impl TemplateDiscovery {
     /// Get the user templates directory
-    pub fn user_templates_dir() -> LpmResult<PathBuf> {
-        Ok(lpm_home()?.join("templates"))
+    pub fn user_templates_dir() -> DepotResult<PathBuf> {
+        Ok(depot_home()?.join("templates"))
     }
 
     /// Get built-in templates directory (in the binary/resources)
@@ -39,7 +39,7 @@ impl TemplateDiscovery {
     }
 
     /// List all available templates
-    pub fn list_templates() -> LpmResult<Vec<TemplateInfo>> {
+    pub fn list_templates() -> DepotResult<Vec<TemplateInfo>> {
         let mut templates = Vec::new();
 
         // Check built-in templates
@@ -61,7 +61,7 @@ impl TemplateDiscovery {
         Ok(templates)
     }
 
-    fn discover_in_dir(dir: &Path, source: TemplateSource) -> LpmResult<Vec<TemplateInfo>> {
+    fn discover_in_dir(dir: &Path, source: TemplateSource) -> DepotResult<Vec<TemplateInfo>> {
         let mut templates = Vec::new();
 
         if !dir.exists() || !dir.is_dir() {
@@ -101,7 +101,7 @@ impl TemplateDiscovery {
     }
 
     /// Find a template by name
-    pub fn find_template(name: &str) -> LpmResult<TemplateInfo> {
+    pub fn find_template(name: &str) -> DepotResult<TemplateInfo> {
         // First check user templates (higher priority)
         if let Ok(user_dir) = Self::user_templates_dir() {
             if user_dir.exists() {
@@ -131,7 +131,7 @@ impl TemplateDiscovery {
             });
         }
 
-        Err(LpmError::Config(format!("Template '{}' not found", name)))
+        Err(DepotError::Config(format!("Template '{}' not found", name)))
     }
 }
 
@@ -145,7 +145,7 @@ mod tests {
     fn test_user_templates_dir() {
         // Test that user_templates_dir returns a valid path
         let result = TemplateDiscovery::user_templates_dir();
-        // May fail if lpm_home() fails, but tests the function exists
+        // May fail if depot_home() fails, but tests the function exists
         let _ = result;
     }
 

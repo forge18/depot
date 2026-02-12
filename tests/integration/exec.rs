@@ -1,6 +1,6 @@
-//! Tests for `lpm exec` command
+//! Tests for `depot exec` command
 
-use super::common::lpm_command;
+use super::common::depot_command;
 use std::fs;
 use tempfile::TempDir;
 
@@ -15,7 +15,7 @@ fn test_exec_no_command() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("exec")
         .current_dir(project_root)
         .output()
@@ -31,7 +31,7 @@ fn test_exec_without_package_yaml() {
     let temp = TempDir::new().unwrap();
     let project_root = temp.path();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("exec")
         .arg("lua")
         .arg("-e")
@@ -56,7 +56,7 @@ fn test_exec_with_command() {
     .unwrap();
 
     // Try to execute a simple Lua command
-    let output = lpm_command()
+    let output = depot_command()
         .arg("exec")
         .arg("lua")
         .arg("-e")

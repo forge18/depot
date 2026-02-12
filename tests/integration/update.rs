@@ -1,6 +1,6 @@
-//! Tests for `lpm update` command
+//! Tests for `depot update` command
 
-use super::common::lpm_command;
+use super::common::depot_command;
 use std::fs;
 use tempfile::TempDir;
 
@@ -17,7 +17,7 @@ fn test_update_package_workflow() {
     .unwrap();
 
     // Try to update (may fail if network unavailable, but should handle gracefully)
-    let output = lpm_command()
+    let output = depot_command()
         .arg("update")
         .current_dir(project_root)
         .output()
@@ -32,7 +32,7 @@ fn test_update_without_package_yaml() {
     let temp = TempDir::new().unwrap();
     let project_root = temp.path();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("update")
         .current_dir(project_root)
         .output()
@@ -57,7 +57,7 @@ dependencies:
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("update")
         .arg("luasocket")
         .current_dir(project_root)
@@ -79,7 +79,7 @@ fn test_update_with_empty_dependencies() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("update")
         .current_dir(project_root)
         .output()

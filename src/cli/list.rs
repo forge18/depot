@@ -1,16 +1,16 @@
-use lpm::core::path::{find_project_root, lua_modules_dir};
-use lpm::core::{LpmError, LpmResult};
-use lpm::package::lockfile::Lockfile;
-use lpm::package::manifest::PackageManifest;
+use depot::core::path::{find_project_root, lua_modules_dir};
+use depot::core::{DepotError, DepotResult};
+use depot::package::lockfile::Lockfile;
+use depot::package::manifest::PackageManifest;
 use std::env;
 
-pub fn run(tree: bool, global: bool) -> LpmResult<()> {
+pub fn run(tree: bool, global: bool) -> DepotResult<()> {
     if global {
         return list_global();
     }
 
     let current_dir = env::current_dir()
-        .map_err(|e| LpmError::Path(format!("Failed to get current directory: {}", e)))?;
+        .map_err(|e| DepotError::Path(format!("Failed to get current directory: {}", e)))?;
 
     let project_root = find_project_root(&current_dir)?;
 
@@ -33,8 +33,8 @@ pub fn run(tree: bool, global: bool) -> LpmResult<()> {
     Ok(())
 }
 
-fn list_global() -> LpmResult<()> {
-    use lpm::core::path::{global_lua_modules_dir, global_packages_metadata_dir};
+fn list_global() -> DepotResult<()> {
+    use depot::core::path::{global_lua_modules_dir, global_packages_metadata_dir};
     use serde::Deserialize;
     use std::fs;
 
@@ -52,8 +52,8 @@ fn list_global() -> LpmResult<()> {
             let path = entry.path();
             if path.is_dir() {
                 if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                    // Skip .lpm metadata directory
-                    if name != ".lpm" {
+                    // Skip .depot metadata directory
+                    if name != ".depot" {
                         packages.push(name.to_string());
                     }
                 }
@@ -105,7 +105,7 @@ fn print_package_list(
     manifest: &PackageManifest,
     lockfile: &Option<Lockfile>,
     lua_modules: &std::path::Path,
-) -> LpmResult<()> {
+) -> DepotResult<()> {
     println!("Dependencies:");
 
     if manifest.dependencies.is_empty() && manifest.dev_dependencies.is_empty() {
@@ -169,7 +169,7 @@ fn print_dependency_tree(
     lua_modules: &std::path::Path,
     prefix: &str,
     _is_last: bool,
-) -> LpmResult<()> {
+) -> DepotResult<()> {
     // Collect all dependencies
     let all_deps: Vec<(&String, &String, bool)> = manifest
         .dependencies
@@ -245,8 +245,8 @@ fn print_dependency_tree(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lpm::package::lockfile::{LockedPackage, Lockfile};
-    use lpm::package::manifest::PackageManifest;
+    use depot::package::lockfile::{LockedPackage, Lockfile};
+    use depot::package::manifest::PackageManifest;
     use std::collections::HashMap;
     use std::fs;
     use tempfile::TempDir;

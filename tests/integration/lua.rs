@@ -1,12 +1,12 @@
-//! Tests for `lpm lua` commands
+//! Tests for `depot lua` commands
 
-use super::common::lpm_command;
+use super::common::depot_command;
 use std::fs;
 use tempfile::TempDir;
 
 #[test]
 fn test_lua_list_command() {
-    let output = lpm_command().arg("lua").arg("list").output().unwrap();
+    let output = depot_command().arg("lua").arg("list").output().unwrap();
 
     // Should succeed (may show empty list or list of versions)
     assert!(output.status.code().is_some());
@@ -14,7 +14,7 @@ fn test_lua_list_command() {
 
 #[test]
 fn test_lua_list_remote_command() {
-    let output = lpm_command()
+    let output = depot_command()
         .arg("lua")
         .arg("list-remote")
         .output()
@@ -31,7 +31,7 @@ fn test_lua_list_remote_command() {
 
 #[test]
 fn test_lua_current_command() {
-    let output = lpm_command().arg("lua").arg("current").output().unwrap();
+    let output = depot_command().arg("lua").arg("current").output().unwrap();
 
     // May succeed or fail depending on whether Lua is installed
     assert!(output.status.code().is_some());
@@ -42,7 +42,7 @@ fn test_lua_which_command() {
     let temp = TempDir::new().unwrap();
     let project_root = temp.path();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("lua")
         .arg("which")
         .current_dir(project_root)
@@ -61,7 +61,7 @@ fn test_lua_local_with_version_file() {
     // Create .lua-version file
     fs::write(project_root.join(".lua-version"), "5.4.8").unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("lua")
         .arg("which")
         .current_dir(project_root)
@@ -77,7 +77,7 @@ fn test_lua_local_with_version_file() {
 
 #[test]
 fn test_lua_uninstall_nonexistent() {
-    let output = lpm_command()
+    let output = depot_command()
         .arg("lua")
         .arg("uninstall")
         .arg("999.999.999")
@@ -95,7 +95,7 @@ fn test_lua_uninstall_nonexistent() {
 
 #[test]
 fn test_lua_exec_no_command() {
-    let output = lpm_command()
+    let output = depot_command()
         .arg("lua")
         .arg("exec")
         .arg("5.4.8")
@@ -113,7 +113,7 @@ fn test_lua_exec_no_command() {
 
 #[test]
 fn test_lua_use_nonexistent_version() {
-    let output = lpm_command()
+    let output = depot_command()
         .arg("lua")
         .arg("use")
         .arg("999.999.999")
@@ -129,7 +129,7 @@ fn test_lua_local_command() {
     let temp = TempDir::new().unwrap();
     let project_root = temp.path();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("lua")
         .arg("local")
         .arg("5.4.8")

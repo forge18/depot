@@ -1,7 +1,7 @@
 //! Mock implementations of service traits for testing
 
 use super::traits::{CacheProvider, ConfigProvider, PackageClient, SearchProvider};
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use crate::luarocks::manifest::Manifest;
 use crate::luarocks::rockspec::Rockspec;
 use async_trait::async_trait;
@@ -14,8 +14,8 @@ use std::sync::{Arc, Mutex};
 /// # Example
 ///
 /// ```
-/// use lpm::di::mocks::MockConfigProvider;
-/// use lpm::di::ConfigProvider;
+/// use depot::di::mocks::MockConfigProvider;
+/// use depot::di::ConfigProvider;
 /// use std::path::PathBuf;
 ///
 /// let mut config = MockConfigProvider::default();
@@ -58,7 +58,7 @@ impl ConfigProvider for MockConfigProvider {
         &self.manifest_url
     }
 
-    fn cache_dir(&self) -> LpmResult<PathBuf> {
+    fn cache_dir(&self) -> DepotResult<PathBuf> {
         Ok(self.cache_dir.clone())
     }
 
@@ -98,8 +98,8 @@ impl ConfigProvider for MockConfigProvider {
 /// # Example
 ///
 /// ```
-/// use lpm::di::mocks::MockCacheProvider;
-/// use lpm::di::CacheProvider;
+/// use depot::di::mocks::MockCacheProvider;
+/// use depot::di::CacheProvider;
 /// use std::path::PathBuf;
 ///
 /// let cache = MockCacheProvider::new();
@@ -162,16 +162,16 @@ impl CacheProvider for MockCacheProvider {
         self.files.lock().unwrap().contains_key(path)
     }
 
-    fn read(&self, path: &Path) -> LpmResult<Vec<u8>> {
+    fn read(&self, path: &Path) -> DepotResult<Vec<u8>> {
         self.files
             .lock()
             .unwrap()
             .get(path)
             .cloned()
-            .ok_or_else(|| LpmError::Cache(format!("File not found: {}", path.display())))
+            .ok_or_else(|| DepotError::Cache(format!("File not found: {}", path.display())))
     }
 
-    fn write(&self, path: &Path, data: &[u8]) -> LpmResult<()> {
+    fn write(&self, path: &Path, data: &[u8]) -> DepotResult<()> {
         self.files
             .lock()
             .unwrap()
@@ -179,13 +179,13 @@ impl CacheProvider for MockCacheProvider {
         Ok(())
     }
 
-    fn checksum(&self, path: &Path) -> LpmResult<String> {
+    fn checksum(&self, path: &Path) -> DepotResult<String> {
         let data = self.read(path)?;
         let hash = blake3::hash(&data);
         Ok(format!("blake3:{}", hash.to_hex()))
     }
 
-    fn verify_checksum(&self, path: &Path, expected: &str) -> LpmResult<bool> {
+    fn verify_checksum(&self, path: &Path, expected: &str) -> DepotResult<bool> {
         let actual = self.checksum(path)?;
         Ok(actual == expected)
     }
@@ -220,10 +220,10 @@ impl CacheProvider for MockCacheProvider {
         lua_version: &str,
         target: &str,
         artifact_path: &Path,
-    ) -> LpmResult<PathBuf> {
+    ) -> DepotResult<PathBuf> {
         let dest = self.rust_build_path(package, version, lua_version, target);
         let data = std::fs::read(artifact_path)
-            .map_err(|e| LpmError::Cache(format!("Failed to read artifact: {}", e)))?;
+            .map_err(|e| DepotError::Cache(format!("Failed to read artifact: {}", e)))?;
         self.write(&dest, &data)?;
         Ok(dest)
     }
@@ -251,7 +251,7 @@ impl CacheProvider for MockCacheProvider {
 /// # Example
 ///
 /// ```
-/// use lpm::di::mocks::MockPackageClient;
+/// use depot::di::mocks::MockPackageClient;
 /// use std::path::PathBuf;
 ///
 /// let client = MockPackageClient::new();
@@ -301,31 +301,31 @@ impl Default for MockPackageClient {
 
 #[async_trait]
 impl PackageClient for MockPackageClient {
-    async fn fetch_manifest(&self) -> LpmResult<Manifest> {
+    async fn fetch_manifest(&self) -> DepotResult<Manifest> {
         // Return a default empty manifest for tests
         Ok(Manifest::default())
     }
 
-    async fn download_rockspec(&self, url: &str) -> LpmResult<String> {
+    async fn download_rockspec(&self, url: &str) -> DepotResult<String> {
         self.rockspecs
             .lock()
             .unwrap()
             .get(url)
             .cloned()
-            .ok_or_else(|| LpmError::Package(format!("Rockspec not found: {}", url)))
+            .ok_or_else(|| DepotError::Package(format!("Rockspec not found: {}", url)))
     }
 
-    fn parse_rockspec(&self, content: &str) -> LpmResult<Rockspec> {
+    fn parse_rockspec(&self, content: &str) -> DepotResult<Rockspec> {
         Rockspec::parse_lua(content)
     }
 
-    async fn download_source(&self, url: &str) -> LpmResult<PathBuf> {
+    async fn download_source(&self, url: &str) -> DepotResult<PathBuf> {
         self.sources
             .lock()
             .unwrap()
             .get(url)
             .cloned()
-            .ok_or_else(|| LpmError::Package(format!("Source not found: {}", url)))
+            .ok_or_else(|| DepotError::Package(format!("Source not found: {}", url)))
     }
 }
 
@@ -336,7 +336,7 @@ impl PackageClient for MockPackageClient {
 /// # Example
 ///
 /// ```
-/// use lpm::di::mocks::MockSearchProvider;
+/// use depot::di::mocks::MockSearchProvider;
 ///
 /// let search = MockSearchProvider::new();
 /// search.add_latest_version("test".to_string(), "1.0.0".to_string());
@@ -378,13 +378,13 @@ impl Default for MockSearchProvider {
 
 #[async_trait]
 impl SearchProvider for MockSearchProvider {
-    async fn get_latest_version(&self, package_name: &str) -> LpmResult<String> {
+    async fn get_latest_version(&self, package_name: &str) -> DepotResult<String> {
         self.latest_versions
             .lock()
             .unwrap()
             .get(package_name)
             .cloned()
-            .ok_or_else(|| LpmError::Package(format!("Package not found: {}", package_name)))
+            .ok_or_else(|| DepotError::Package(format!("Package not found: {}", package_name)))
     }
 
     fn get_rockspec_url(
@@ -399,7 +399,7 @@ impl SearchProvider for MockSearchProvider {
         )
     }
 
-    async fn verify_rockspec_url(&self, url: &str) -> LpmResult<()> {
+    async fn verify_rockspec_url(&self, url: &str) -> DepotResult<()> {
         if self.valid_urls.lock().unwrap().contains(&url.to_string()) {
             Ok(())
         } else {

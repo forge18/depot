@@ -1,11 +1,11 @@
 use clap::{Parser, Subcommand};
-use lpm::core::LpmError;
+use depot::core::DepotError;
 use tracing_subscriber::EnvFilter;
 
 mod cli;
 
 #[derive(Parser)]
-#[command(name = "lpm")]
+#[command(name = "depot")]
 #[command(about = "Local package management for Lua")]
 #[command(version)]
 struct Cli {
@@ -15,7 +15,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Initialize a new LPM project
+    /// Initialize a new Depot project
     Init {
         /// Use a template
         #[arg(short, long)]
@@ -24,7 +24,7 @@ enum Commands {
         #[arg(short, long)]
         yes: bool,
     },
-    /// Create a new LPM project in a new directory
+    /// Create a new Depot project in a new directory
     New {
         /// Name of the project (creates directory)
         name: String,
@@ -138,7 +138,7 @@ enum Commands {
     },
     /// Security audit
     Audit,
-    /// Setup PATH for LPM (Unix only) - adds ~/.cargo/bin to PATH
+    /// Setup PATH for Depot (Unix only) - adds ~/.cargo/bin to PATH
     SetupPath,
     /// Manage Lua versions
     #[command(subcommand)]
@@ -168,7 +168,7 @@ enum WorkspaceCommands {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), LpmError> {
+async fn main() -> Result<(), DepotError> {
     // Initialize tracing
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
@@ -177,7 +177,7 @@ async fn main() -> Result<(), LpmError> {
     // Check PATH setup (only on first run, not for every command)
     // Skip for development builds (when running via cargo run)
     if !cfg!(debug_assertions) {
-        let _ = lpm::core::path_setup::check_path_setup();
+        let _ = depot::core::path_setup::check_path_setup();
     }
 
     let cli = Cli::parse();
@@ -234,7 +234,7 @@ async fn main() -> Result<(), LpmError> {
         Commands::GenerateRockspec => cli::generate_rockspec::run(),
         Commands::Audit => cli::audit::run().await,
         Commands::SetupPath => {
-            lpm::core::path_setup::setup_path_auto()?;
+            depot::core::path_setup::setup_path_auto()?;
             Ok(())
         }
         Commands::Lua(cmd) => cli::lua::run(cmd).await,
@@ -247,7 +247,7 @@ async fn main() -> Result<(), LpmError> {
         },
         Commands::External(args) => {
             if args.is_empty() {
-                return Err(LpmError::Package("Command required".to_string()));
+                return Err(DepotError::Package("Command required".to_string()));
             }
             cli::plugin::run_plugin(&args[0], args[1..].to_vec())
         }
@@ -255,7 +255,7 @@ async fn main() -> Result<(), LpmError> {
 
     // Display error with helpful suggestions
     if let Err(ref e) = result {
-        eprintln!("\n{}", lpm::core::error_help::format_error_with_help(e));
+        eprintln!("\n{}", depot::core::error_help::format_error_with_help(e));
     }
 
     result

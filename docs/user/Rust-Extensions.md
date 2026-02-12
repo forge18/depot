@@ -4,10 +4,10 @@ Build native Lua modules with Rust for better performance.
 
 ## Overview
 
-LPM supports building Rust extensions that compile to native Lua modules (dynamic libraries). These modules can be loaded by Lua just like any other module.
+Depot supports building Rust extensions that compile to native Lua modules (dynamic libraries). These modules can be loaded by Lua just like any other module.
 
-LPM can both:
-- **Build your own Rust extensions** locally using `lpm build`
+Depot can both:
+- **Build your own Rust extensions** locally using `depot build`
 - **Install Rust packages from LuaRocks** that use `luarocks-build-rust-mlua` build backend
 
 ## Project Setup
@@ -61,14 +61,14 @@ mlua = { version = "0.11", features = ["lua54", "vendored"] }
 
 ## Installing Rust Packages from LuaRocks
 
-LPM can install Rust packages from LuaRocks that use the `luarocks-build-rust-mlua` build backend:
+Depot can install Rust packages from LuaRocks that use the `luarocks-build-rust-mlua` build backend:
 
 ```bash
 # Install a Rust package from LuaRocks
-lpm install rustaceanvim
+depot install rustaceanvim
 ```
 
-LPM will:
+Depot will:
 1. Download the package source
 2. Detect it uses Rust build type
 3. Run `cargo build --release` to build the extension
@@ -81,21 +81,21 @@ LPM will:
 ### Build for Current Platform
 
 ```bash
-lpm build
+depot build
 ```
 
 ### Build for Specific Target
 
 ```bash
-lpm build --target x86_64-unknown-linux-gnu
-lpm build --target aarch64-apple-darwin
-lpm build --target x86_64-pc-windows-msvc
+depot build --target x86_64-unknown-linux-gnu
+depot build --target aarch64-apple-darwin
+depot build --target x86_64-pc-windows-msvc
 ```
 
 ### Build for All Targets
 
 ```bash
-lpm build --all-targets
+depot build --all-targets
 ```
 
 Builds for all common platforms:
@@ -107,11 +107,11 @@ Builds for all common platforms:
 
 ## Cross-Compilation
 
-LPM uses:
+Depot uses:
 - **macOS/Linux**: `cargo-zigbuild` with Zig for cross-compilation
 - **Windows**: `cargo-xwin` for MSVC targets
 
-No additional setup required - LPM handles everything automatically.
+No additional setup required - Depot handles everything automatically.
 
 ## Using Rust Modules in Lua
 
@@ -123,11 +123,11 @@ local mymodule = require("mymodule")
 print(mymodule.hello())  -- "Hello from Rust!"
 ```
 
-LPM automatically sets up `package.cpath` to find native modules.
+Depot automatically sets up `package.cpath` to find native modules.
 
 ## Pre-built Binaries
 
-LPM supports downloading pre-built binaries from external URLs:
+Depot supports downloading pre-built binaries from external URLs:
 
 1. **Checks local cache** - Uses cached binaries if available
 2. **Parses binary URLs from rockspec** - Looks for `binary_urls` in rockspec metadata
@@ -150,7 +150,7 @@ metadata = {
 
 The key format is: `"{lua_version}-{target_triple}"`
 
-LPM will automatically:
+Depot will automatically:
 - Detect your Lua version (e.g., 5.4)
 - Detect your platform (e.g., x86_64-unknown-linux-gnu)
 - Match and download the appropriate binary
@@ -161,8 +161,8 @@ LPM will automatically:
 Package built binaries for distribution:
 
 ```bash
-lpm package
-lpm package --target x86_64-unknown-linux-gnu
+depot package
+depot package --target x86_64-unknown-linux-gnu
 ```
 
 Creates distributable archives with the compiled modules.
@@ -173,10 +173,10 @@ Publish packages with Rust extensions:
 
 ```bash
 # Include pre-built binaries in published package
-lpm publish --with-binaries
+depot publish --with-binaries
 ```
 
-LPM will:
+Depot will:
 1. Build for all common targets
 2. Package the binaries
 3. Include them in the published package
@@ -189,7 +189,7 @@ Rust extensions must specify which Lua versions they support:
 lua_version: "5.4"  # Or ">=5.1", "5.1 || 5.3 || 5.4"
 ```
 
-LPM will:
+Depot will:
 - Detect your installed Lua version
 - Build extensions compatible with that version
 - Cache builds per Lua version

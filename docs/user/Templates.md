@@ -1,32 +1,32 @@
-# LPM Templates
+# Depot Templates
 
-LPM templates allow you to quickly scaffold new projects with pre-configured structures and files.
+Depot templates allow you to quickly scaffold new projects with pre-configured structures and files.
 
 ## Using Templates
 
 ### List Available Templates
 
 ```bash
-lpm template list
+depot template list
 ```
 
 Search for templates:
 
 ```bash
-lpm template list --search <query>
+depot template list --search <query>
 ```
 
 ### Initialize Project with Template
 
 ```bash
 # Interactive mode (select template in wizard)
-lpm init
+depot init
 
 # Direct template usage
-lpm init --template <template-name>
+depot init --template <template-name>
 
 # Non-interactive with template
-lpm init --template <template-name> --yes
+depot init --template <template-name> --yes
 ```
 
 ## Available Templates
@@ -83,7 +83,7 @@ CLI tool template with argument parsing.
 cd my-project
 
 # Create template from current project
-lpm template create my-template --description "My custom template"
+depot template create my-template --description "My custom template"
 ```
 
 This will:
@@ -145,8 +145,8 @@ When the template is rendered, `{{project_name}}` will be replaced with the actu
 
 Templates are discovered from two locations:
 
-1. **Built-in templates**: Included with LPM installation
-   - Development: `src/templates/` in the LPM source
+1. **Built-in templates**: Included with Depot installation
+   - Development: `src/templates/` in the Depot source
    - Production: Embedded in the binary or installed separately
 
 2. **User templates**: Custom templates created by users
@@ -160,7 +160,7 @@ User templates take priority over built-in templates with the same name.
 
 ### Standard Variables
 
-These variables are automatically provided by LPM:
+These variables are automatically provided by Depot:
 
 - `project_name` - The project name (required)
 - `project_version` - The project version (default: "1.0.0")
@@ -218,7 +218,7 @@ echo '-- {{project_name}}' > main.lua
 
 4. Use the template:
 ```bash
-lpm init --template my-template
+depot init --template my-template
 ```
 
 ### Advanced Template with Custom Variables
@@ -243,7 +243,7 @@ variables:
 
 If a template is not found:
 1. Check template name spelling
-2. Verify template exists: `lpm template list`
+2. Verify template exists: `depot template list`
 3. Check template location (user vs built-in)
 4. Ensure `template.yaml` exists in template directory
 
@@ -257,7 +257,7 @@ If variables aren't being substituted:
 
 ### Template Creation Fails
 
-If `lpm template create` fails:
+If `depot template create` fails:
 1. Ensure you're in a project root directory
 2. Check that `package.yaml` exists
 3. Verify write permissions to user templates directory

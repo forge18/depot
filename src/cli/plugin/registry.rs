@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use lpm_core::{LpmError, LpmResult};
+use depot_core::{DepotError, DepotResult};
 use serde::{Deserialize, Serialize};
 
 /// Plugin registry entry
@@ -44,7 +44,7 @@ struct GitHubAsset {
 /// HTTP client trait for dependency injection
 #[async_trait]
 pub trait HttpClient: Send + Sync {
-    async fn get(&self, url: &str, headers: Vec<(&str, &str)>) -> LpmResult<HttpResponse>;
+    async fn get(&self, url: &str, headers: Vec<(&str, &str)>) -> DepotResult<HttpResponse>;
 }
 
 /// HTTP response abstraction
@@ -58,9 +58,9 @@ impl HttpResponse {
         self.status >= 200 && self.status < 300
     }
 
-    pub async fn json<T: serde::de::DeserializeOwned>(self) -> LpmResult<T> {
+    pub async fn json<T: serde::de::DeserializeOwned>(self) -> DepotResult<T> {
         serde_json::from_slice(&self.body)
-            .map_err(|e| LpmError::Package(format!("Failed to parse JSON: {}", e)))
+            .map_err(|e| DepotError::Package(format!("Failed to parse JSON: {}", e)))
     }
 }
 
@@ -85,18 +85,18 @@ impl Default for ReqwestClient {
 
 #[async_trait]
 impl HttpClient for ReqwestClient {
-    async fn get(&self, url: &str, headers: Vec<(&str, &str)>) -> LpmResult<HttpResponse> {
+    async fn get(&self, url: &str, headers: Vec<(&str, &str)>) -> DepotResult<HttpResponse> {
         let mut request = self.client.get(url);
         for (key, value) in headers {
             request = request.header(key, value);
         }
 
-        let response = request.send().await.map_err(LpmError::Http)?;
+        let response = request.send().await.map_err(DepotError::Http)?;
         let status = response.status().as_u16();
         let body = response
             .bytes()
             .await
-            .map_err(|e| LpmError::Package(format!("Failed to read response body: {}", e)))?;
+            .map_err(|e| DepotError::Package(format!("Failed to read response body: {}", e)))?;
 
         Ok(HttpResponse {
             status,
@@ -134,8 +134,8 @@ impl<C: HttpClient> PluginRegistry<C> {
     /// Search for plugins in registry
     ///
     /// Searches crates.io for packages matching "lpm-*"
-    pub async fn search(&self, query: &str) -> LpmResult<Vec<RegistryEntry>> {
-        // Search crates.io for lpm-* packages
+    pub async fn search(&self, query: &str) -> DepotResult<Vec<RegistryEntry>> {
+        // Search crates.io for depot-* packages
         let url = format!(
             "https://crates.io/api/v1/crates?q={}&per_page=20",
             urlencoding::encode(query)
@@ -161,7 +161,7 @@ impl<C: HttpClient> PluginRegistry<C> {
             .await?;
 
         if !response.is_success() {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Registry search failed with status: {}",
                 response.status
             )));
@@ -193,8 +193,8 @@ impl<C: HttpClient> PluginRegistry<C> {
     /// Get plugin information from registry
     ///
     /// Tries to find plugin on GitHub by checking common repository patterns
-    pub async fn get_plugin(&self, name: &str) -> LpmResult<Option<RegistryEntry>> {
-        // Try to find GitHub repository for lpm-{name}.
+    pub async fn get_plugin(&self, name: &str) -> DepotResult<Option<RegistryEntry>> {
+        // Try to find GitHub repository for depot-{name}.
         // Common patterns:
         // - github.com/{user}/lpm-{name}
         // - github.com/{user}/{name}
@@ -222,7 +222,7 @@ impl<C: HttpClient> PluginRegistry<C> {
         &self,
         repo: &str,
         plugin_name: &str,
-    ) -> LpmResult<Option<RegistryEntry>> {
+    ) -> DepotResult<Option<RegistryEntry>> {
         let url = format!("https://api.github.com/repos/{}/releases/latest", repo);
 
         let response = self
@@ -270,7 +270,7 @@ impl<C: HttpClient> PluginRegistry<C> {
     }
 
     /// Get latest version of a plugin
-    pub async fn get_latest_version(&self, name: &str) -> LpmResult<Option<String>> {
+    pub async fn get_latest_version(&self, name: &str) -> DepotResult<Option<String>> {
         if let Ok(Some(entry)) = self.get_plugin(name).await {
             return Ok(Some(entry.version));
         }
@@ -303,7 +303,7 @@ mod tests {
 
     #[async_trait]
     impl HttpClient for MockHttpClient {
-        async fn get(&self, url: &str, _headers: Vec<(&str, &str)>) -> LpmResult<HttpResponse> {
+        async fn get(&self, url: &str, _headers: Vec<(&str, &str)>) -> DepotResult<HttpResponse> {
             if let Some((status, body)) = self.responses.get(url) {
                 Ok(HttpResponse {
                     status: *status,
@@ -406,7 +406,7 @@ mod tests {
                 },
                 {
                     "name": "not-lpm-plugin",
-                    "description": "Not an lpm plugin",
+                    "description": "Not an depot plugin",
                     "repository": null,
                     "max_version": "1.0.0"
                 },

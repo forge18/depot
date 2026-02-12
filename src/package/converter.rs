@@ -1,5 +1,5 @@
 use crate::core::path::{ensure_dir, packages_metadata_dir};
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use crate::luarocks::rockspec::Rockspec;
 use crate::package::manifest::PackageManifest;
 use std::fs;
@@ -10,18 +10,18 @@ pub fn convert_rockspec_to_manifest(
     rockspec: &Rockspec,
     project_root: &Path,
     package_name: &str,
-) -> LpmResult<PackageManifest> {
+) -> DepotResult<PackageManifest> {
     // Convert rockspec to manifest
     let manifest = rockspec.to_package_manifest();
 
-    // Save to lua_modules/.lpm/packages/<name>/package.yaml
+    // Save to lua_modules/.depot/packages/<name>/package.yaml
     let packages_dir = packages_metadata_dir(project_root);
     let package_metadata_dir = packages_dir.join(package_name);
     ensure_dir(&package_metadata_dir)?;
 
     let manifest_path = package_metadata_dir.join("package.yaml");
     let yaml_content = serde_yaml::to_string(&manifest)
-        .map_err(|e| LpmError::Package(format!("Failed to serialize manifest: {}", e)))?;
+        .map_err(|e| DepotError::Package(format!("Failed to serialize manifest: {}", e)))?;
 
     fs::write(&manifest_path, yaml_content)?;
 
@@ -74,7 +74,7 @@ mod tests {
         let manifest_path = temp
             .path()
             .join("lua_modules")
-            .join(".lpm")
+            .join(".depot")
             .join("packages")
             .join("luasocket")
             .join("package.yaml");
@@ -173,7 +173,7 @@ mod tests {
         let manifest_path = temp
             .path()
             .join("lua_modules")
-            .join(".lpm")
+            .join(".depot")
             .join("packages")
             .join("test-package")
             .join("package.yaml");

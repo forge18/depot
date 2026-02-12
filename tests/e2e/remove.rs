@@ -7,7 +7,7 @@ fn test_remove_package() {
     let ctx = TestContext::new();
 
     // First install a package
-    ctx.lpm()
+    ctx.depot()
         .arg("install")
         .arg(format!(
             "{}@{}",
@@ -23,7 +23,7 @@ fn test_remove_package() {
         .assert(predicate::path::exists());
 
     // Remove it
-    ctx.lpm().arg("remove").arg("penlight").assert().success();
+    ctx.depot().arg("remove").arg("penlight").assert().success();
 
     // Verify it's gone
     ctx.temp
@@ -38,7 +38,7 @@ fn test_remove_nonexistent_package_fails() {
     // Create package.yaml first (required for remove command)
     ctx.create_package_yaml("name: test\nversion: 1.0.0\n");
 
-    ctx.lpm()
+    ctx.depot()
         .arg("remove")
         .arg("nonexistent-package")
         .assert()

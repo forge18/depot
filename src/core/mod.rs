@@ -3,10 +3,10 @@
 //! Most core functionality has been moved to `lpm-core`.
 //! These are re-exported for backward compatibility.
 
-pub use lpm_core::*;
-pub use lpm_core::core::*;
+pub use depot_core::*;
+pub use depot_core::core::*;
 
-/// Path setup for LPM binary (not Lua paths).
+/// Path setup for Depot binary (not Lua paths).
 pub mod path_setup;
 
 /// Path module with workspace support.

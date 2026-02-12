@@ -1,6 +1,6 @@
 use crate::build::prebuilt::PrebuiltBinaryManager;
 use crate::build::targets::Target;
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use crate::lua_version::detector::LuaVersionDetector;
 use crate::package::manifest::PackageManifest;
 use std::fs;
@@ -28,7 +28,7 @@ impl PublishPackager {
     /// - All Lua source files
     /// - Pre-built Rust binaries (if available)
     /// - Generated rockspec
-    pub fn package(&self, include_binaries: bool) -> LpmResult<PathBuf> {
+    pub fn package(&self, include_binaries: bool) -> DepotResult<PathBuf> {
         let dist_dir = self.project_root.join("dist");
         let package_name = format!("{}-{}", self.manifest.name, self.manifest.version);
         let package_dir = dist_dir.join(&package_name);
@@ -56,7 +56,7 @@ impl PublishPackager {
     }
 
     /// Copy all Lua source files to the package directory
-    fn copy_lua_files(&self, package_dir: &Path) -> LpmResult<()> {
+    fn copy_lua_files(&self, package_dir: &Path) -> DepotResult<()> {
         // Look for Lua files in common directories
         let lua_dirs = vec!["lua", "src", "lib", "."];
 
@@ -73,7 +73,7 @@ impl PublishPackager {
         // Also copy any .lua files in the root
         for entry in fs::read_dir(&self.project_root)? {
             let entry = entry
-                .map_err(|e| LpmError::Path(format!("Failed to read directory entry: {}", e)))?;
+                .map_err(|e| DepotError::Path(format!("Failed to read directory entry: {}", e)))?;
             let path = entry.path();
             if path.is_file() && path.extension().map(|e| e == "lua").unwrap_or(false) {
                 let dest = package_dir.join(path.file_name().unwrap());
@@ -85,7 +85,7 @@ impl PublishPackager {
     }
 
     /// Copy Rust-compiled native module binaries
-    fn copy_rust_binaries(&self, package_dir: &Path) -> LpmResult<()> {
+    fn copy_rust_binaries(&self, package_dir: &Path) -> DepotResult<()> {
         // Try to detect Lua version, but continue gracefully if not found
         let lua_version = match LuaVersionDetector::detect() {
             Ok(version) => version,
@@ -118,7 +118,7 @@ impl PublishPackager {
 
             let binary_name = binary_path
                 .file_name()
-                .ok_or_else(|| LpmError::Package("Invalid binary path".to_string()))?;
+                .ok_or_else(|| DepotError::Package("Invalid binary path".to_string()))?;
             let dest = lib_dir.join(binary_name);
             fs::copy(&binary_path, &dest)?;
             println!("  Included binary: {}", dest.display());
@@ -130,7 +130,7 @@ impl PublishPackager {
     }
 
     /// Copy directory with file filter
-    fn copy_directory<F>(&self, source: &Path, dest: &Path, filter: F) -> LpmResult<()>
+    fn copy_directory<F>(&self, source: &Path, dest: &Path, filter: F) -> DepotResult<()>
     where
         F: Fn(&Path) -> bool,
     {
@@ -138,13 +138,13 @@ impl PublishPackager {
 
         for entry in WalkDir::new(source) {
             let entry = entry
-                .map_err(|e| LpmError::Path(format!("Failed to read directory entry: {}", e)))?;
+                .map_err(|e| DepotError::Path(format!("Failed to read directory entry: {}", e)))?;
             let path = entry.path();
 
             if path.is_file() && filter(path) {
                 let rel_path = path
                     .strip_prefix(source)
-                    .map_err(|e| LpmError::Path(format!("Failed to get relative path: {}", e)))?;
+                    .map_err(|e| DepotError::Path(format!("Failed to get relative path: {}", e)))?;
                 let dest_path = dest.join(rel_path);
 
                 // Create parent directories
@@ -160,7 +160,7 @@ impl PublishPackager {
     }
 
     /// Create distribution archive (tar.gz or zip)
-    fn create_archive(&self, package_dir: &Path, package_name: &str) -> LpmResult<PathBuf> {
+    fn create_archive(&self, package_dir: &Path, package_name: &str) -> DepotResult<PathBuf> {
         let dist_dir = package_dir.parent().unwrap();
         let archive_name = format!(
             "{}.{}",
@@ -183,7 +183,7 @@ impl PublishPackager {
     }
 
     /// Create zip archive (Windows)
-    fn create_zip(&self, source_dir: &Path, archive_path: &Path) -> LpmResult<()> {
+    fn create_zip(&self, source_dir: &Path, archive_path: &Path) -> DepotResult<()> {
         use std::process::Command;
 
         let status = Command::new("zip")
@@ -194,7 +194,7 @@ impl PublishPackager {
             .status()?;
 
         if !status.success() {
-            return Err(LpmError::Package(
+            return Err(DepotError::Package(
                 "Failed to create zip archive. Install 'zip' command.".to_string(),
             ));
         }
@@ -203,7 +203,7 @@ impl PublishPackager {
     }
 
     /// Create tar.gz archive (Unix)
-    fn create_tar_gz(&self, source_dir: &Path, archive_path: &Path) -> LpmResult<()> {
+    fn create_tar_gz(&self, source_dir: &Path, archive_path: &Path) -> DepotResult<()> {
         use std::process::Command;
 
         let status = Command::new("tar")
@@ -215,7 +215,7 @@ impl PublishPackager {
             .status()?;
 
         if !status.success() {
-            return Err(LpmError::Package(
+            return Err(DepotError::Package(
                 "Failed to create tar.gz archive. Install 'tar' command.".to_string(),
             ));
         }

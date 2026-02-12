@@ -4,7 +4,7 @@ use super::*;
 fn init_creates_package_yaml() {
     let ctx = TestContext::new();
 
-    ctx.lpm()
+    ctx.depot()
         .arg("init")
         .arg("--yes")
         .assert()
@@ -25,7 +25,7 @@ fn init_creates_package_yaml() {
 fn init_with_template_basic_lua() {
     let ctx = TestContext::new();
 
-    ctx.lpm()
+    ctx.depot()
         .arg("init")
         .arg("--template")
         .arg(constants::TEMPLATE_BASIC_LUA)
@@ -49,7 +49,7 @@ fn init_with_template_basic_lua() {
 fn init_with_template_love2d() {
     let ctx = TestContext::new();
 
-    ctx.lpm()
+    ctx.depot()
         .arg("init")
         .arg("--template")
         .arg(constants::TEMPLATE_LOVE2D)
@@ -65,7 +65,7 @@ fn init_with_template_love2d() {
 fn init_with_template_neovim_plugin() {
     let ctx = TestContext::new();
 
-    ctx.lpm()
+    ctx.depot()
         .arg("init")
         .arg("--template")
         .arg(constants::TEMPLATE_NEOVIM_PLUGIN)
@@ -80,7 +80,7 @@ fn init_with_template_neovim_plugin() {
 fn init_with_template_lapis_web() {
     let ctx = TestContext::new();
 
-    ctx.lpm()
+    ctx.depot()
         .arg("init")
         .arg("--template")
         .arg(constants::TEMPLATE_LAPIS_WEB)
@@ -98,7 +98,7 @@ fn init_with_template_lapis_web() {
 fn init_with_template_cli_tool() {
     let ctx = TestContext::new();
 
-    ctx.lpm()
+    ctx.depot()
         .arg("init")
         .arg("--template")
         .arg(constants::TEMPLATE_CLI_TOOL)
@@ -116,14 +116,14 @@ fn init_fails_if_already_initialized() {
     let ctx = TestContext::new();
     ctx.create_package_yaml("name: existing\nversion: 1.0.0\n");
 
-    ctx.lpm()
+    ctx.depot()
         .arg("init")
         .arg("--yes")
         .assert()
         .failure()
         .stderr(
             predicate::str::contains("already exists")
-                .or(predicate::str::contains("Already in an LPM project")),
+                .or(predicate::str::contains("Already in an Depot project")),
         );
 }
 
@@ -131,7 +131,7 @@ fn init_fails_if_already_initialized() {
 fn init_with_invalid_template_fails() {
     let ctx = TestContext::new();
 
-    ctx.lpm()
+    ctx.depot()
         .arg("init")
         .arg("--template")
         .arg("nonexistent-template")

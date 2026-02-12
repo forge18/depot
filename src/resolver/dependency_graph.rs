@@ -1,5 +1,5 @@
 use crate::core::version::{Version, VersionConstraint};
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use std::collections::{HashMap, HashSet};
 
 /// A node in the dependency graph
@@ -38,12 +38,12 @@ impl DependencyGraph {
     }
 
     /// Add a dependency edge (package A depends on package B)
-    pub fn add_dependency(&mut self, package: &str, dependency: String) -> LpmResult<()> {
+    pub fn add_dependency(&mut self, package: &str, dependency: String) -> DepotResult<()> {
         if let Some(node) = self.nodes.get_mut(package) {
             node.dependencies.push(dependency);
             Ok(())
         } else {
-            Err(LpmError::Package(format!(
+            Err(DepotError::Package(format!(
                 "Package '{}' not found in graph",
                 package
             )))
@@ -61,12 +61,12 @@ impl DependencyGraph {
     }
 
     /// Set the resolved version for a node
-    pub fn set_resolved_version(&mut self, name: &str, version: Version) -> LpmResult<()> {
+    pub fn set_resolved_version(&mut self, name: &str, version: Version) -> DepotResult<()> {
         if let Some(node) = self.nodes.get_mut(name) {
             node.resolved_version = Some(version);
             Ok(())
         } else {
-            Err(LpmError::Package(format!(
+            Err(DepotError::Package(format!(
                 "Package '{}' not found in graph",
                 name
             )))
@@ -74,7 +74,7 @@ impl DependencyGraph {
     }
 
     /// Detect circular dependencies using DFS
-    pub fn detect_circular_dependencies(&self) -> LpmResult<Vec<Vec<String>>> {
+    pub fn detect_circular_dependencies(&self) -> DepotResult<Vec<Vec<String>>> {
         let mut cycles = Vec::new();
         let mut visited = HashSet::new();
         let mut rec_stack = HashSet::new();
@@ -95,7 +95,7 @@ impl DependencyGraph {
         if cycles.is_empty() {
             Ok(cycles)
         } else {
-            Err(LpmError::Package(format!(
+            Err(DepotError::Package(format!(
                 "Circular dependencies detected: {:?}",
                 cycles
             )))
@@ -109,7 +109,7 @@ impl DependencyGraph {
         rec_stack: &mut HashSet<String>,
         path: &mut Vec<String>,
         cycles: &mut Vec<Vec<String>>,
-    ) -> LpmResult<()> {
+    ) -> DepotResult<()> {
         visited.insert(node_name.to_string());
         rec_stack.insert(node_name.to_string());
         path.push(node_name.to_string());

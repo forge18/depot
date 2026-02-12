@@ -1,17 +1,17 @@
-use lpm::core::path::find_project_root;
-use lpm::core::version::parse_constraint;
-use lpm::core::version::Version;
-use lpm::core::{LpmError, LpmResult};
-use lpm::di::{PackageClient, ServiceContainer};
-use lpm::luarocks::manifest::Manifest;
-use lpm::luarocks::version::normalize_luarocks_version;
-use lpm::package::lockfile::Lockfile;
-use lpm::package::manifest::PackageManifest;
+use depot::core::path::find_project_root;
+use depot::core::version::parse_constraint;
+use depot::core::version::Version;
+use depot::core::{DepotError, DepotResult};
+use depot::di::{PackageClient, ServiceContainer};
+use depot::luarocks::manifest::Manifest;
+use depot::luarocks::version::normalize_luarocks_version;
+use depot::package::lockfile::Lockfile;
+use depot::package::manifest::PackageManifest;
 use std::env;
 
-pub async fn run() -> LpmResult<()> {
+pub async fn run() -> DepotResult<()> {
     let current_dir = env::current_dir()
-        .map_err(|e| LpmError::Path(format!("Failed to get current directory: {}", e)))?;
+        .map_err(|e| DepotError::Path(format!("Failed to get current directory: {}", e)))?;
 
     let project_root = find_project_root(&current_dir)?;
 
@@ -122,7 +122,7 @@ pub async fn run() -> LpmResult<()> {
     println!("  Outdated: {}", outdated_count);
 
     if outdated_count > 0 {
-        println!("\nRun 'lpm update' to update outdated packages");
+        println!("\nRun 'depot update' to update outdated packages");
     }
 
     Ok(())
@@ -144,7 +144,7 @@ async fn check_outdated(
     package_name: &str,
     version_constraint: &str,
     current_version: Option<&Version>,
-) -> LpmResult<OutdatedStatus> {
+) -> DepotResult<OutdatedStatus> {
     // Get available versions from manifest
     let available_versions = if let Some(manifest) = manifest {
         manifest.get_package_version_strings(package_name)
@@ -205,11 +205,11 @@ async fn check_outdated(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lpm::cache::Cache;
-    use lpm::config::Config;
-    use lpm::core::version::Version;
-    use lpm::luarocks::client::LuaRocksClient;
-    use lpm::luarocks::manifest::{Manifest, PackageVersion};
+    use depot::cache::Cache;
+    use depot::config::Config;
+    use depot::core::version::Version;
+    use depot::luarocks::client::LuaRocksClient;
+    use depot::luarocks::manifest::{Manifest, PackageVersion};
     use tempfile::TempDir;
 
     #[test]

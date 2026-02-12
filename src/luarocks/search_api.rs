@@ -1,5 +1,5 @@
 use crate::core::version::Version;
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use crate::di::SearchProvider;
 use crate::luarocks::manifest::Manifest;
 use async_trait::async_trait;
@@ -27,7 +27,7 @@ impl SearchAPI {
     }
 
     /// Get the latest version of a package by fetching the manifest
-    pub async fn get_latest_version(&self, package_name: &str) -> LpmResult<String> {
+    pub async fn get_latest_version(&self, package_name: &str) -> DepotResult<String> {
         // Fetch manifest
         let manifest_url = format!("{}/manifests/luarocks/manifest?format=json", self.base_url);
         let response = self
@@ -35,23 +35,23 @@ impl SearchAPI {
             .get(&manifest_url)
             .send()
             .await
-            .map_err(LpmError::Http)?;
+            .map_err(DepotError::Http)?;
 
         if !response.status().is_success() {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Failed to fetch manifest: HTTP {}",
                 response.status()
             )));
         }
 
-        let content = response.text().await.map_err(LpmError::Http)?;
+        let content = response.text().await.map_err(DepotError::Http)?;
 
         // Parse manifest
         let manifest = Manifest::parse_json(&content)?;
 
         // Get all versions for this package
         let versions = manifest.get_package_versions(package_name).ok_or_else(|| {
-            LpmError::Package(format!("Package '{}' not found in manifest", package_name))
+            DepotError::Package(format!("Package '{}' not found in manifest", package_name))
         })?;
 
         // Find latest version by parsing and comparing
@@ -62,7 +62,7 @@ impl SearchAPI {
                 Version::parse(&pv.version).unwrap_or_else(|_| Version::new(0, 0, 0))
             })
             .ok_or_else(|| {
-                LpmError::Package(format!("No versions found for package '{}'", package_name))
+                DepotError::Package(format!("No versions found for package '{}'", package_name))
             })?;
 
         Ok(latest.version.clone())
@@ -85,10 +85,15 @@ impl SearchAPI {
     }
 
     /// Verify a rockspec URL exists
-    pub async fn verify_rockspec_url(&self, url: &str) -> LpmResult<()> {
-        let response = self.client.head(url).send().await.map_err(LpmError::Http)?;
+    pub async fn verify_rockspec_url(&self, url: &str) -> DepotResult<()> {
+        let response = self
+            .client
+            .head(url)
+            .send()
+            .await
+            .map_err(DepotError::Http)?;
         if !response.status().is_success() {
-            return Err(LpmError::Package(format!("Rockspec not found: {}", url)));
+            return Err(DepotError::Package(format!("Rockspec not found: {}", url)));
         }
         Ok(())
     }
@@ -97,7 +102,7 @@ impl SearchAPI {
 // Implement SearchProvider trait
 #[async_trait]
 impl SearchProvider for SearchAPI {
-    async fn get_latest_version(&self, package_name: &str) -> LpmResult<String> {
+    async fn get_latest_version(&self, package_name: &str) -> DepotResult<String> {
         self.get_latest_version(package_name).await
     }
 
@@ -110,7 +115,7 @@ impl SearchProvider for SearchAPI {
         self.get_rockspec_url(package_name, version, manifest)
     }
 
-    async fn verify_rockspec_url(&self, url: &str) -> LpmResult<()> {
+    async fn verify_rockspec_url(&self, url: &str) -> DepotResult<()> {
         self.verify_rockspec_url(url).await
     }
 }

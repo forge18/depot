@@ -1,4 +1,4 @@
-use crate::core::LpmResult;
+use crate::core::DepotResult;
 use crate::workspace::Workspace;
 use std::path::{Path, PathBuf};
 
@@ -9,7 +9,7 @@ impl WorkspaceFinder {
     /// Find workspace root by walking up the directory tree
     ///
     /// Looks for workspace.yaml or package.yaml with workspace configuration
-    pub fn find_workspace_root(start_dir: &Path) -> LpmResult<Option<PathBuf>> {
+    pub fn find_workspace_root(start_dir: &Path) -> DepotResult<Option<PathBuf>> {
         let mut current = start_dir.to_path_buf();
 
         loop {
@@ -35,7 +35,7 @@ impl WorkspaceFinder {
     }
 
     /// Find all package.yaml files in a workspace
-    pub fn find_package_manifests(workspace_root: &Path) -> LpmResult<Vec<PathBuf>> {
+    pub fn find_package_manifests(workspace_root: &Path) -> DepotResult<Vec<PathBuf>> {
         use walkdir::WalkDir;
 
         let mut manifests = Vec::new();

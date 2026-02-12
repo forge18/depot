@@ -1,0 +1,39 @@
+[package]
+name = "depot-watch"
+version = "0.1.0"
+edition = "2021"
+authors = ["Depot Contributors"]
+description = "Watch mode plugin for Depot - auto-reload on file changes"
+license = "MIT"
+repository = "https://github.com/yourusername/depot"
+
+[[bin]]
+name = "depot-watch"
+path = "src/main.rs"
+
+[dependencies]
+# Core Depot utilities
+depot-core = { path = "../depot-core" }
+
+# CLI
+clap = { version = "4.4", features = ["derive"] }
+
+# File watching
+notify = "6.1"
+notify-debouncer-mini = "0.4"
+globset = "0.4"
+ctrlc = "3.4"
+
+# Async
+tokio = { version = "1.35", features = ["full"] }
+
+# YAML parsing (for package.yaml)
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+
+# WebSocket support
+tokio-tungstenite = "0.21"
+futures-util = "0.3"
+
+# Terminal UI
+colored = "2.1"

@@ -1,6 +1,6 @@
-//! Tests for `lpm outdated` command
+//! Tests for `depot outdated` command
 
-use super::common::lpm_command;
+use super::common::depot_command;
 use std::fs;
 use tempfile::TempDir;
 
@@ -9,7 +9,7 @@ fn test_outdated_without_package_yaml() {
     let temp = TempDir::new().unwrap();
     let project_root = temp.path();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("outdated")
         .current_dir(project_root)
         .output()
@@ -31,7 +31,7 @@ fn test_outdated_with_empty_dependencies() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("outdated")
         .current_dir(project_root)
         .output()
@@ -59,7 +59,7 @@ dependencies:
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("outdated")
         .current_dir(project_root)
         .output()
@@ -101,7 +101,7 @@ packages:
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("outdated")
         .current_dir(project_root)
         .output()

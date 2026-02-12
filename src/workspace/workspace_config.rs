@@ -1,4 +1,4 @@
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use crate::package::manifest::PackageManifest;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -56,7 +56,7 @@ pub struct WorkspacePackage {
 
 impl Workspace {
     /// Load a workspace from a directory
-    pub fn load(workspace_root: &Path) -> LpmResult<Self> {
+    pub fn load(workspace_root: &Path) -> DepotResult<Self> {
         // Check for workspace.yaml or package.yaml with workspace config
         let config = Self::load_config(workspace_root)?;
 
@@ -71,7 +71,7 @@ impl Workspace {
     }
 
     /// Load workspace configuration
-    fn load_config(workspace_root: &Path) -> LpmResult<WorkspaceConfig> {
+    fn load_config(workspace_root: &Path) -> DepotResult<WorkspaceConfig> {
         // Try workspace.yaml first
         let workspace_yaml = workspace_root.join("workspace.yaml");
         if workspace_yaml.exists() {
@@ -103,7 +103,7 @@ impl Workspace {
     }
 
     /// Load workspace.yaml
-    fn load_workspace_yaml(path: &Path) -> LpmResult<WorkspaceConfig> {
+    fn load_workspace_yaml(path: &Path) -> DepotResult<WorkspaceConfig> {
         use serde::Deserialize;
         use std::fs;
 
@@ -134,7 +134,7 @@ impl Workspace {
 
         let content = fs::read_to_string(path)?;
         let workspace: WorkspaceYaml = serde_yaml::from_str(&content)
-            .map_err(|e| LpmError::Package(format!("Failed to parse workspace.yaml: {}", e)))?;
+            .map_err(|e| DepotError::Package(format!("Failed to parse workspace.yaml: {}", e)))?;
 
         Ok(WorkspaceConfig {
             name: workspace.name,
@@ -155,7 +155,7 @@ impl Workspace {
     }
 
     /// Load workspace config from package.yaml
-    fn load_from_package_yaml(path: &Path) -> LpmResult<WorkspaceConfig> {
+    fn load_from_package_yaml(path: &Path) -> DepotResult<WorkspaceConfig> {
         use serde::Deserialize;
         use std::fs;
 
@@ -195,7 +195,7 @@ impl Workspace {
 
         let content = fs::read_to_string(path)?;
         let package: PackageYamlWithWorkspace = serde_yaml::from_str(&content)
-            .map_err(|e| LpmError::Package(format!("Failed to parse package.yaml: {}", e)))?;
+            .map_err(|e| DepotError::Package(format!("Failed to parse package.yaml: {}", e)))?;
 
         if let Some(workspace) = package.workspace {
             // Merge root-level and workspace.dependencies
@@ -222,7 +222,7 @@ impl Workspace {
                 }),
             })
         } else {
-            Err(LpmError::Package(
+            Err(DepotError::Package(
                 "No workspace section in package.yaml".to_string(),
             ))
         }
@@ -232,7 +232,7 @@ impl Workspace {
     fn find_packages(
         workspace_root: &Path,
         config: &WorkspaceConfig,
-    ) -> LpmResult<HashMap<String, WorkspacePackage>> {
+    ) -> DepotResult<HashMap<String, WorkspacePackage>> {
         use walkdir::WalkDir;
 
         let mut packages = HashMap::new();

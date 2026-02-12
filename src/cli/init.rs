@@ -1,70 +1,70 @@
 use crate::cli::install::run_interactive;
 use crate::cli::template::{TemplateDiscovery, TemplateRenderer};
+use depot::core::path::find_project_root;
+use depot::core::{DepotError, DepotResult};
+use depot::package::manifest::PackageManifest;
 use dialoguer::{Confirm, Input, MultiSelect, Select};
-use lpm::core::path::find_project_root;
-use lpm::core::{LpmError, LpmResult};
-use lpm::package::manifest::PackageManifest;
 use std::collections::HashMap;
 use std::env;
 use std::path::Path;
 
 // Trait for user input (for dependency injection in tests)
 pub trait UserInput {
-    fn prompt_string(&self, prompt: &str, default: &str) -> LpmResult<String>;
-    fn prompt_confirm(&self, prompt: &str, default: bool) -> LpmResult<bool>;
-    fn prompt_select(&self, prompt: &str, items: &[String], default: usize) -> LpmResult<usize>;
-    fn prompt_multiselect(&self, prompt: &str, items: &[String]) -> LpmResult<Vec<usize>>;
+    fn prompt_string(&self, prompt: &str, default: &str) -> DepotResult<String>;
+    fn prompt_confirm(&self, prompt: &str, default: bool) -> DepotResult<bool>;
+    fn prompt_select(&self, prompt: &str, items: &[String], default: usize) -> DepotResult<usize>;
+    fn prompt_multiselect(&self, prompt: &str, items: &[String]) -> DepotResult<Vec<usize>>;
 }
 
 // Real implementation using dialoguer
 pub struct DialoguerInput;
 
 impl UserInput for DialoguerInput {
-    fn prompt_string(&self, prompt: &str, default: &str) -> LpmResult<String> {
+    fn prompt_string(&self, prompt: &str, default: &str) -> DepotResult<String> {
         Input::new()
             .with_prompt(prompt)
             .default(default.to_string())
             .interact_text()
-            .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))
+            .map_err(|e| DepotError::Config(format!("Failed to read input: {}", e)))
     }
 
-    fn prompt_confirm(&self, prompt: &str, default: bool) -> LpmResult<bool> {
+    fn prompt_confirm(&self, prompt: &str, default: bool) -> DepotResult<bool> {
         Confirm::new()
             .with_prompt(prompt)
             .default(default)
             .interact()
-            .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))
+            .map_err(|e| DepotError::Config(format!("Failed to read input: {}", e)))
     }
 
-    fn prompt_select(&self, prompt: &str, items: &[String], default: usize) -> LpmResult<usize> {
+    fn prompt_select(&self, prompt: &str, items: &[String], default: usize) -> DepotResult<usize> {
         Select::new()
             .with_prompt(prompt)
             .items(items)
             .default(default)
             .interact()
-            .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))
+            .map_err(|e| DepotError::Config(format!("Failed to read input: {}", e)))
     }
 
-    fn prompt_multiselect(&self, prompt: &str, items: &[String]) -> LpmResult<Vec<usize>> {
+    fn prompt_multiselect(&self, prompt: &str, items: &[String]) -> DepotResult<Vec<usize>> {
         MultiSelect::new()
             .with_prompt(prompt)
             .items(items)
             .interact()
-            .map_err(|e| LpmError::Config(format!("Failed to read input: {}", e)))
+            .map_err(|e| DepotError::Config(format!("Failed to read input: {}", e)))
     }
 }
 
-pub async fn run(template: Option<String>, yes: bool) -> LpmResult<()> {
+pub async fn run(template: Option<String>, yes: bool) -> DepotResult<()> {
     let current_dir = env::current_dir()
-        .map_err(|e| LpmError::Path(format!("Failed to get current directory: {}", e)))?;
+        .map_err(|e| DepotError::Path(format!("Failed to get current directory: {}", e)))?;
     run_in_dir(&current_dir, template, yes).await
 }
 
-pub async fn run_in_dir(dir: &Path, template: Option<String>, yes: bool) -> LpmResult<()> {
+pub async fn run_in_dir(dir: &Path, template: Option<String>, yes: bool) -> DepotResult<()> {
     // Check if we're already in a project
     if find_project_root(dir).is_ok() {
-        return Err(LpmError::Package(
-            "Already in an LPM project (package.yaml exists)".to_string(),
+        return Err(DepotError::Package(
+            "Already in an Depot project (package.yaml exists)".to_string(),
         ));
     }
 
@@ -88,7 +88,7 @@ async fn run_wizard(
     current_dir: &Path,
     default_project_name: &str,
     template_name: Option<String>,
-) -> LpmResult<()> {
+) -> DepotResult<()> {
     run_wizard_with_input(
         current_dir,
         default_project_name,
@@ -103,21 +103,23 @@ async fn run_wizard_with_input(
     default_project_name: &str,
     template_name: Option<String>,
     input: &dyn UserInput,
-) -> LpmResult<()> {
-    println!("🚀 LPM Project Initialization Wizard\n");
+) -> DepotResult<()> {
+    println!("🚀 Depot Project Initialization Wizard\n");
 
     // Collect project name with validation
     let project_name = input.prompt_string("Project name", default_project_name)?;
 
     // Validate project name
     if project_name.is_empty() {
-        return Err(LpmError::Config("Project name cannot be empty".to_string()));
+        return Err(DepotError::Config(
+            "Project name cannot be empty".to_string(),
+        ));
     }
     if !project_name
         .chars()
         .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
     {
-        return Err(LpmError::Config(
+        return Err(DepotError::Config(
             "Project name can only contain alphanumeric characters, hyphens, and underscores"
                 .to_string(),
         ));
@@ -144,7 +146,7 @@ async fn run_wizard_with_input(
     let license = licenses[license_selection].clone();
 
     // Discover installed Lua versions dynamically
-    let installed_versions = lpm::lua_version::LuaVersion::discover_installed();
+    let installed_versions = depot::lua_version::LuaVersion::discover_installed();
     let mut lua_versions: Vec<String> =
         installed_versions.iter().map(|v| v.major_minor()).collect();
 
@@ -270,7 +272,7 @@ async fn run_wizard_with_input(
             "dev" => {
                 manifest
                     .scripts
-                    .insert("dev".to_string(), "lpm watch dev".to_string());
+                    .insert("dev".to_string(), "depot watch dev".to_string());
             }
             "test" => {
                 manifest
@@ -324,7 +326,7 @@ async fn run_wizard_with_input(
         false
     };
 
-    println!("\n✓ Initialized LPM project: {}", project_name);
+    println!("\n✓ Initialized Depot project: {}", project_name);
     println!("  Created package.yaml");
     if template_used {
         println!("  Applied template");
@@ -341,11 +343,11 @@ async fn run_wizard_with_input(
 
     println!("\nNext steps:");
     if !add_dependencies {
-        println!("  lpm install <package>  - Add a dependency");
-        println!("  lpm install            - Install all dependencies");
+        println!("  depot install <package>  - Add a dependency");
+        println!("  depot install            - Install all dependencies");
     }
     if !script_selections.is_empty() {
-        println!("  lpm run <script>      - Run a script (e.g., lpm run dev)");
+        println!("  depot run <script>      - Run a script (e.g., depot run dev)");
     }
 
     Ok(())
@@ -355,7 +357,7 @@ fn run_non_interactive(
     current_dir: &Path,
     project_name: &str,
     template_name: Option<String>,
-) -> LpmResult<()> {
+) -> DepotResult<()> {
     // Create default manifest
     let manifest = PackageManifest::default(project_name.to_string());
 
@@ -379,7 +381,7 @@ fn run_non_interactive(
         std::fs::create_dir_all(current_dir.join("tests"))?;
     }
 
-    println!("✓ Initialized LPM project: {}", project_name);
+    println!("✓ Initialized Depot project: {}", project_name);
     println!("  Created package.yaml");
     if template_name.is_some() {
         println!("  Applied template");
@@ -421,7 +423,7 @@ mod tests {
         assert!(result
             .unwrap_err()
             .to_string()
-            .contains("Already in an LPM project"));
+            .contains("Already in an Depot project"));
     }
 
     #[test]
@@ -617,7 +619,7 @@ mod tests {
     }
 
     impl UserInput for MockInput {
-        fn prompt_string(&self, prompt: &str, default: &str) -> LpmResult<String> {
+        fn prompt_string(&self, prompt: &str, default: &str) -> DepotResult<String> {
             Ok(self
                 .strings
                 .get(prompt)
@@ -625,7 +627,7 @@ mod tests {
                 .unwrap_or_else(|| default.to_string()))
         }
 
-        fn prompt_confirm(&self, prompt: &str, default: bool) -> LpmResult<bool> {
+        fn prompt_confirm(&self, prompt: &str, default: bool) -> DepotResult<bool> {
             Ok(*self.confirms.get(prompt).unwrap_or(&default))
         }
 
@@ -634,11 +636,11 @@ mod tests {
             prompt: &str,
             _items: &[String],
             default: usize,
-        ) -> LpmResult<usize> {
+        ) -> DepotResult<usize> {
             Ok(*self.selects.get(prompt).unwrap_or(&default))
         }
 
-        fn prompt_multiselect(&self, prompt: &str, _items: &[String]) -> LpmResult<Vec<usize>> {
+        fn prompt_multiselect(&self, prompt: &str, _items: &[String]) -> DepotResult<Vec<usize>> {
             Ok(self.multiselects.get(prompt).cloned().unwrap_or_default())
         }
     }

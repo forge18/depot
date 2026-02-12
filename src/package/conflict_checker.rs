@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::core::version::{parse_constraint, VersionConstraint};
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use crate::package::manifest::PackageManifest;
 use crate::resolver::DependencyGraph;
 use std::collections::HashMap;
@@ -10,14 +10,14 @@ pub struct ConflictChecker;
 
 impl ConflictChecker {
     /// Check for conflicts in dependencies before installation
-    pub fn check_conflicts(manifest: &PackageManifest) -> LpmResult<()> {
+    pub fn check_conflicts(manifest: &PackageManifest) -> DepotResult<()> {
         // Check for duplicate dependencies between regular and dev
         let mut all_deps = HashMap::new();
 
         // Add regular dependencies
         for (name, version) in &manifest.dependencies {
             if let Some(existing) = all_deps.get(name) {
-                return Err(LpmError::Package(format!(
+                return Err(DepotError::Package(format!(
                     "Conflict: '{}' is specified in both dependencies ({}) and dev_dependencies ({})",
                     name, existing, version
                 )));
@@ -28,7 +28,7 @@ impl ConflictChecker {
         // Add dev dependencies
         for (name, version) in &manifest.dev_dependencies {
             if let Some(existing) = all_deps.get(name) {
-                return Err(LpmError::Package(format!(
+                return Err(DepotError::Package(format!(
                     "Conflict: '{}' is specified in both dependencies ({}) and dev_dependencies ({})",
                     name, existing, version
                 )));
@@ -43,7 +43,7 @@ impl ConflictChecker {
         Ok(())
     }
 
-    fn check_version_conflicts(deps: &HashMap<String, String>) -> LpmResult<()> {
+    fn check_version_conflicts(deps: &HashMap<String, String>) -> DepotResult<()> {
         // Build dependency graph to check for circular dependencies
         let mut graph = DependencyGraph::new();
 
@@ -63,10 +63,10 @@ impl ConflictChecker {
         manifest: &PackageManifest,
         new_name: &str,
         new_version: &str,
-    ) -> LpmResult<()> {
+    ) -> DepotResult<()> {
         // Check if already exists
         if manifest.dependencies.contains_key(new_name) {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Package '{}' is already in dependencies with version '{}'",
                 new_name,
                 manifest.dependencies.get(new_name).unwrap()
@@ -74,7 +74,7 @@ impl ConflictChecker {
         }
 
         if manifest.dev_dependencies.contains_key(new_name) {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Package '{}' is already in dev_dependencies with version '{}'",
                 new_name,
                 manifest.dev_dependencies.get(new_name).unwrap()
@@ -83,7 +83,7 @@ impl ConflictChecker {
 
         // Validate the new dependency
         parse_constraint(new_version).map_err(|e| {
-            LpmError::Package(format!(
+            DepotError::Package(format!(
                 "Invalid version constraint '{}' for '{}': {}",
                 new_version, new_name, e
             ))
@@ -98,7 +98,7 @@ impl ConflictChecker {
         manifest: &PackageManifest,
         graph: &DependencyGraph,
         config: &Config,
-    ) -> LpmResult<Vec<String>> {
+    ) -> DepotResult<Vec<String>> {
         if !config.strict_conflicts {
             return Ok(Vec::new());
         }
@@ -121,7 +121,7 @@ impl ConflictChecker {
     }
 
     /// Check if multiple packages require incompatible versions of the same transitive dependency
-    fn check_transitive_conflicts(graph: &DependencyGraph) -> LpmResult<Vec<String>> {
+    fn check_transitive_conflicts(graph: &DependencyGraph) -> DepotResult<Vec<String>> {
         let mut warnings = Vec::new();
         let mut dep_constraints: HashMap<String, Vec<(String, VersionConstraint)>> = HashMap::new();
 
@@ -170,7 +170,7 @@ impl ConflictChecker {
     }
 
     /// Check for diamond dependency patterns where the same package appears at different levels
-    fn check_diamond_dependencies(graph: &DependencyGraph) -> LpmResult<Vec<String>> {
+    fn check_diamond_dependencies(graph: &DependencyGraph) -> DepotResult<Vec<String>> {
         let mut warnings = Vec::new();
         let mut package_depths: HashMap<String, Vec<usize>> = HashMap::new();
 
@@ -212,7 +212,7 @@ impl ConflictChecker {
     }
 
     /// Verify that all version constraints can be satisfied
-    fn check_constraint_satisfiability(graph: &DependencyGraph) -> LpmResult<Vec<String>> {
+    fn check_constraint_satisfiability(graph: &DependencyGraph) -> DepotResult<Vec<String>> {
         let mut warnings = Vec::new();
 
         for package in graph.node_names() {
@@ -236,7 +236,7 @@ impl ConflictChecker {
 
     /// Check for phantom dependencies (packages used but not declared)
     /// This is a placeholder - in practice, would need code analysis to detect imports
-    fn check_phantom_dependencies(_manifest: &PackageManifest) -> LpmResult<Vec<String>> {
+    fn check_phantom_dependencies(_manifest: &PackageManifest) -> DepotResult<Vec<String>> {
         // This would require analyzing Lua source files to detect require() calls
         // For now, return empty list as this is beyond scope of static analysis
         Ok(Vec::new())

@@ -1,5 +1,5 @@
 use crate::core::version::{Version, VersionConstraint};
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use crate::di::{PackageClient, SearchProvider, ServiceContainer};
 use crate::luarocks::manifest::Manifest;
 use crate::luarocks::rockspec::Rockspec;
@@ -19,11 +19,11 @@ pub enum ResolutionStrategy {
 
 impl ResolutionStrategy {
     /// Parse a resolution strategy from a string
-    pub fn parse(s: &str) -> LpmResult<Self> {
+    pub fn parse(s: &str) -> DepotResult<Self> {
         match s.to_lowercase().as_str() {
             "highest" => Ok(ResolutionStrategy::Highest),
             "lowest" => Ok(ResolutionStrategy::Lowest),
-            _ => Err(LpmError::Config(format!(
+            _ => Err(DepotError::Config(format!(
                 "Invalid resolution strategy '{}'. Must be 'highest' or 'lowest'",
                 s
             ))),
@@ -41,7 +41,7 @@ pub struct DependencyResolver {
 
 impl DependencyResolver {
     /// Create a new resolver with production dependencies
-    pub fn new(manifest: Manifest) -> LpmResult<Self> {
+    pub fn new(manifest: Manifest) -> DepotResult<Self> {
         let container = ServiceContainer::new()?;
         Self::with_dependencies(
             manifest,
@@ -57,7 +57,7 @@ impl DependencyResolver {
         strategy: ResolutionStrategy,
         package_client: Arc<dyn PackageClient>,
         search_provider: Arc<dyn SearchProvider>,
-    ) -> LpmResult<Self> {
+    ) -> DepotResult<Self> {
         Ok(Self {
             manifest,
             strategy,
@@ -67,7 +67,10 @@ impl DependencyResolver {
     }
 
     /// Create a new resolver with custom strategy
-    pub fn new_with_strategy(manifest: Manifest, strategy: ResolutionStrategy) -> LpmResult<Self> {
+    pub fn new_with_strategy(
+        manifest: Manifest,
+        strategy: ResolutionStrategy,
+    ) -> DepotResult<Self> {
         let container = ServiceContainer::new()?;
         Self::with_dependencies(
             manifest,
@@ -79,7 +82,7 @@ impl DependencyResolver {
 
     /// Create a new resolver with custom container (deprecated)
     #[deprecated(note = "Use with_dependencies instead for proper dependency injection")]
-    pub fn with_container(manifest: Manifest, container: ServiceContainer) -> LpmResult<Self> {
+    pub fn with_container(manifest: Manifest, container: ServiceContainer) -> DepotResult<Self> {
         Self::with_dependencies(
             manifest,
             ResolutionStrategy::default(),
@@ -94,7 +97,7 @@ impl DependencyResolver {
         manifest: Manifest,
         strategy: ResolutionStrategy,
         container: ServiceContainer,
-    ) -> LpmResult<Self> {
+    ) -> DepotResult<Self> {
         Self::with_dependencies(
             manifest,
             strategy,
@@ -114,7 +117,7 @@ impl DependencyResolver {
     pub async fn resolve(
         &self,
         dependencies: &HashMap<String, String>,
-    ) -> LpmResult<HashMap<String, Version>> {
+    ) -> DepotResult<HashMap<String, Version>> {
         let mut graph = DependencyGraph::new();
         let mut resolved = HashMap::new();
 
@@ -122,7 +125,7 @@ impl DependencyResolver {
         for (name, constraint_str) in dependencies {
             let constraint =
                 crate::core::version::parse_constraint(constraint_str).map_err(|e| {
-                    LpmError::Version(format!("Invalid constraint for {}: {}", name, e))
+                    DepotError::Version(format!("Invalid constraint for {}: {}", name, e))
                 })?;
             graph.add_node(name.clone(), constraint);
         }
@@ -132,11 +135,11 @@ impl DependencyResolver {
             .iter()
             .map(|(n, v)| {
                 let constraint = crate::core::version::parse_constraint(v).map_err(|e| {
-                    LpmError::Version(format!("Invalid constraint for {}: {}", n, e))
+                    DepotError::Version(format!("Invalid constraint for {}: {}", n, e))
                 })?;
                 Ok((n.clone(), constraint))
             })
-            .collect::<LpmResult<Vec<_>>>()?;
+            .collect::<DepotResult<Vec<_>>>()?;
         let mut processed = HashSet::new();
 
         while let Some((package_name, constraint)) = to_process.pop() {
@@ -148,7 +151,7 @@ impl DependencyResolver {
             // Get available versions from manifest
             let available_versions = self.get_available_versions(&package_name)?;
             if available_versions.is_empty() {
-                return Err(LpmError::Package(format!(
+                return Err(DepotError::Package(format!(
                     "No versions available for package '{}'",
                     package_name
                 )));
@@ -194,19 +197,19 @@ impl DependencyResolver {
     }
 
     /// Fetch and parse a rockspec for a package version
-    async fn get_rockspec(&self, name: &str, version: &str) -> LpmResult<Rockspec> {
+    async fn get_rockspec(&self, name: &str, version: &str) -> DepotResult<Rockspec> {
         let rockspec_url = self.search_provider.get_rockspec_url(name, version, None);
         let content = self.package_client.download_rockspec(&rockspec_url).await?;
         self.package_client.parse_rockspec(&content)
     }
 
     /// Get all available versions for a package from the manifest
-    fn get_available_versions(&self, package_name: &str) -> LpmResult<Vec<Version>> {
+    fn get_available_versions(&self, package_name: &str) -> DepotResult<Vec<Version>> {
         // Get versions from manifest
         let version_strings = self.manifest.get_package_version_strings(package_name);
 
         if version_strings.is_empty() {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Package '{}' not found in manifest",
                 package_name
             )));
@@ -233,14 +236,14 @@ impl DependencyResolver {
         &self,
         available_versions: &[Version],
         constraint: &VersionConstraint,
-    ) -> LpmResult<Version> {
+    ) -> DepotResult<Version> {
         for version in available_versions {
             if version.satisfies(constraint) {
                 return Ok(version.clone());
             }
         }
 
-        Err(LpmError::Version(format!(
+        Err(DepotError::Version(format!(
             "No version satisfies constraint: {:?}",
             constraint
         )))
@@ -251,9 +254,9 @@ impl DependencyResolver {
         &self,
         package_name: &str,
         constraints: &[VersionConstraint],
-    ) -> LpmResult<VersionConstraint> {
+    ) -> DepotResult<VersionConstraint> {
         if constraints.is_empty() {
-            return Err(LpmError::Version("No constraints provided".to_string()));
+            return Err(DepotError::Version("No constraints provided".to_string()));
         }
 
         if constraints.len() == 1 {
@@ -274,7 +277,7 @@ impl DependencyResolver {
         }
 
         // If no version satisfies all constraints, return an error
-        Err(LpmError::Version(format!(
+        Err(DepotError::Version(format!(
             "Version conflict for '{}': no version satisfies all constraints",
             package_name
         )))
@@ -283,7 +286,7 @@ impl DependencyResolver {
 
 /// Parse a dependency string from a rockspec
 /// Handles formats like: "luasocket >= 3.0", "penlight", "luasocket ~> 3.0"
-fn parse_dependency_string(dep: &str) -> LpmResult<(String, VersionConstraint)> {
+fn parse_dependency_string(dep: &str) -> DepotResult<(String, VersionConstraint)> {
     let dep = dep.trim();
 
     // Find first whitespace or version operator

@@ -1,5 +1,5 @@
 use crate::core::path::{config_file, ensure_dir};
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use crate::di::ConfigProvider;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -13,9 +13,9 @@ pub struct Config {
     /// Cache directory (defaults to platform-specific cache directory)
     ///
     /// Default locations:
-    /// - Windows: %LOCALAPPDATA%\lpm\cache
-    /// - Linux: ~/.cache/lpm
-    /// - macOS: ~/Library/Caches/lpm
+    /// - Windows: %LOCALAPPDATA%\depot\cache
+    /// - Linux: ~/.cache/depot
+    /// - macOS: ~/Library/Caches/depot
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_dir: Option<String>,
 
@@ -101,10 +101,10 @@ impl Config {
     /// Load config from platform-specific config directory, creating default if it doesn't exist
     ///
     /// Config locations:
-    /// - Windows: %APPDATA%\lpm\config.yaml
-    /// - Linux: ~/.config/lpm/config.yaml
-    /// - macOS: ~/Library/Application Support/lpm/config.yaml
-    pub fn load() -> LpmResult<Self> {
+    /// - Windows: %APPDATA%\depot\config.yaml
+    /// - Linux: ~/.config/depot/config.yaml
+    /// - macOS: ~/Library/Application Support/depot/config.yaml
+    pub fn load() -> DepotResult<Self> {
         let config_path = config_file()?;
 
         if !config_path.exists() {
@@ -116,7 +116,7 @@ impl Config {
 
         let content = fs::read_to_string(&config_path)?;
         let config: Config = serde_yaml::from_str(&content)
-            .map_err(|e| LpmError::Config(format!("Failed to parse config: {}", e)))?;
+            .map_err(|e| DepotError::Config(format!("Failed to parse config: {}", e)))?;
 
         Ok(config)
     }
@@ -124,10 +124,10 @@ impl Config {
     /// Save config to platform-specific config directory
     ///
     /// Config locations:
-    /// - Windows: %APPDATA%\lpm\config.yaml
-    /// - Linux: ~/.config/lpm/config.yaml
-    /// - macOS: ~/Library/Application Support/lpm/config.yaml
-    pub fn save(&self) -> LpmResult<()> {
+    /// - Windows: %APPDATA%\depot\config.yaml
+    /// - Linux: ~/.config/depot/config.yaml
+    /// - macOS: ~/Library/Application Support/depot/config.yaml
+    pub fn save(&self) -> DepotResult<()> {
         let config_path = config_file()?;
         let config_dir = config_path.parent().unwrap();
 
@@ -135,14 +135,14 @@ impl Config {
         ensure_dir(config_dir)?;
 
         let content = serde_yaml::to_string(self)
-            .map_err(|e| LpmError::Config(format!("Failed to serialize config: {}", e)))?;
+            .map_err(|e| DepotError::Config(format!("Failed to serialize config: {}", e)))?;
 
         fs::write(&config_path, content)?;
         Ok(())
     }
 
     /// Get the cache directory path
-    pub fn get_cache_dir(&self) -> LpmResult<std::path::PathBuf> {
+    pub fn get_cache_dir(&self) -> DepotResult<std::path::PathBuf> {
         if let Some(ref dir) = self.cache_dir {
             Ok(std::path::PathBuf::from(dir))
         } else {
@@ -157,7 +157,7 @@ impl ConfigProvider for Config {
         &self.luarocks_manifest_url
     }
 
-    fn cache_dir(&self) -> LpmResult<std::path::PathBuf> {
+    fn cache_dir(&self) -> DepotResult<std::path::PathBuf> {
         self.get_cache_dir()
     }
 
@@ -280,7 +280,7 @@ luarocks_manifest_url: https://custom.luarocks.org/manifest
         let config: Config = serde_yaml::from_str(yaml).unwrap();
         // Should use default values for missing fields
         assert!(config.verify_checksums); // default is true
-        assert!(config.show_diffs_on_update); // default is true
+        assert!(config.show_diffs_on_update);
         assert!(config.cache_dir.is_none());
     }
 
@@ -423,5 +423,129 @@ strict_conflicts: true
 "#;
         let config: Config = serde_yaml::from_str(yaml).unwrap();
         assert!(config.strict_conflicts);
+    }
+
+    #[test]
+    fn test_config_provider_implementation() {
+        let config = Config::default();
+        let provider: &dyn ConfigProvider = &config;
+
+        assert_eq!(
+            provider.luarocks_manifest_url(),
+            "https://luarocks.org/manifests/luarocks/manifest"
+        );
+        assert!(provider.verify_checksums());
+        assert!(provider.show_diffs_on_update());
+        assert_eq!(provider.resolution_strategy(), "highest");
+        assert_eq!(provider.checksum_algorithm(), "blake3");
+        assert!(provider.strict_conflicts());
+        assert_eq!(provider.lua_binary_source_url(), None);
+        assert_eq!(provider.supported_lua_versions(), None);
+    }
+
+    #[test]
+    fn test_config_provider_cache_dir() {
+        let config = Config {
+            cache_dir: Some("/test/cache".to_string()),
+            ..Default::default()
+        };
+        let provider: &dyn ConfigProvider = &config;
+
+        let cache_dir = provider.cache_dir().unwrap();
+        assert_eq!(cache_dir.to_string_lossy(), "/test/cache");
+    }
+
+    #[test]
+    fn test_config_provider_with_custom_values() {
+        let config = Config {
+            luarocks_manifest_url: "https://custom.manifest.org".to_string(),
+            verify_checksums: false,
+            show_diffs_on_update: false,
+            resolution_strategy: "lowest".to_string(),
+            checksum_algorithm: "sha256".to_string(),
+            strict_conflicts: false,
+            lua_binary_source_url: Some("https://lua.org/binaries".to_string()),
+            supported_lua_versions: Some(vec!["5.1".to_string()]),
+            ..Default::default()
+        };
+        let provider: &dyn ConfigProvider = &config;
+
+        assert_eq!(
+            provider.luarocks_manifest_url(),
+            "https://custom.manifest.org"
+        );
+        assert!(!provider.verify_checksums());
+        assert!(!provider.show_diffs_on_update());
+        assert_eq!(provider.resolution_strategy(), "lowest");
+        assert_eq!(provider.checksum_algorithm(), "sha256");
+        assert!(!provider.strict_conflicts());
+        assert_eq!(
+            provider.lua_binary_source_url(),
+            Some("https://lua.org/binaries")
+        );
+        assert_eq!(provider.supported_lua_versions().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_config_default_checksum_algorithm() {
+        let config = Config::default();
+        assert_eq!(config.checksum_algorithm, "blake3");
+        assert_eq!(default_checksum_algorithm(), "blake3");
+    }
+
+    #[test]
+    fn test_config_with_sha256_checksum() {
+        let config = Config {
+            checksum_algorithm: "sha256".to_string(),
+            ..Default::default()
+        };
+
+        assert_eq!(config.checksum_algorithm, "sha256");
+        let yaml = serde_yaml::to_string(&config).unwrap();
+        assert!(yaml.contains("checksum_algorithm: sha256"));
+    }
+
+    #[test]
+    fn test_config_deserialization_with_checksum_algorithm() {
+        let yaml = r#"
+luarocks_manifest_url: https://custom.luarocks.org/manifest
+checksum_algorithm: sha256
+"#;
+        let config: Config = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(config.checksum_algorithm, "sha256");
+    }
+
+    #[test]
+    fn test_default_resolution_strategy() {
+        assert_eq!(default_resolution_strategy(), "highest");
+    }
+
+    #[test]
+    fn test_config_serialization_with_all_fields() {
+        let mut lua_sources = std::collections::HashMap::new();
+        lua_sources.insert("5.4".to_string(), "https://example.com".to_string());
+
+        let config = Config {
+            luarocks_manifest_url: "https://custom.manifest.org".to_string(),
+            cache_dir: Some("/cache".to_string()),
+            verify_checksums: false,
+            show_diffs_on_update: false,
+            lua_binary_source_url: Some("https://binaries.org".to_string()),
+            lua_binary_sources: Some(lua_sources),
+            resolution_strategy: "lowest".to_string(),
+            checksum_algorithm: "sha256".to_string(),
+            supported_lua_versions: Some(vec!["5.1".to_string(), "5.4".to_string()]),
+            strict_conflicts: false,
+        };
+
+        let yaml = serde_yaml::to_string(&config).unwrap();
+        assert!(yaml.contains("luarocks_manifest_url: https://custom.manifest.org"));
+        assert!(yaml.contains("cache_dir: /cache"));
+        assert!(yaml.contains("verify_checksums: false"));
+        assert!(yaml.contains("show_diffs_on_update: false"));
+        assert!(yaml.contains("lua_binary_source_url: https://binaries.org"));
+        assert!(yaml.contains("resolution_strategy: lowest"));
+        assert!(yaml.contains("checksum_algorithm: sha256"));
+        assert!(yaml.contains("strict_conflicts: false"));
     }
 }

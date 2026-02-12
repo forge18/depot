@@ -1,4 +1,4 @@
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use crate::package::manifest::PackageManifest;
 use crate::package::validator::ManifestValidator;
 use std::fs;
@@ -10,7 +10,7 @@ pub struct PublishValidator;
 
 impl PublishValidator {
     /// Validate a package is ready for publishing
-    pub fn validate(manifest: &PackageManifest, project_root: &Path) -> LpmResult<()> {
+    pub fn validate(manifest: &PackageManifest, project_root: &Path) -> DepotResult<()> {
         // 1. Validate manifest schema
         ManifestValidator::validate(manifest)?;
 
@@ -33,7 +33,7 @@ impl PublishValidator {
     }
 
     /// Check that the package contains Lua files
-    fn validate_has_lua_files(project_root: &Path) -> LpmResult<()> {
+    fn validate_has_lua_files(project_root: &Path) -> DepotResult<()> {
         let lua_dirs = vec!["lua", "src", "lib", "."];
         let mut found_lua = false;
 
@@ -42,7 +42,7 @@ impl PublishValidator {
             if dir.exists() && dir.is_dir() {
                 for entry in WalkDir::new(&dir) {
                     let entry = entry.map_err(|e| {
-                        LpmError::Path(format!("Failed to read directory entry: {}", e))
+                        DepotError::Path(format!("Failed to read directory entry: {}", e))
                     })?;
                     let path = entry.path();
                     if path.is_file() && path.extension().map(|e| e == "lua").unwrap_or(false) {
@@ -56,7 +56,7 @@ impl PublishValidator {
             if !found_lua {
                 for entry in fs::read_dir(project_root)? {
                     let entry = entry.map_err(|e| {
-                        LpmError::Path(format!("Failed to read directory entry: {}", e))
+                        DepotError::Path(format!("Failed to read directory entry: {}", e))
                     })?;
                     let path = entry.path();
                     if path.is_file() && path.extension().map(|e| e == "lua").unwrap_or(false) {
@@ -72,8 +72,8 @@ impl PublishValidator {
         }
 
         if !found_lua {
-            return Err(LpmError::Package(
-                "Package must contain at least one .lua file. LPM only publishes Lua modules, not standalone Rust libraries.".to_string(),
+            return Err(DepotError::Package(
+                "Package must contain at least one .lua file. Depot only publishes Lua modules, not standalone Rust libraries.".to_string(),
             ));
         }
 
@@ -84,12 +84,12 @@ impl PublishValidator {
     fn validate_rust_build(
         project_root: &Path,
         build: &crate::package::manifest::BuildConfig,
-    ) -> LpmResult<()> {
+    ) -> DepotResult<()> {
         // Check that Cargo.toml exists
         let cargo_toml = project_root.join(build.manifest.as_deref().unwrap_or("Cargo.toml"));
 
         if !cargo_toml.exists() {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Cargo.toml not found at {}",
                 cargo_toml.display()
             )));
@@ -97,7 +97,7 @@ impl PublishValidator {
 
         // Check that modules are specified
         if build.modules.is_empty() {
-            return Err(LpmError::Package(
+            return Err(DepotError::Package(
                 "Rust build must specify 'modules' mapping. Rust code must be compiled as native Lua modules, not standalone libraries.".to_string(),
             ));
         }
@@ -106,15 +106,15 @@ impl PublishValidator {
     }
 
     /// Validate package metadata
-    fn validate_metadata(manifest: &PackageManifest) -> LpmResult<()> {
+    fn validate_metadata(manifest: &PackageManifest) -> DepotResult<()> {
         if manifest.name.is_empty() {
-            return Err(LpmError::Package(
+            return Err(DepotError::Package(
                 "Package name cannot be empty".to_string(),
             ));
         }
 
         if manifest.version.is_empty() {
-            return Err(LpmError::Package(
+            return Err(DepotError::Package(
                 "Package version cannot be empty".to_string(),
             ));
         }

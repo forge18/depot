@@ -1,22 +1,22 @@
-use lpm::core::path::find_project_root;
-use lpm::core::version::Version;
-use lpm::core::{LpmError, LpmResult};
-use lpm::di::ServiceContainer;
-use lpm::package::installer::PackageInstaller;
-use lpm::package::interactive::confirm;
-use lpm::package::lockfile::Lockfile;
-use lpm::package::lockfile_builder::LockfileBuilder;
-use lpm::package::manifest::PackageManifest;
-use lpm::package::rollback::with_rollback_async;
-use lpm::package::update_diff::UpdateDiff;
-use lpm::path_setup::PathSetup;
-use lpm::resolver::DependencyResolver;
-use lpm::workspace::{Workspace, WorkspaceFilter};
+use depot::core::path::find_project_root;
+use depot::core::version::Version;
+use depot::core::{DepotError, DepotResult};
+use depot::di::ServiceContainer;
+use depot::package::installer::PackageInstaller;
+use depot::package::interactive::confirm;
+use depot::package::lockfile::Lockfile;
+use depot::package::lockfile_builder::LockfileBuilder;
+use depot::package::manifest::PackageManifest;
+use depot::package::rollback::with_rollback_async;
+use depot::package::update_diff::UpdateDiff;
+use depot::path_setup::PathSetup;
+use depot::resolver::DependencyResolver;
+use depot::workspace::{Workspace, WorkspaceFilter};
 use std::env;
 
-pub async fn run(package: Option<String>, filter: Vec<String>) -> LpmResult<()> {
+pub async fn run(package: Option<String>, filter: Vec<String>) -> DepotResult<()> {
     let current_dir = env::current_dir()
-        .map_err(|e| LpmError::Path(format!("Failed to get current directory: {}", e)))?;
+        .map_err(|e| DepotError::Path(format!("Failed to get current directory: {}", e)))?;
 
     let project_root = find_project_root(&current_dir)?;
 
@@ -26,7 +26,7 @@ pub async fn run(package: Option<String>, filter: Vec<String>) -> LpmResult<()> 
             let workspace = Workspace::load(&project_root)?;
             return update_workspace_filtered(&workspace, &filter, package).await;
         } else {
-            return Err(LpmError::Package(
+            return Err(DepotError::Package(
                 "--filter can only be used in workspace mode".to_string(),
             ));
         }
@@ -44,7 +44,7 @@ pub async fn run(package: Option<String>, filter: Vec<String>) -> LpmResult<()> 
         // Create resolver
         let resolver = DependencyResolver::with_dependencies(
             luarocks_manifest,
-            lpm::resolver::ResolutionStrategy::Highest,
+            depot::resolver::ResolutionStrategy::Highest,
             container.package_client.clone(),
             container.search_provider.clone(),
         )?;
@@ -161,14 +161,14 @@ async fn update_package(
     package_name: &str,
     lockfile: &Option<Lockfile>,
     installer: &PackageInstaller,
-) -> LpmResult<()> {
+) -> DepotResult<()> {
     // Check if package exists in dependencies
     let version_constraint = manifest
         .dependencies
         .get(package_name)
         .or_else(|| manifest.dev_dependencies.get(package_name))
         .ok_or_else(|| {
-            LpmError::Package(format!(
+            DepotError::Package(format!(
                 "Package '{}' not found in dependencies",
                 package_name
             ))
@@ -188,7 +188,7 @@ async fn update_package(
 
     let resolved = resolver.resolve(&deps).await?;
     let new_version = resolved.get(package_name as &str).ok_or_else(|| {
-        LpmError::Package(format!("Could not resolve version for '{}'", package_name))
+        DepotError::Package(format!("Could not resolve version for '{}'", package_name))
     })?;
 
     if let Some(current) = &current_version {
@@ -229,7 +229,7 @@ async fn update_all_packages(
     resolved_versions: &std::collections::HashMap<String, Version>,
     resolved_dev_versions: &std::collections::HashMap<String, Version>,
     installer: &PackageInstaller,
-) -> LpmResult<()> {
+) -> DepotResult<()> {
     println!("\n🔄 Applying updates...");
 
     let mut updated_count = 0;
@@ -300,7 +300,7 @@ async fn update_workspace_filtered(
     workspace: &Workspace,
     filter_patterns: &[String],
     package: Option<String>,
-) -> LpmResult<()> {
+) -> DepotResult<()> {
     // Create filter
     let filter = WorkspaceFilter::new(filter_patterns.to_vec());
 
@@ -354,7 +354,7 @@ async fn update_workspace_filtered(
         // Create resolver
         let resolver = DependencyResolver::with_dependencies(
             luarocks_manifest,
-            lpm::resolver::ResolutionStrategy::Highest,
+            depot::resolver::ResolutionStrategy::Highest,
             container.package_client.clone(),
             container.search_provider.clone(),
         )?;
@@ -468,10 +468,10 @@ async fn update_workspace_filtered(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lpm::core::version::Version;
-    use lpm::package::lockfile::{LockedPackage, Lockfile};
-    use lpm::package::manifest::PackageManifest;
-    use lpm::package::update_diff::UpdateDiff;
+    use depot::core::version::Version;
+    use depot::package::lockfile::{LockedPackage, Lockfile};
+    use depot::package::manifest::PackageManifest;
+    use depot::package::update_diff::UpdateDiff;
     use std::collections::HashMap;
     use tempfile::TempDir;
 
@@ -742,10 +742,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_package_with_mocks() {
-        use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
-        use lpm::di::PackageClient;
-        use lpm::package::installer::PackageInstaller;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use depot::di::mocks::{MockPackageClient, MockSearchProvider};
+        use depot::di::PackageClient;
+        use depot::package::installer::PackageInstaller;
+        use depot::resolver::{DependencyResolver, ResolutionStrategy};
         use std::sync::Arc;
         use tempfile::TempDir;
 
@@ -787,10 +787,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_all_packages_with_lockfile() {
-        use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
-        use lpm::di::PackageClient;
-        use lpm::package::installer::PackageInstaller;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use depot::di::mocks::{MockPackageClient, MockSearchProvider};
+        use depot::di::PackageClient;
+        use depot::package::installer::PackageInstaller;
+        use depot::resolver::{DependencyResolver, ResolutionStrategy};
         use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
@@ -832,10 +832,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_package_in_dev_dependencies() {
-        use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
-        use lpm::di::PackageClient;
-        use lpm::package::installer::PackageInstaller;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use depot::di::mocks::{MockPackageClient, MockSearchProvider};
+        use depot::di::PackageClient;
+        use depot::package::installer::PackageInstaller;
+        use depot::resolver::{DependencyResolver, ResolutionStrategy};
         use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
@@ -876,11 +876,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_all_packages_with_versions() {
-        use lpm::core::version::Version;
-        use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
-        use lpm::di::PackageClient;
-        use lpm::package::installer::PackageInstaller;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use depot::core::version::Version;
+        use depot::di::mocks::{MockPackageClient, MockSearchProvider};
+        use depot::di::PackageClient;
+        use depot::package::installer::PackageInstaller;
+        use depot::resolver::{DependencyResolver, ResolutionStrategy};
         use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
@@ -923,10 +923,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_package_version_parsing() {
-        use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
-        use lpm::di::PackageClient;
-        use lpm::package::installer::PackageInstaller;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use depot::di::mocks::{MockPackageClient, MockSearchProvider};
+        use depot::di::PackageClient;
+        use depot::package::installer::PackageInstaller;
+        use depot::resolver::{DependencyResolver, ResolutionStrategy};
         use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
@@ -1008,11 +1008,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_all_packages_dev_dependencies() {
-        use lpm::core::version::Version;
-        use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
-        use lpm::di::PackageClient;
-        use lpm::package::installer::PackageInstaller;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use depot::core::version::Version;
+        use depot::di::mocks::{MockPackageClient, MockSearchProvider};
+        use depot::di::PackageClient;
+        use depot::package::installer::PackageInstaller;
+        use depot::resolver::{DependencyResolver, ResolutionStrategy};
         use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
@@ -1054,11 +1054,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_all_packages_needs_update_check() {
-        use lpm::core::version::Version;
-        use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
-        use lpm::di::PackageClient;
-        use lpm::package::installer::PackageInstaller;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use depot::core::version::Version;
+        use depot::di::mocks::{MockPackageClient, MockSearchProvider};
+        use depot::di::PackageClient;
+        use depot::package::installer::PackageInstaller;
+        use depot::resolver::{DependencyResolver, ResolutionStrategy};
         use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
@@ -1116,11 +1116,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_all_packages_no_lockfile() {
-        use lpm::core::version::Version;
-        use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
-        use lpm::di::PackageClient;
-        use lpm::package::installer::PackageInstaller;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use depot::core::version::Version;
+        use depot::di::mocks::{MockPackageClient, MockSearchProvider};
+        use depot::di::PackageClient;
+        use depot::package::installer::PackageInstaller;
+        use depot::resolver::{DependencyResolver, ResolutionStrategy};
         use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
@@ -1163,11 +1163,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_all_packages_version_parse_fail() {
-        use lpm::core::version::Version;
-        use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
-        use lpm::di::PackageClient;
-        use lpm::package::installer::PackageInstaller;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use depot::core::version::Version;
+        use depot::di::mocks::{MockPackageClient, MockSearchProvider};
+        use depot::di::PackageClient;
+        use depot::package::installer::PackageInstaller;
+        use depot::resolver::{DependencyResolver, ResolutionStrategy};
         use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
@@ -1225,10 +1225,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_package_success_path_structure() {
-        use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
-        use lpm::di::PackageClient;
-        use lpm::package::installer::PackageInstaller;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use depot::di::mocks::{MockPackageClient, MockSearchProvider};
+        use depot::di::PackageClient;
+        use depot::package::installer::PackageInstaller;
+        use depot::resolver::{DependencyResolver, ResolutionStrategy};
         use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
@@ -1269,11 +1269,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_all_packages_same_version_no_update() {
-        use lpm::core::version::Version;
-        use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
-        use lpm::di::PackageClient;
-        use lpm::package::installer::PackageInstaller;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use depot::core::version::Version;
+        use depot::di::mocks::{MockPackageClient, MockSearchProvider};
+        use depot::di::PackageClient;
+        use depot::package::installer::PackageInstaller;
+        use depot::resolver::{DependencyResolver, ResolutionStrategy};
         use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
@@ -1331,11 +1331,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_all_packages_dev_deps_same_version() {
-        use lpm::core::version::Version;
-        use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
-        use lpm::di::PackageClient;
-        use lpm::package::installer::PackageInstaller;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use depot::core::version::Version;
+        use depot::di::mocks::{MockPackageClient, MockSearchProvider};
+        use depot::di::PackageClient;
+        use depot::package::installer::PackageInstaller;
+        use depot::resolver::{DependencyResolver, ResolutionStrategy};
         use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
@@ -1395,11 +1395,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_all_packages_mixed_updates() {
-        use lpm::core::version::Version;
-        use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
-        use lpm::di::PackageClient;
-        use lpm::package::installer::PackageInstaller;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use depot::core::version::Version;
+        use depot::di::mocks::{MockPackageClient, MockSearchProvider};
+        use depot::di::PackageClient;
+        use depot::package::installer::PackageInstaller;
+        use depot::resolver::{DependencyResolver, ResolutionStrategy};
         use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
@@ -1471,10 +1471,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_package_with_existing_lockfile() {
-        use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
-        use lpm::di::PackageClient;
-        use lpm::package::installer::PackageInstaller;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use depot::di::mocks::{MockPackageClient, MockSearchProvider};
+        use depot::di::PackageClient;
+        use depot::package::installer::PackageInstaller;
+        use depot::resolver::{DependencyResolver, ResolutionStrategy};
         use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
@@ -1534,10 +1534,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_package_already_latest() {
-        use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
-        use lpm::luarocks::manifest::{Manifest, PackageVersion};
-        use lpm::package::installer::PackageInstaller;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use depot::di::mocks::{MockPackageClient, MockSearchProvider};
+        use depot::luarocks::manifest::{Manifest, PackageVersion};
+        use depot::package::installer::PackageInstaller;
+        use depot::resolver::{DependencyResolver, ResolutionStrategy};
         use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
@@ -1628,10 +1628,10 @@ build = {
 
     #[tokio::test]
     async fn test_update_package_no_lockfile_entry() {
-        use lpm::di::mocks::{MockPackageClient, MockSearchProvider};
-        use lpm::luarocks::manifest::{Manifest, PackageVersion};
-        use lpm::package::installer::PackageInstaller;
-        use lpm::resolver::{DependencyResolver, ResolutionStrategy};
+        use depot::di::mocks::{MockPackageClient, MockSearchProvider};
+        use depot::luarocks::manifest::{Manifest, PackageVersion};
+        use depot::package::installer::PackageInstaller;
+        use depot::resolver::{DependencyResolver, ResolutionStrategy};
         use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();
@@ -1728,7 +1728,7 @@ build = {
 
     #[tokio::test]
     async fn test_update_workspace_filtered_no_matching_packages() {
-        use lpm::workspace::Workspace;
+        use depot::workspace::Workspace;
         use tempfile::TempDir;
 
         let temp = TempDir::new().unwrap();

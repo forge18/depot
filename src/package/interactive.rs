@@ -1,34 +1,34 @@
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use std::io::{self, Write};
 
 /// Prompt the user for confirmation
-pub fn confirm(prompt: &str) -> LpmResult<bool> {
+pub fn confirm(prompt: &str) -> DepotResult<bool> {
     print!("{} (y/N): ", prompt);
     io::stdout()
         .flush()
-        .map_err(|e| LpmError::Package(format!("Failed to write to stdout: {}", e)))?;
+        .map_err(|e| DepotError::Package(format!("Failed to write to stdout: {}", e)))?;
 
     let mut input = String::new();
     io::stdin()
         .read_line(&mut input)
-        .map_err(|e| LpmError::Package(format!("Failed to read from stdin: {}", e)))?;
+        .map_err(|e| DepotError::Package(format!("Failed to read from stdin: {}", e)))?;
 
     let trimmed = input.trim().to_lowercase();
     Ok(trimmed == "y" || trimmed == "yes")
 }
 
 /// Prompt the user with a default value
-pub fn confirm_with_default(prompt: &str, default: bool) -> LpmResult<bool> {
+pub fn confirm_with_default(prompt: &str, default: bool) -> DepotResult<bool> {
     let default_str = if default { "Y/n" } else { "y/N" };
     print!("{} ({}): ", prompt, default_str);
     io::stdout()
         .flush()
-        .map_err(|e| LpmError::Package(format!("Failed to write to stdout: {}", e)))?;
+        .map_err(|e| DepotError::Package(format!("Failed to write to stdout: {}", e)))?;
 
     let mut input = String::new();
     io::stdin()
         .read_line(&mut input)
-        .map_err(|e| LpmError::Package(format!("Failed to read from stdin: {}", e)))?;
+        .map_err(|e| DepotError::Package(format!("Failed to read from stdin: {}", e)))?;
 
     let trimmed = input.trim().to_lowercase();
 
@@ -40,7 +40,7 @@ pub fn confirm_with_default(prompt: &str, default: bool) -> LpmResult<bool> {
 }
 
 /// Prompt for a choice from a list of options
-pub fn choose(prompt: &str, options: &[&str], default: usize) -> LpmResult<usize> {
+pub fn choose(prompt: &str, options: &[&str], default: usize) -> DepotResult<usize> {
     println!("{}", prompt);
     for (i, option) in options.iter().enumerate() {
         let marker = if i == default { "*" } else { " " };
@@ -50,12 +50,12 @@ pub fn choose(prompt: &str, options: &[&str], default: usize) -> LpmResult<usize
     print!("Choose (1-{}, default {}): ", options.len(), default + 1);
     io::stdout()
         .flush()
-        .map_err(|e| LpmError::Package(format!("Failed to write to stdout: {}", e)))?;
+        .map_err(|e| DepotError::Package(format!("Failed to write to stdout: {}", e)))?;
 
     let mut input = String::new();
     io::stdin()
         .read_line(&mut input)
-        .map_err(|e| LpmError::Package(format!("Failed to read from stdin: {}", e)))?;
+        .map_err(|e| DepotError::Package(format!("Failed to read from stdin: {}", e)))?;
 
     let trimmed = input.trim();
 
@@ -103,22 +103,22 @@ mod tests {
 
     #[test]
     fn test_confirm_function_signature() {
-        // Test that confirm returns LpmResult<bool>
-        let func: fn(&str) -> LpmResult<bool> = confirm;
+        // Test that confirm returns DepotResult<bool>
+        let func: fn(&str) -> DepotResult<bool> = confirm;
         let _ = func;
     }
 
     #[test]
     fn test_confirm_with_default_function_signature() {
-        // Test that confirm_with_default returns LpmResult<bool>
-        let func: fn(&str, bool) -> LpmResult<bool> = confirm_with_default;
+        // Test that confirm_with_default returns DepotResult<bool>
+        let func: fn(&str, bool) -> DepotResult<bool> = confirm_with_default;
         let _ = func;
     }
 
     #[test]
     fn test_choose_function_signature() {
-        // Test that choose returns LpmResult<usize>
-        let func: fn(&str, &[&str], usize) -> LpmResult<usize> = choose;
+        // Test that choose returns DepotResult<usize>
+        let func: fn(&str, &[&str], usize) -> DepotResult<usize> = choose;
         let _ = func;
     }
 
@@ -144,37 +144,37 @@ mod tests {
     #[test]
     fn test_choose_with_single_option() {
         // Test choose with single option
-        let func: fn(&str, &[&str], usize) -> LpmResult<usize> = choose;
+        let func: fn(&str, &[&str], usize) -> DepotResult<usize> = choose;
         let _ = func;
     }
 
     #[test]
     fn test_choose_with_multiple_options() {
         // Test choose with multiple options
-        let func: fn(&str, &[&str], usize) -> LpmResult<usize> = choose;
+        let func: fn(&str, &[&str], usize) -> DepotResult<usize> = choose;
         let _ = func;
     }
 
     #[test]
     fn test_confirm_returns_lpm_result() {
-        // Verify confirm returns LpmResult<bool>
-        let func: fn(&str) -> LpmResult<bool> = confirm;
+        // Verify confirm returns DepotResult<bool>
+        let func: fn(&str) -> DepotResult<bool> = confirm;
         // Check function signature exists
         assert_eq!(std::mem::size_of_val(&func), std::mem::size_of::<usize>());
     }
 
     #[test]
     fn test_confirm_with_default_returns_lpm_result() {
-        // Verify confirm_with_default returns LpmResult<bool>
-        let func: fn(&str, bool) -> LpmResult<bool> = confirm_with_default;
+        // Verify confirm_with_default returns DepotResult<bool>
+        let func: fn(&str, bool) -> DepotResult<bool> = confirm_with_default;
         // Check function signature exists
         assert_eq!(std::mem::size_of_val(&func), std::mem::size_of::<usize>());
     }
 
     #[test]
     fn test_choose_returns_lpm_result_usize() {
-        // Verify choose returns LpmResult<usize>
-        let func: fn(&str, &[&str], usize) -> LpmResult<usize> = choose;
+        // Verify choose returns DepotResult<usize>
+        let func: fn(&str, &[&str], usize) -> DepotResult<usize> = choose;
         // Check function signature exists
         assert_eq!(std::mem::size_of_val(&func), std::mem::size_of::<usize>());
     }
@@ -182,21 +182,21 @@ mod tests {
     #[test]
     fn test_confirm_accepts_prompt_string() {
         // Test that confirm accepts &str parameter
-        let _func: fn(&str) -> LpmResult<bool> = confirm;
+        let _func: fn(&str) -> DepotResult<bool> = confirm;
         // Compilation succeeds means signature is correct
     }
 
     #[test]
     fn test_confirm_with_default_accepts_bool() {
         // Test that confirm_with_default accepts bool default parameter
-        let _func: fn(&str, bool) -> LpmResult<bool> = confirm_with_default;
+        let _func: fn(&str, bool) -> DepotResult<bool> = confirm_with_default;
         // Compilation succeeds means signature is correct
     }
 
     #[test]
     fn test_choose_accepts_slice_and_usize() {
         // Test that choose accepts options slice and default index
-        let _func: fn(&str, &[&str], usize) -> LpmResult<usize> = choose;
+        let _func: fn(&str, &[&str], usize) -> DepotResult<usize> = choose;
         // Compilation succeeds means signature is correct
     }
 

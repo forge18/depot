@@ -1,6 +1,6 @@
 ---
 name: Feature Request
-about: Suggest an idea for LPM
+about: Suggest an idea for Depot
 title: '[FEATURE] '
 labels: enhancement
 assignees: ''

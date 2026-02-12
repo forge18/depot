@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Build installer executables for LPM
+# Build installer executables for Depot
 # Usage: ./scripts/build-installer.sh [platform]
 # Platforms: macos, windows, linux, all
 
@@ -85,7 +85,7 @@ build_macos() {
             OUTPUT_FILE="${RELEASE_DIR}/lpm-v${VERSION}-macos-${ARCH}.pkg"
             
             if pkgbuild --root installer-payload \
-                       --identifier com.lpm.installer \
+                       --identifier com.depot.installer \
                        --version "$VERSION" \
                        --install-location / \
                        "$OUTPUT_FILE"; then
@@ -158,12 +158,12 @@ build_windows() {
         # Create install.bat script
         cat > lpm-windows-release/install.bat << 'EOF'
 @echo off
-echo Installing LPM...
+echo Installing Depot...
 set INSTALL_DIR=%USERPROFILE%\.cargo\bin
 if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
 copy /Y lpm.exe "%INSTALL_DIR%\lpm.exe"
 echo.
-echo LPM installed to %INSTALL_DIR%
+echo Depot installed to %INSTALL_DIR%
 echo.
 echo Add to PATH (run in PowerShell as Administrator):
 echo [Environment]::SetEnvironmentVariable("Path", $env:Path + ";%USERPROFILE%\.cargo\bin", "User")

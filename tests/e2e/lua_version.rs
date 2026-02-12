@@ -7,7 +7,7 @@ fn test_lua_list() {
     let ctx = TestContext::new();
 
     // List available Lua versions
-    ctx.lpm().arg("lua").arg("list").assert().success();
+    ctx.depot().arg("lua").arg("list").assert().success();
 }
 
 #[test]
@@ -17,7 +17,7 @@ fn test_lua_install() {
     let ctx = TestContext::new();
 
     // Install a Lua version (using a stable version)
-    ctx.lpm()
+    ctx.depot()
         .arg("lua")
         .arg("install")
         .arg("5.4")
@@ -32,7 +32,7 @@ fn test_lua_use() {
     let ctx = TestContext::new();
 
     // First install a Lua version
-    ctx.lpm()
+    ctx.depot()
         .arg("lua")
         .arg("install")
         .arg("5.4")
@@ -40,7 +40,7 @@ fn test_lua_use() {
         .success();
 
     // Switch to it
-    ctx.lpm()
+    ctx.depot()
         .arg("lua")
         .arg("use")
         .arg("5.4")

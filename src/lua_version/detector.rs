@@ -1,4 +1,4 @@
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use std::fmt;
 use std::process::Command;
 use std::str;
@@ -33,7 +33,7 @@ impl LuaVersion {
     /// - "Lua 5.4.6"
     /// - "Lua 5.3.6"
     /// - "Lua 5.1.5"
-    pub fn parse(version_str: &str) -> LpmResult<Self> {
+    pub fn parse(version_str: &str) -> DepotResult<Self> {
         // Remove "Lua" prefix and whitespace
         let version_str = version_str.trim();
         let version_str = version_str
@@ -45,7 +45,7 @@ impl LuaVersion {
         let parts: Vec<&str> = version_str.split('.').collect();
 
         if parts.is_empty() {
-            return Err(LpmError::Version(format!(
+            return Err(DepotError::Version(format!(
                 "Invalid Lua version format: '{}'",
                 version_str
             )));
@@ -53,7 +53,7 @@ impl LuaVersion {
 
         let major = parts[0]
             .parse()
-            .map_err(|_| LpmError::Version(format!("Invalid major version: '{}'", parts[0])))?;
+            .map_err(|_| DepotError::Version(format!("Invalid major version: '{}'", parts[0])))?;
 
         let minor = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(0);
 
@@ -145,19 +145,19 @@ pub struct LuaVersionDetector;
 
 impl LuaVersionDetector {
     /// Detect the installed Lua version by running `lua -v`
-    pub fn detect() -> LpmResult<LuaVersion> {
+    pub fn detect() -> DepotResult<LuaVersion> {
         let output = Command::new("lua").arg("-v").output().map_err(|e| {
-            LpmError::Version(format!("Failed to run 'lua -v': {}. Is Lua installed?", e))
+            DepotError::Version(format!("Failed to run 'lua -v': {}. Is Lua installed?", e))
         })?;
 
         if !output.status.success() {
-            return Err(LpmError::Version(
+            return Err(DepotError::Version(
                 "Failed to get Lua version. 'lua -v' returned an error.".to_string(),
             ));
         }
 
         let stdout = str::from_utf8(&output.stdout).map_err(|e| {
-            LpmError::Version(format!("Invalid UTF-8 in Lua version output: {}", e))
+            DepotError::Version(format!("Invalid UTF-8 in Lua version output: {}", e))
         })?;
 
         // Parse first line (version info is usually on first line)
@@ -168,21 +168,21 @@ impl LuaVersionDetector {
     /// Detect Lua version with a specific command
     ///
     /// Useful for testing or when Lua is installed with a different name
-    pub fn detect_with_command(command: &str) -> LpmResult<LuaVersion> {
+    pub fn detect_with_command(command: &str) -> DepotResult<LuaVersion> {
         let output = Command::new(command)
             .arg("-v")
             .output()
-            .map_err(|e| LpmError::Version(format!("Failed to run '{} -v': {}", command, e)))?;
+            .map_err(|e| DepotError::Version(format!("Failed to run '{} -v': {}", command, e)))?;
 
         if !output.status.success() {
-            return Err(LpmError::Version(format!(
+            return Err(DepotError::Version(format!(
                 "Failed to get Lua version from '{}'",
                 command
             )));
         }
 
         let stdout = str::from_utf8(&output.stdout).map_err(|e| {
-            LpmError::Version(format!("Invalid UTF-8 in Lua version output: {}", e))
+            DepotError::Version(format!("Invalid UTF-8 in Lua version output: {}", e))
         })?;
 
         let first_line = stdout.lines().next().unwrap_or("").trim();

@@ -1,6 +1,6 @@
-//! Tests for `lpm build` command
+//! Tests for `depot build` command
 
-use super::common::lpm_command;
+use super::common::depot_command;
 use std::fs;
 use tempfile::TempDir;
 
@@ -16,7 +16,7 @@ fn test_build_command() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("build")
         .current_dir(project_root)
         .output()
@@ -31,7 +31,7 @@ fn test_build_without_package_yaml() {
     let temp = TempDir::new().unwrap();
     let project_root = temp.path();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("build")
         .current_dir(project_root)
         .output()
@@ -82,7 +82,7 @@ mlua = "0.9"
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("build")
         .current_dir(project_root)
         .output()
@@ -104,7 +104,7 @@ fn test_build_error_recovery() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("build")
         .current_dir(project_root)
         .output()

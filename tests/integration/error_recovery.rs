@@ -1,6 +1,6 @@
 //! Tests for error recovery scenarios
 
-use super::common::lpm_command;
+use super::common::depot_command;
 use std::fs;
 use tempfile::TempDir;
 
@@ -23,7 +23,7 @@ fn test_install_with_corrupted_lockfile() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("install")
         .current_dir(project_root)
         .output()
@@ -58,7 +58,7 @@ dependencies:
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("update")
         .current_dir(project_root)
         .output()
@@ -87,7 +87,7 @@ fn test_remove_nonexistent_package() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("remove")
         .arg("nonexistent-package")
         .current_dir(project_root)
@@ -117,7 +117,7 @@ fn test_verify_with_missing_lockfile() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("verify")
         .current_dir(project_root)
         .output()
@@ -139,7 +139,7 @@ fn test_list_without_package_yaml() {
     let temp = TempDir::new().unwrap();
     let project_root = temp.path();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("list")
         .current_dir(project_root)
         .output()
@@ -169,7 +169,7 @@ fn test_clean_with_partial_installation() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("clean")
         .current_dir(project_root)
         .output()

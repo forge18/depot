@@ -1,6 +1,6 @@
-//! Tests for `lpm template` command
+//! Tests for `depot template` command
 
-use super::common::lpm_command;
+use super::common::depot_command;
 use std::fs;
 use tempfile::TempDir;
 
@@ -15,7 +15,7 @@ fn test_template_list_command() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("template")
         .arg("list")
         .current_dir(project_root)
@@ -43,7 +43,7 @@ fn test_template_list_with_search() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("template")
         .arg("list")
         .arg("--search")
@@ -61,7 +61,7 @@ fn test_template_create_without_project() {
     let project_root = temp.path();
 
     // Don't create package.yaml - should fail
-    let output = lpm_command()
+    let output = depot_command()
         .arg("template")
         .arg("create")
         .arg("test-template")
@@ -87,7 +87,7 @@ fn test_template_create_with_project() {
     fs::create_dir_all(project_root.join("src")).unwrap();
     fs::write(project_root.join("src").join("main.lua"), "print('hello')").unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("template")
         .arg("create")
         .arg("test-template")

@@ -1,5 +1,5 @@
 use super::metadata::TemplateMetadata;
-use lpm_core::LpmResult;
+use depot_core::DepotResult;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -11,7 +11,7 @@ pub struct TemplateRenderer {
 }
 
 impl TemplateRenderer {
-    pub fn new(template_dir: PathBuf) -> LpmResult<Self> {
+    pub fn new(template_dir: PathBuf) -> DepotResult<Self> {
         let metadata = TemplateMetadata::load(&template_dir)?;
         Ok(Self {
             template_dir,
@@ -20,11 +20,15 @@ impl TemplateRenderer {
     }
 
     /// Render the template to the target directory
-    pub fn render(&self, target_dir: &Path, variables: &HashMap<String, String>) -> LpmResult<()> {
+    pub fn render(
+        &self,
+        target_dir: &Path,
+        variables: &HashMap<String, String>,
+    ) -> DepotResult<()> {
         // Validate required variables
         for var in &self.metadata.variables {
             if var.required && !variables.contains_key(&var.name) {
-                return Err(lpm_core::LpmError::Config(format!(
+                return Err(depot_core::DepotError::Config(format!(
                     "Required template variable '{}' not provided",
                     var.name
                 )));
@@ -45,7 +49,7 @@ impl TemplateRenderer {
         source: &Path,
         target: &Path,
         variables: &HashMap<String, String>,
-    ) -> LpmResult<()> {
+    ) -> DepotResult<()> {
         for entry in fs::read_dir(source)? {
             let entry = entry?;
             let source_path = entry.path();
@@ -77,7 +81,7 @@ impl TemplateRenderer {
         source: &Path,
         target: &Path,
         variables: &HashMap<String, String>,
-    ) -> LpmResult<()> {
+    ) -> DepotResult<()> {
         let content = fs::read_to_string(source)?;
         let rendered = self.substitute_variables(&content, variables);
         fs::write(target, rendered)?;

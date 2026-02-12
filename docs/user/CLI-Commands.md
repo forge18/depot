@@ -1,55 +1,55 @@
 # CLI Commands Reference
 
-Complete reference for all LPM commands.
+Complete reference for all Depot commands.
 
 ## Project Management
 
-### `lpm new <name>`
+### `depot new <name>`
 
-Create a new LPM project in a new directory.
+Create a new Depot project in a new directory.
 
 ```bash
 # Create new project
-lpm new my-project
+depot new my-project
 
 # Create with template
-lpm new my-project --template love2d
+depot new my-project --template love2d
 
 # Non-interactive mode
-lpm new my-project --yes
-lpm new my-project -y
+depot new my-project --yes
+depot new my-project -y
 
 # Non-interactive with template
-lpm new my-project --template cli-tool --yes
+depot new my-project --template cli-tool --yes
 ```
 
 This command:
 1. Creates a new directory with the specified name
-2. Initializes an LPM project inside it (runs `lpm init`)
+2. Initializes an Depot project inside it (runs `depot init`)
 3. Sets up the project structure
 
 **Note**: The command will fail if a directory with the same name already exists.
 
-### `lpm init`
+### `depot init`
 
-Initialize a new LPM project in the current directory.
+Initialize a new Depot project in the current directory.
 
 ```bash
 # Interactive wizard mode (default)
-lpm init
+depot init
 
 # Non-interactive mode (use defaults)
-lpm init --yes
-lpm init -y
+depot init --yes
+depot init -y
 
 # Use a specific template
-lpm init --template <template-name>
+depot init --template <template-name>
 
 # Non-interactive with template
-lpm init --template <template-name> --yes
+depot init --template <template-name> --yes
 ```
 
-**Interactive Wizard Mode**: When run without flags, `lpm init` starts an interactive wizard that guides you through project setup:
+**Interactive Wizard Mode**: When run without flags, `depot init` starts an interactive wizard that guides you through project setup:
 
 1. **Project name**: Enter a name for your project (defaults to current directory name)
    - Must contain only alphanumeric characters, hyphens, and underscores
@@ -110,44 +110,44 @@ lpm init --template <template-name> --yes
 - Template files (if template selected)
 - Basic `src/main.lua` (if no template used)
 
-**Note**: The wizard will not run if you're already in an LPM project (i.e., `package.yaml` exists in the current or parent directory).
+**Note**: The wizard will not run if you're already in an Depot project (i.e., `package.yaml` exists in the current or parent directory).
 
 ## Dependency Management
 
-### `lpm install [package]`
+### `depot install [package]`
 
 Install dependencies.
 
 ```bash
 # Install all dependencies from package.yaml
-lpm install
+depot install
 
 # Install a specific package
-lpm install luasocket
+depot install luasocket
 
 # Install with version constraint
-lpm install luasocket@3.0.0
-lpm install penlight@^1.13.0
+depot install luasocket@3.0.0
+depot install penlight@^1.13.0
 
 # Install as dev dependency
-lpm install --dev test-more
+depot install --dev test-more
 
 # Install from local path
-lpm install --path ./local-package
+depot install --path ./local-package
 
 # Production install (skip dev dependencies)
-lpm install --no-dev
+depot install --no-dev
 
 # Install only dev dependencies
-lpm install --dev-only
+depot install --dev-only
 
 # Install globally (like npm install -g)
-lpm install -g luacheck
-lpm install -g busted
+depot install -g luacheck
+depot install -g busted
 
 # Interactive mode: search and select packages
-lpm install --interactive
-lpm install -i
+depot install --interactive
+depot install -i
 ```
 
 **Interactive Mode**: Use `-i` or `--interactive` to search and install packages interactively. This mode provides:
@@ -166,79 +166,79 @@ lpm install -i
 4. Review the installation summary
 5. Confirm to install
 
-**Global Installation**: Use `-g` or `--global` to install packages globally. Global tools are installed to `~/.lpm/global/` and executables are created in `~/.lpm/bin/`. Add `~/.lpm/bin/` to your PATH to use global tools everywhere.
+**Global Installation**: Use `-g` or `--global` to install packages globally. Global tools are installed to `~/.depot/global/` and executables are created in `~/.depot/bin/`. Add `~/.depot/bin/` to your PATH to use global tools everywhere.
 
-**Performance**: LPM downloads packages in parallel (up to 10 concurrent downloads) for faster installation. The LuaRocks manifest is cached locally to speed up dependency resolution.
+**Performance**: Depot downloads packages in parallel (up to 10 concurrent downloads) for faster installation. The LuaRocks manifest is cached locally to speed up dependency resolution.
 
-### `lpm remove <package> [--global]`
+### `depot remove <package> [--global]`
 
 Remove a dependency from your project.
 
 ```bash
 # Remove from current project
-lpm remove luasocket
+depot remove luasocket
 
 # Remove global package
-lpm remove -g luacheck
-lpm remove --global busted
+depot remove -g luacheck
+depot remove --global busted
 ```
 
 Removes the package from `package.yaml` and `lua_modules/` (or global installation directory), and deletes all associated files and executables.
 
-### `lpm update [package]`
+### `depot update [package]`
 
 Update dependencies to their latest compatible versions.
 
 ```bash
 # Update all dependencies
-lpm update
+depot update
 
 # Update a specific package
-lpm update luasocket
+depot update luasocket
 ```
 
-### `lpm list [--tree] [--global]`
+### `depot list [--tree] [--global]`
 
 List installed packages.
 
 ```bash
 # List all packages
-lpm list
+depot list
 
 # Show dependency tree
-lpm list --tree
+depot list --tree
 
 # List globally installed packages
-lpm list -g
-lpm list --global
+depot list -g
+depot list --global
 ```
 
-### `lpm outdated`
+### `depot outdated`
 
 Show packages that have newer versions available.
 
 ```bash
-lpm outdated
+depot outdated
 ```
 
-### `lpm verify`
+### `depot verify`
 
 Verify package checksums against the lockfile.
 
-**Note**: LPM uses BLAKE3 checksums for fast, cryptographic verification. Incremental lockfile updates mean only changed packages are rebuilt when updating `lpm.lock`, making updates faster.
+**Note**: Depot uses BLAKE3 checksums for fast, cryptographic verification. Incremental lockfile updates mean only changed packages are rebuilt when updating `depot.lock`, making updates faster.
 
 ```bash
-lpm verify
+depot verify
 ```
 
 ## Workspace Management
 
-### `lpm workspace list`
+### `depot workspace list`
 
 List all packages in the workspace.
 
 ```bash
-lpm workspace list
+depot workspace list
 ```
 
 Output shows:
@@ -246,12 +246,12 @@ Output shows:
 - All discovered packages with their paths
 - Total package count
 
-### `lpm workspace info`
+### `depot workspace info`
 
 Show detailed workspace information.
 
 ```bash
-lpm workspace info
+depot workspace info
 ```
 
 Displays:
@@ -263,12 +263,12 @@ Displays:
 - Workspace package metadata (shared version, authors, license, etc.)
 - All packages with their details (version, dependencies count)
 
-### `lpm workspace shared-deps`
+### `depot workspace shared-deps`
 
 Analyze shared dependencies across workspace packages.
 
 ```bash
-lpm workspace shared-deps
+depot workspace shared-deps
 ```
 
 Shows:
@@ -283,7 +283,7 @@ This helps identify:
 
 ## Scripts and Execution
 
-### `lpm run <script>`
+### `depot run <script>`
 
 Run a script defined in `package.yaml`.
 
@@ -295,239 +295,239 @@ scripts:
 ```
 
 ```bash
-lpm run test
-lpm run build
+depot run test
+depot run build
 ```
 
-### `lpm exec <command>`
+### `depot exec <command>`
 
 Execute a command with correct `package.path` setup.
 
 ```bash
-lpm exec lua src/main.lua
-lpm exec luac -o out.luac src/main.lua
+depot exec lua src/main.lua
+depot exec luac -o out.luac src/main.lua
 ```
 
 ## Building
 
-### `lpm build [--target <target>] [--all-targets]`
+### `depot build [--target <target>] [--all-targets]`
 
 Build Rust extensions for your project.
 
 ```bash
 # Build for current platform
-lpm build
+depot build
 
 # Build for specific target
-lpm build --target x86_64-unknown-linux-gnu
+depot build --target x86_64-unknown-linux-gnu
 
 # Build for all common targets
-lpm build --all-targets
+depot build --all-targets
 ```
 
-### `lpm package [--target <target>]`
+### `depot package [--target <target>]`
 
 Package built binaries for distribution.
 
 ```bash
-lpm package
-lpm package --target x86_64-unknown-linux-gnu
+depot package
+depot package --target x86_64-unknown-linux-gnu
 ```
 
 ## Publishing
 
-### `lpm publish [--with-binaries]`
+### `depot publish [--with-binaries]`
 
 Publish your package to LuaRocks.
 
 ```bash
 # Publish Lua-only package
-lpm publish
+depot publish
 
 # Publish with pre-built Rust binaries
-lpm publish --with-binaries
+depot publish --with-binaries
 ```
 
-### `lpm login`
+### `depot login`
 
 Login to LuaRocks (stores credentials securely).
 
 ```bash
-lpm login
+depot login
 ```
 
-### `lpm generate-rockspec`
+### `depot generate-rockspec`
 
 Generate a rockspec file from `package.yaml`.
 
 ```bash
-lpm generate-rockspec
+depot generate-rockspec
 ```
 
 ## Maintenance
 
-### `lpm clean`
+### `depot clean`
 
 Clean the `lua_modules/` directory.
 
 ```bash
-lpm clean
+depot clean
 ```
 
-### `lpm audit`
+### `depot audit`
 
 Run security audit on installed packages.
 
 ```bash
-lpm audit
+depot audit
 ```
 
 Checks for known vulnerabilities using OSV and GitHub Security Advisories.
 
 ## Lua Version Management
 
-### `lpm lua install <version>`
+### `depot lua install <version>`
 
 Install a Lua version.
 
 ```bash
 # Install latest version
-lpm lua install latest
+depot lua install latest
 
 # Install specific version
-lpm lua install 5.4.8
-lpm lua install 5.3.6
-lpm lua install 5.1.5
+depot lua install 5.4.8
+depot lua install 5.3.6
+depot lua install 5.1.5
 ```
 
-### `lpm lua use <version>`
+### `depot lua use <version>`
 
 Switch to a Lua version globally.
 
 ```bash
-lpm lua use 5.4.8
+depot lua use 5.4.8
 ```
 
-### `lpm lua local <version>`
+### `depot lua local <version>`
 
 Set Lua version for current project (creates `.lua-version` file).
 
 ```bash
-lpm lua local 5.3.6
+depot lua local 5.3.6
 ```
 
-### `lpm lua current`
+### `depot lua current`
 
 Show currently active Lua version.
 
 ```bash
-lpm lua current
+depot lua current
 ```
 
-### `lpm lua which`
+### `depot lua which`
 
 Show which Lua version will be used (respects `.lua-version` files).
 
 ```bash
-lpm lua which
+depot lua which
 ```
 
-### `lpm lua list` / `lpm lua ls`
+### `depot lua list` / `depot lua ls`
 
 List installed Lua versions.
 
 ```bash
-lpm lua list
+depot lua list
 ```
 
-### `lpm lua list-remote` / `lpm lua ls-remote`
+### `depot lua list-remote` / `depot lua ls-remote`
 
 List available Lua versions for installation.
 
 ```bash
-lpm lua list-remote
+depot lua list-remote
 ```
 
-### `lpm lua uninstall <version>`
+### `depot lua uninstall <version>`
 
 Uninstall a Lua version.
 
 ```bash
-lpm lua uninstall 5.3.6
+depot lua uninstall 5.3.6
 ```
 
-### `lpm lua exec <version> <command>`
+### `depot lua exec <version> <command>`
 
 Execute a command with a specific Lua version.
 
 ```bash
-lpm lua exec 5.3.6 lua script.lua
+depot lua exec 5.3.6 lua script.lua
 ```
 
-**Note**: After installing Lua versions, add `~/.lpm/bin/` to your PATH to use the `lua` and `luac` wrappers. The wrappers automatically detect `.lua-version` files in your project directories.
+**Note**: After installing Lua versions, add `~/.depot/bin/` to your PATH to use the `lua` and `luac` wrappers. The wrappers automatically detect `.lua-version` files in your project directories.
 
 ## Plugins
 
-LPM supports plugins that extend functionality. Plugins are automatically discovered when installed globally.
+Depot supports plugins that extend functionality. Plugins are automatically discovered when installed globally.
 
-### `lpm plugin list`
+### `depot plugin list`
 
 List all installed plugins.
 
 ```bash
-lpm plugin list
+depot plugin list
 ```
 
-### `lpm plugin info <name>`
+### `depot plugin info <name>`
 
 Show detailed information about a plugin.
 
 ```bash
-lpm plugin info watch
+depot plugin info watch
 ```
 
-### `lpm plugin update [name]`
+### `depot plugin update [name]`
 
 Update one or all plugins to the latest version.
 
 ```bash
 # Update all plugins
-lpm plugin update
+depot plugin update
 
 # Update a specific plugin
-lpm plugin update watch
+depot plugin update watch
 ```
 
-### `lpm plugin outdated`
+### `depot plugin outdated`
 
 Check for outdated plugins.
 
 ```bash
-lpm plugin outdated
+depot plugin outdated
 ```
 
-### `lpm plugin search [query]`
+### `depot plugin search [query]`
 
 Search for available plugins in the registry.
 
 ```bash
 # Search for plugins
-lpm plugin search watch
+depot plugin search watch
 ```
 
-### `lpm plugin config`
+### `depot plugin config`
 
 Manage plugin configuration.
 
 ```bash
 # Get a configuration value
-lpm plugin config get <plugin> <key>
+depot plugin config get <plugin> <key>
 
 # Set a configuration value
-lpm plugin config set <plugin> <key> <value>
+depot plugin config set <plugin> <key> <value>
 
 # Show all configuration for a plugin
-lpm plugin config show <plugin>
+depot plugin config show <plugin>
 ```
 
 ### Plugin Commands
@@ -535,34 +535,34 @@ lpm plugin config show <plugin>
 Once installed, plugins are available as subcommands:
 
 ```bash
-# lpm-watch plugin
-lpm watch [options]
-lpm watch dev
+# depot-watch plugin
+depot watch [options]
+depot watch dev
 
-# lpm-bundle plugin
-lpm bundle [options]
-lpm bundle watch
+# depot-bundle plugin
+depot bundle [options]
+depot bundle watch
 ```
 
 See the [Plugins documentation](Plugins.md) for detailed information about available plugins and their usage.
 
 ## Setup
 
-### `lpm setup-path`
+### `depot setup-path`
 
-Automatically configure PATH for LPM (Unix/macOS only).
+Automatically configure PATH for Depot (Unix/macOS only).
 
 ```bash
-lpm setup-path
+depot setup-path
 ```
 
 Adds `~/.cargo/bin` to your shell profile.
 
-**For Lua version manager and global tools**, also add `~/.lpm/bin/` to your PATH:
+**For Lua version manager and global tools**, also add `~/.depot/bin/` to your PATH:
 
 ```bash
 # Unix/macOS - add to ~/.bashrc, ~/.zshrc, etc.
-export PATH="$HOME/.lpm/bin:$PATH"
+export PATH="$HOME/.depot/bin:$PATH"
 
 # Or on macOS:
 export PATH="$HOME/Library/Application Support/lpm/bin:$PATH"
@@ -576,7 +576,7 @@ All commands support:
 - `--help` - Show help for a command
 
 ```bash
-lpm --version
-lpm install --help
+depot --version
+depot install --help
 ```
 

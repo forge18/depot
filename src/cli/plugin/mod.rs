@@ -6,8 +6,8 @@ pub mod registry;
 
 pub use metadata::PluginInfo;
 
-use lpm::core::path::lpm_home;
-use lpm::core::{LpmError, LpmResult};
+use depot::core::path::depot_home;
+use depot::core::{DepotError, DepotResult};
 use std::fs;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -25,48 +25,50 @@ fn find_plugin_in_paths(
     custom_lpm_home: Option<&std::path::Path>,
     custom_home: Option<&std::path::Path>,
 ) -> Option<PathBuf> {
-    // Check lpm_home/bin/lpm-{name} (global install location)
-    let lpm_home_path = custom_lpm_home
+    // Check depot_home/bin/depot-{name} (global install location)
+    let depot_home_path = custom_lpm_home
         .map(|p| Ok(p.to_path_buf()))
-        .unwrap_or_else(lpm_home);
-    if let Ok(lpm_home) = lpm_home_path {
-        let plugin_path = lpm_home.join("bin").join(format!("lpm-{}", plugin_name));
+        .unwrap_or_else(depot_home);
+    if let Ok(depot_home) = depot_home_path {
+        let plugin_path = depot_home
+            .join("bin")
+            .join(format!("depot-{}", plugin_name));
         if plugin_path.exists() {
             return Some(plugin_path);
         }
     }
 
-    // Also check legacy ~/.lpm/bin/lpm-{name} for backwards compatibility
+    // Also check legacy ~/.depot/bin/depot-{name} for backwards compatibility
     let home_path = custom_home
         .map(|p| Some(p.to_path_buf()))
         .unwrap_or_else(|| std::env::var("HOME").ok().map(PathBuf::from));
     if let Some(home) = home_path {
         let legacy_path = home
-            .join(".lpm")
+            .join(".depot")
             .join("bin")
-            .join(format!("lpm-{}", plugin_name));
+            .join(format!("depot-{}", plugin_name));
         if legacy_path.exists() {
             return Some(legacy_path);
         }
     }
 
-    // Check PATH for lpm-{name}
-    which::which(format!("lpm-{}", plugin_name)).ok()
+    // Check PATH for depot-{name}
+    which::which(format!("depot-{}", plugin_name)).ok()
 }
 
 /// List all installed plugins
-pub(crate) fn list_plugins() -> LpmResult<Vec<PluginInfo>> {
+pub(crate) fn list_plugins() -> DepotResult<Vec<PluginInfo>> {
     let mut plugins = Vec::new();
 
     // Check lpm_home/bin directory
-    if let Ok(lpm_home) = lpm_home() {
+    if let Ok(lpm_home) = depot_home() {
         let bin_dir = lpm_home.join("bin");
         if bin_dir.exists() {
             if let Ok(entries) = fs::read_dir(&bin_dir) {
                 for entry in entries.flatten() {
                     let path = entry.path();
                     if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                        if let Some(plugin_name) = name.strip_prefix("lpm-") {
+                        if let Some(plugin_name) = name.strip_prefix("depot-") {
                             let plugin_name = plugin_name.to_string();
                             if let Ok(Some(info)) = PluginInfo::from_installed(&plugin_name) {
                                 plugins.push(info);
@@ -80,13 +82,13 @@ pub(crate) fn list_plugins() -> LpmResult<Vec<PluginInfo>> {
 
     // Check legacy location
     if let Ok(home) = std::env::var("HOME") {
-        let legacy_bin = PathBuf::from(home).join(".lpm").join("bin");
+        let legacy_bin = PathBuf::from(home).join(".depot").join("bin");
         if legacy_bin.exists() {
             if let Ok(entries) = fs::read_dir(&legacy_bin) {
                 for entry in entries.flatten() {
                     let path = entry.path();
                     if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                        if let Some(plugin_name) = name.strip_prefix("lpm-") {
+                        if let Some(plugin_name) = name.strip_prefix("depot-") {
                             let plugin_name = plugin_name.to_string();
                             // Only add if not already found
                             if !plugins.iter().any(|p| p.metadata.name == plugin_name) {
@@ -105,14 +107,14 @@ pub(crate) fn list_plugins() -> LpmResult<Vec<PluginInfo>> {
 }
 
 /// Execute a plugin with arguments
-pub fn run_plugin(plugin_name: &str, args: Vec<String>) -> LpmResult<()> {
+pub fn run_plugin(plugin_name: &str, args: Vec<String>) -> DepotResult<()> {
     use crate::cli::plugin::config::PluginConfig;
 
     if let Some(plugin_path) = find_plugin(plugin_name) {
         // Check if plugin is executable
         if !is_executable(&plugin_path) {
-            return Err(LpmError::Package(format!(
-                "Plugin '{}' is not executable.\n\n  Fix: chmod +x {}\n\n  Or reinstall the plugin: lpm install -g lpm-{}",
+            return Err(DepotError::Package(format!(
+                "Plugin '{}' is not executable.\n\n  Fix: chmod +x {}\n\n  Or reinstall the plugin: depot install -g depot-{}",
                 plugin_name,
                 plugin_path.display(),
                 plugin_name
@@ -127,10 +129,10 @@ pub fn run_plugin(plugin_name: &str, args: Vec<String>) -> LpmResult<()> {
         cmd.args(args);
 
         // Pass config settings as environment variables
-        // Format: LPM_PLUGIN_<PLUGIN_NAME>_<KEY>=<value>
+        // Format: Depot_PLUGIN_<PLUGIN_NAME>_<KEY>=<value>
         for (key, value) in &config.settings {
             let env_key = format!(
-                "LPM_PLUGIN_{}_{}",
+                "Depot_PLUGIN_{}_{}",
                 plugin_name.to_uppercase().replace("-", "_"),
                 key.to_uppercase()
             );
@@ -149,28 +151,28 @@ pub fn run_plugin(plugin_name: &str, args: Vec<String>) -> LpmResult<()> {
                 // Check for common execution errors
                 let error_msg = if e.kind() == std::io::ErrorKind::PermissionDenied {
                     format!(
-                        "Permission denied executing plugin '{}'.\n\n  Fix: chmod +x {}\n\n  Or reinstall: lpm install -g lpm-{}",
+                        "Permission denied executing plugin '{}'.\n\n  Fix: chmod +x {}\n\n  Or reinstall: depot install -g depot-{}",
                         plugin_name,
                         plugin_path.display(),
                         plugin_name
                     )
                 } else if e.kind() == std::io::ErrorKind::NotFound {
                     format!(
-                        "Plugin '{}' executable not found at {}.\n\n  Fix: Reinstall the plugin: lpm install -g lpm-{}",
+                        "Plugin '{}' executable not found at {}.\n\n  Fix: Reinstall the plugin: depot install -g depot-{}",
                         plugin_name,
                         plugin_path.display(),
                         plugin_name
                     )
                 } else {
                     format!(
-                        "Failed to execute plugin '{}': {}.\n\n  Plugin path: {}\n\n  Fix: Check plugin installation or reinstall: lpm install -g lpm-{}",
+                        "Failed to execute plugin '{}': {}.\n\n  Plugin path: {}\n\n  Fix: Check plugin installation or reinstall: depot install -g depot-{}",
                         plugin_name,
                         e,
                         plugin_path.display(),
                         plugin_name
                     )
                 };
-                return Err(LpmError::Package(error_msg));
+                return Err(DepotError::Package(error_msg));
             }
         };
 
@@ -188,7 +190,7 @@ pub fn run_plugin(plugin_name: &str, args: Vec<String>) -> LpmResult<()> {
                     ));
                     error_msg.push_str("\n    - Check plugin documentation");
                     error_msg.push_str(&format!(
-                        "\n    - Verify plugin is up to date: lpm install -g lpm-{}",
+                        "\n    - Verify plugin is up to date: depot install -g depot-{}",
                         plugin_name
                     ));
                 }
@@ -208,7 +210,7 @@ pub fn run_plugin(plugin_name: &str, args: Vec<String>) -> LpmResult<()> {
                 127 => {
                     error_msg.push_str("\n\n  Plugin or its dependencies not found.");
                     error_msg.push_str(&format!(
-                        "\n    Fix: Reinstall: lpm install -g lpm-{}",
+                        "\n    Fix: Reinstall: depot install -g depot-{}",
                         plugin_name
                     ));
                 }
@@ -216,13 +218,13 @@ pub fn run_plugin(plugin_name: &str, args: Vec<String>) -> LpmResult<()> {
                     error_msg.push_str("\n\n  Check plugin documentation or try:");
                     error_msg.push_str(&format!("\n    - lpm {} --help", plugin_name));
                     error_msg.push_str(&format!(
-                        "\n    - Reinstall: lpm install -g lpm-{}",
+                        "\n    - Reinstall: depot install -g depot-{}",
                         plugin_name
                     ));
                 }
             }
 
-            return Err(LpmError::Package(error_msg));
+            return Err(DepotError::Package(error_msg));
         }
         Ok(())
     } else {
@@ -230,29 +232,29 @@ pub fn run_plugin(plugin_name: &str, args: Vec<String>) -> LpmResult<()> {
         let mut error_msg = format!("Plugin '{}' not found.\n\n", plugin_name);
 
         error_msg.push_str(&format!(
-            "  Install it with: lpm install -g lpm-{}\n",
+            "  Install it with: depot install -g depot-{}\n",
             plugin_name
         ));
 
         // Check if plugin exists in expected locations
-        if let Ok(lpm_home) = lpm_home() {
+        if let Ok(lpm_home) = depot_home() {
             let bin_dir = lpm_home.join("bin");
             error_msg.push_str(&format!(
                 "\n  Expected location: {}\n",
-                bin_dir.join(format!("lpm-{}", plugin_name)).display()
+                bin_dir.join(format!("depot-{}", plugin_name)).display()
             ));
         }
 
         error_msg.push_str("\n  Available plugins are installed in:");
-        if let Ok(lpm_home) = lpm_home() {
+        if let Ok(lpm_home) = depot_home() {
             error_msg.push_str(&format!("\n    - {}/bin/", lpm_home.display()));
         }
         if let Ok(home) = std::env::var("HOME") {
-            error_msg.push_str(&format!("\n    - {}/.lpm/bin/ (legacy)", home));
+            error_msg.push_str(&format!("\n    - {}/.depot/bin/ (legacy)", home));
         }
         error_msg.push_str("\n    - PATH");
 
-        Err(LpmError::Package(error_msg))
+        Err(DepotError::Package(error_msg))
     }
 }
 
@@ -290,7 +292,7 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let bin_dir = temp.path().join("bin");
         fs::create_dir_all(&bin_dir).unwrap();
-        let plugin_file = bin_dir.join("lpm-test-plugin");
+        let plugin_file = bin_dir.join("depot-test-plugin");
         fs::write(&plugin_file, "echo hello").unwrap();
         #[cfg(unix)]
         {
@@ -312,12 +314,12 @@ mod tests {
     #[test]
     fn test_find_plugin_legacy_path() {
         let temp = TempDir::new().unwrap();
-        let legacy_bin = temp.path().join(".lpm").join("bin");
+        let legacy_bin = temp.path().join(".depot").join("bin");
         fs::create_dir_all(&legacy_bin).unwrap();
-        fs::write(legacy_bin.join("lpm-legacy-plugin"), "echo hello").unwrap();
+        fs::write(legacy_bin.join("depot-legacy-plugin"), "echo hello").unwrap();
         #[cfg(unix)]
         fs::set_permissions(
-            legacy_bin.join("lpm-legacy-plugin"),
+            legacy_bin.join("depot-legacy-plugin"),
             fs::Permissions::from_mode(0o755),
         )
         .unwrap();
@@ -383,10 +385,10 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let bin_dir = temp.path().join("bin");
         fs::create_dir_all(&bin_dir).unwrap();
-        fs::write(bin_dir.join("lpm-test-plugin"), "echo hello").unwrap();
+        fs::write(bin_dir.join("depot-test-plugin"), "echo hello").unwrap();
         #[cfg(unix)]
         fs::set_permissions(
-            bin_dir.join("lpm-test-plugin"),
+            bin_dir.join("depot-test-plugin"),
             fs::Permissions::from_mode(0o755),
         )
         .unwrap();

@@ -1,6 +1,6 @@
 # Development Setup
 
-Complete guide to setting up a development environment for LPM.
+Complete guide to setting up a development environment for Depot.
 
 ## Prerequisites
 
@@ -43,7 +43,7 @@ cargo build
 # Run tests
 cargo test
 
-# Run LPM
+# Run Depot
 cargo run -- --version
 ```
 
@@ -160,7 +160,7 @@ cargo build --release
 cargo install --path .
 
 # Test
-lpm --version
+depot --version
 ```
 
 ### Test Cross-Compilation

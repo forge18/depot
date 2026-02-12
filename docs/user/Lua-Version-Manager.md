@@ -1,6 +1,6 @@
 # Lua Version Manager
 
-LPM includes a built-in Lua version manager that lets you install and switch between different Lua versions without system-wide installations.
+Depot includes a built-in Lua version manager that lets you install and switch between different Lua versions without system-wide installations.
 
 ## Overview
 
@@ -13,12 +13,12 @@ The Lua version manager allows you to:
 ## Installation Location
 
 Lua versions are installed to:
-- **Unix/macOS**: `~/.lpm/versions/` (or `~/Library/Application Support/lpm/versions/` on macOS)
+- **Unix/macOS**: `~/.depot/versions/` (or `~/Library/Application Support/lpm/versions/` on macOS)
 - **Windows**: `%APPDATA%\lpm\versions\`
 
 Each version is installed in its own directory:
 ```
-~/.lpm/
+~/.depot/
 ├── versions/
 │   ├── 5.1.5/
 │   │   └── bin/
@@ -37,21 +37,21 @@ Each version is installed in its own directory:
 ### Install Latest Version
 
 ```bash
-lpm lua install latest
+depot lua install latest
 ```
 
 ### Install Specific Version
 
 ```bash
-lpm lua install 5.4.8
-lpm lua install 5.3.6
-lpm lua install 5.1.5
+depot lua install 5.4.8
+depot lua install 5.3.6
+depot lua install 5.1.5
 ```
 
 ### List Available Versions
 
 ```bash
-lpm lua list-remote
+depot lua list-remote
 ```
 
 ## Switching Versions
@@ -61,17 +61,17 @@ lpm lua list-remote
 Switch the global default version:
 
 ```bash
-lpm lua use 5.4.8
+depot lua use 5.4.8
 ```
 
-This updates `~/.lpm/current` and affects all projects that don't have a `.lua-version` file.
+This updates `~/.depot/current` and affects all projects that don't have a `.lua-version` file.
 
 ### Project-Specific Version
 
 Set a version for the current project:
 
 ```bash
-lpm lua local 5.3.6
+depot lua local 5.3.6
 ```
 
 This creates a `.lua-version` file in your project root. The wrappers will automatically use this version when you're in this project or its subdirectories.
@@ -80,21 +80,21 @@ This creates a `.lua-version` file in your project root. The wrappers will autom
 
 ```bash
 # Show global version
-lpm lua current
+depot lua current
 
 # Show which version will be used (respects .lua-version)
-lpm lua which
+depot lua which
 ```
 
 ## Using Lua Versions
 
 ### Setup PATH
 
-Add `~/.lpm/bin/` to your PATH to use the `lua` and `luac` wrappers:
+Add `~/.depot/bin/` to your PATH to use the `lua` and `luac` wrappers:
 
 ```bash
 # Unix/macOS - add to ~/.bashrc, ~/.zshrc, etc.
-export PATH="$HOME/.lpm/bin:$PATH"
+export PATH="$HOME/.depot/bin:$PATH"
 
 # Or on macOS:
 export PATH="$HOME/Library/Application Support/lpm/bin:$PATH"
@@ -102,10 +102,10 @@ export PATH="$HOME/Library/Application Support/lpm/bin:$PATH"
 
 ### How Wrappers Work
 
-The `lua` and `luac` wrappers in `~/.lpm/bin/`:
+The `lua` and `luac` wrappers in `~/.depot/bin/`:
 1. Walk up the directory tree looking for `.lua-version` files
 2. If found, use that version
-3. Otherwise, use the global version from `~/.lpm/current`
+3. Otherwise, use the global version from `~/.depot/current`
 4. Execute the correct Lua binary with all arguments
 
 ### Example
@@ -113,12 +113,12 @@ The `lua` and `luac` wrappers in `~/.lpm/bin/`:
 ```bash
 # Project A uses Lua 5.3
 cd project-a
-lpm lua local 5.3.6
+depot lua local 5.3.6
 lua script.lua  # Uses 5.3.6
 
 # Project B uses Lua 5.4
 cd ../project-b
-lpm lua local 5.4.8
+depot lua local 5.4.8
 lua script.lua  # Uses 5.4.8
 
 # Outside projects, uses global version
@@ -131,7 +131,7 @@ lua script.lua  # Uses global version (e.g., 5.4.8)
 ### List Installed Versions
 
 ```bash
-lpm lua list
+depot lua list
 ```
 
 Output:
@@ -143,7 +143,7 @@ Output:
 ### Uninstall a Version
 
 ```bash
-lpm lua uninstall 5.3.6
+depot lua uninstall 5.3.6
 ```
 
 **Note**: You cannot uninstall the currently active version. Switch to another version first.
@@ -153,21 +153,21 @@ lpm lua uninstall 5.3.6
 Run a command with a specific version without switching:
 
 ```bash
-lpm lua exec 5.3.6 lua script.lua
+depot lua exec 5.3.6 lua script.lua
 ```
 
 ## Configuration
 
 ### Custom Binary Sources
 
-By default, LPM downloads Lua binaries from `dyne/luabinaries`. You can configure alternative sources:
+By default, Depot downloads Lua binaries from `dyne/luabinaries`. You can configure alternative sources:
 
 ```bash
 # Set default source for all versions
-lpm config set lua_binary_source_url https://example.com/lua-binaries
+depot config set lua_binary_source_url https://example.com/lua-binaries
 
 # Set source for a specific version
-lpm config set lua_binary_sources.5.4.8 https://custom-source.com/binaries
+depot config set lua_binary_sources.5.4.8 https://custom-source.com/binaries
 ```
 
 ### Supported Versions
@@ -177,14 +177,14 @@ Known versions with pre-built binaries:
 - Lua 5.3.6
 - Lua 5.4.8
 
-Future versions are supported automatically - LPM dynamically parses version numbers to determine binary names.
+Future versions are supported automatically - Depot dynamically parses version numbers to determine binary names.
 
-## Integration with LPM Scripts
+## Integration with Depot Scripts
 
-When you use `lpm run` or `lpm exec`, LPM automatically uses the correct Lua version:
+When you use `depot run` or `depot exec`, Depot automatically uses the correct Lua version:
 - Checks for `.lua-version` in the project
 - Falls back to global version
-- Uses LPM-managed Lua binaries directly (no PATH dependency)
+- Uses Depot-managed Lua binaries directly (no PATH dependency)
 
 ## Troubleshooting
 
@@ -192,20 +192,20 @@ When you use `lpm run` or `lpm exec`, LPM automatically uses the correct Lua ver
 
 Install and use a version:
 ```bash
-lpm lua install latest
-lpm lua use 5.4.8
+depot lua install latest
+depot lua use 5.4.8
 ```
 
 ### "Lua binary not found"
 
 The version might not be installed. Check with:
 ```bash
-lpm lua list
+depot lua list
 ```
 
 ### Wrappers not working
 
-Make sure `~/.lpm/bin/` is in your PATH:
+Make sure `~/.depot/bin/` is in your PATH:
 ```bash
 echo $PATH | grep lpm
 ```

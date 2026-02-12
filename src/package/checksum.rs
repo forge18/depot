@@ -1,5 +1,5 @@
 use crate::cache::Cache;
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use std::path::Path;
 
 /// Calculate and record checksums for packages
@@ -16,11 +16,11 @@ impl ChecksumRecorder {
     ///
     /// This should be called after downloading a package source.
     /// The checksum is then recorded in the lockfile.
-    pub fn calculate_for_source(&self, source_url: &str) -> LpmResult<String> {
+    pub fn calculate_for_source(&self, source_url: &str) -> DepotResult<String> {
         let source_path = self.cache.source_path(source_url);
 
         if !source_path.exists() {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Source file not found: {}",
                 source_path.display()
             )));
@@ -30,9 +30,9 @@ impl ChecksumRecorder {
     }
 
     /// Calculate checksum for a file at a given path
-    pub fn calculate_for_file(&self, file_path: &Path) -> LpmResult<String> {
+    pub fn calculate_for_file(&self, file_path: &Path) -> DepotResult<String> {
         if !file_path.exists() {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "File not found: {}",
                 file_path.display()
             )));
@@ -45,7 +45,7 @@ impl ChecksumRecorder {
     ///
     /// This is called during installation to ensure checksums are recorded
     /// in package.lock for future verification.
-    pub fn record_checksum(&self, package_name: &str, source_url: &str) -> LpmResult<String> {
+    pub fn record_checksum(&self, package_name: &str, source_url: &str) -> DepotResult<String> {
         let checksum = self.calculate_for_source(source_url)?;
 
         // Log for debugging

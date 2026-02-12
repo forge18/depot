@@ -8,7 +8,7 @@ fn test_verify_checksums() {
     let ctx = TestContext::new();
 
     // Install a package (this should create a lockfile with checksums)
-    ctx.lpm()
+    ctx.depot()
         .arg("install")
         .arg(format!(
             "{}@{}",
@@ -19,5 +19,5 @@ fn test_verify_checksums() {
         .success();
 
     // Verify checksums
-    ctx.lpm().arg("verify").assert().success();
+    ctx.depot().arg("verify").assert().success();
 }

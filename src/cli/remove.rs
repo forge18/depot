@@ -1,17 +1,17 @@
-use lpm::core::path::find_project_root;
-use lpm::core::{LpmError, LpmResult};
-use lpm::package::installer::PackageInstaller;
-use lpm::package::manifest::PackageManifest;
-use lpm::workspace::{Workspace, WorkspaceFilter};
+use depot::core::path::find_project_root;
+use depot::core::{DepotError, DepotResult};
+use depot::package::installer::PackageInstaller;
+use depot::package::manifest::PackageManifest;
+use depot::workspace::{Workspace, WorkspaceFilter};
 use std::env;
 
-pub fn run(package: String, global: bool, filter: Vec<String>) -> LpmResult<()> {
+pub fn run(package: String, global: bool, filter: Vec<String>) -> DepotResult<()> {
     if global {
         return remove_global(&package);
     }
 
     let current_dir = env::current_dir()
-        .map_err(|e| LpmError::Path(format!("Failed to get current directory: {}", e)))?;
+        .map_err(|e| DepotError::Path(format!("Failed to get current directory: {}", e)))?;
 
     let project_root = find_project_root(&current_dir)?;
 
@@ -21,7 +21,7 @@ pub fn run(package: String, global: bool, filter: Vec<String>) -> LpmResult<()> 
             let workspace = Workspace::load(&project_root)?;
             return remove_workspace_filtered(&workspace, &filter, &package);
         } else {
-            return Err(LpmError::Package(
+            return Err(DepotError::Package(
                 "--filter can only be used in workspace mode".to_string(),
             ));
         }
@@ -31,7 +31,7 @@ pub fn run(package: String, global: bool, filter: Vec<String>) -> LpmResult<()> 
     remove_from_project(&project_root, &package)
 }
 
-fn remove_from_project(project_root: &std::path::Path, package: &str) -> LpmResult<()> {
+fn remove_from_project(project_root: &std::path::Path, package: &str) -> DepotResult<()> {
     let mut manifest = PackageManifest::load(project_root)?;
 
     // Try to remove from dependencies
@@ -41,7 +41,7 @@ fn remove_from_project(project_root: &std::path::Path, package: &str) -> LpmResu
     let removed_from_dev = manifest.dev_dependencies.remove(package).is_some();
 
     if !removed_from_deps && !removed_from_dev {
-        return Err(LpmError::Package(format!(
+        return Err(DepotError::Package(format!(
             "Package '{}' not found in dependencies or dev_dependencies",
             package
         )));
@@ -74,7 +74,7 @@ fn remove_workspace_filtered(
     workspace: &Workspace,
     filter_patterns: &[String],
     package: &str,
-) -> LpmResult<()> {
+) -> DepotResult<()> {
     // Create filter
     let filter = WorkspaceFilter::new(filter_patterns.to_vec());
 
@@ -146,8 +146,8 @@ fn remove_workspace_filtered(
     Ok(())
 }
 
-fn remove_global(package: &str) -> LpmResult<()> {
-    use lpm::core::path::{global_bin_dir, global_lua_modules_dir, global_packages_metadata_dir};
+fn remove_global(package: &str) -> DepotResult<()> {
+    use depot::core::path::{global_bin_dir, global_lua_modules_dir, global_packages_metadata_dir};
     use serde::Deserialize;
     use std::fs;
 
@@ -158,7 +158,7 @@ fn remove_global(package: &str) -> LpmResult<()> {
     // Check if package is installed globally
     let package_dir = global_lua_modules.join(package);
     if !package_dir.exists() {
-        return Err(LpmError::Package(format!(
+        return Err(DepotError::Package(format!(
             "Package '{}' is not installed globally",
             package
         )));
@@ -212,7 +212,7 @@ fn remove_global(package: &str) -> LpmResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lpm::package::manifest::PackageManifest;
+    use depot::package::manifest::PackageManifest;
 
     #[test]
     fn test_remove_global_function_exists() {
@@ -341,7 +341,7 @@ mod tests {
 
     #[test]
     fn test_remove_function_signature() {
-        let _func: fn(String, bool, Vec<String>) -> LpmResult<()> = run;
+        let _func: fn(String, bool, Vec<String>) -> DepotResult<()> = run;
     }
 
     #[test]

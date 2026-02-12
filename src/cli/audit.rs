@@ -1,24 +1,24 @@
-use lpm::core::path::find_project_root;
-use lpm::core::{LpmError, LpmResult};
-use lpm::package::lockfile::Lockfile;
-use lpm::security::audit::format_report;
-use lpm::security::osv::OsvApi;
-use lpm::security::vulnerability::VulnerabilityReport;
+use depot::core::path::find_project_root;
+use depot::core::{DepotError, DepotResult};
+use depot::package::lockfile::Lockfile;
+use depot::security::audit::format_report;
+use depot::security::osv::OsvApi;
+use depot::security::vulnerability::VulnerabilityReport;
 use std::env;
 use std::path::Path;
 
-pub async fn run() -> LpmResult<()> {
+pub async fn run() -> DepotResult<()> {
     let current_dir = env::current_dir()
-        .map_err(|e| LpmError::Path(format!("Failed to get current directory: {}", e)))?;
+        .map_err(|e| DepotError::Path(format!("Failed to get current directory: {}", e)))?;
     run_in_dir(&current_dir).await
 }
 
-pub async fn run_in_dir(dir: &Path) -> LpmResult<()> {
+pub async fn run_in_dir(dir: &Path) -> DepotResult<()> {
     let project_root = find_project_root(dir)?;
 
     // Load lockfile
     let lockfile = Lockfile::load(&project_root)?
-        .ok_or_else(|| LpmError::Package("No lockfile. Run 'lpm install' first".to_string()))?;
+        .ok_or_else(|| DepotError::Package("No lockfile. Run 'depot install' first".to_string()))?;
 
     println!("Running security audit...");
     println!("  Querying OSV (Open Source Vulnerabilities) database...");
@@ -53,8 +53,8 @@ pub async fn run_in_dir(dir: &Path) -> LpmResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lpm::package::lockfile::{LockedPackage, Lockfile};
-    use lpm::security::vulnerability::VulnerabilityReport;
+    use depot::package::lockfile::{LockedPackage, Lockfile};
+    use depot::security::vulnerability::VulnerabilityReport;
     use std::collections::HashMap;
     use tempfile::TempDir;
 

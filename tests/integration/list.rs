@@ -1,6 +1,6 @@
-//! Tests for `lpm list` command
+//! Tests for `depot list` command
 
-use super::common::lpm_command;
+use super::common::depot_command;
 use std::fs;
 use tempfile::TempDir;
 
@@ -9,7 +9,7 @@ fn test_list_without_package_yaml() {
     let temp = TempDir::new().unwrap();
     let project_root = temp.path();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("list")
         .current_dir(project_root)
         .output()
@@ -31,7 +31,7 @@ fn test_list_with_empty_dependencies() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("list")
         .current_dir(project_root)
         .output()
@@ -59,7 +59,7 @@ dependencies:
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("list")
         .current_dir(project_root)
         .output()
@@ -82,7 +82,7 @@ fn test_list_tree_format() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("list")
         .arg("--tree")
         .current_dir(project_root)
@@ -94,7 +94,11 @@ fn test_list_tree_format() {
 
 #[test]
 fn test_list_global() {
-    let output = lpm_command().arg("list").arg("--global").output().unwrap();
+    let output = depot_command()
+        .arg("list")
+        .arg("--global")
+        .output()
+        .unwrap();
 
     // May succeed with empty list or fail if no global packages
     assert!(output.status.code().is_some());
@@ -117,7 +121,7 @@ dev_dependencies:
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("list")
         .current_dir(project_root)
         .output()

@@ -1,6 +1,6 @@
 # Release Process
 
-How to create a new release of LPM.
+How to create a new release of Depot.
 
 ## Pre-Release Checklist
 
@@ -73,11 +73,11 @@ git push
 
 Each release should include:
 
-- **macOS**: `lpm-macos-aarch64.pkg`, `lpm-macos-x86_64.pkg`
-- **Linux**: `lpm-linux-x86_64.tar.gz`, `lpm-linux-aarch64.tar.gz`
-- **Windows**: `lpm-windows-x86_64.zip`
+- **macOS**: `depot-macos-aarch64.pkg`, `depot-macos-x86_64.pkg`
+- **Linux**: `depot-linux-x86_64.tar.gz`, `depot-linux-aarch64.tar.gz`
+- **Windows**: `depot-windows-x86_64.zip`
 
-All follow naming: `lpm-{platform}-{arch}.{ext}`
+All follow naming: `depot-{platform}-{arch}.{ext}`
 
 ## Release Notes
 
@@ -94,7 +94,7 @@ Example:
 ## v0.2.0
 
 ### Features
-- Added `lpm audit` command for security scanning
+- Added `depot audit` command for security scanning
 - Support for dev dependencies
 - Workspace/monorepo support
 
@@ -148,7 +148,7 @@ For critical bugs:
 
 ## Plugin Releases
 
-Plugins (`lpm-watch`, `lpm-bundle`) are released separately from the main LPM binary.
+Plugins (`depot-watch`, `depot-bundle`) are released separately from the main Depot binary.
 
 ### Creating a Plugin Release
 
@@ -157,8 +157,8 @@ Plugins (`lpm-watch`, `lpm-bundle`) are released separately from the main LPM bi
 2. **Create release tag**:
    ```bash
    # For a specific plugin
-   git tag -a lpm-watch/v0.1.0 -m "Release lpm-watch v0.1.0"
-   git push origin lpm-watch/v0.1.0
+   git tag -a depot-watch/v0.1.0 -m "Release depot-watch v0.1.0"
+   git push origin depot-watch/v0.1.0
    
    # Or for all plugins
    git tag -a plugins/v0.1.0 -m "Release all plugins v0.1.0"
@@ -173,27 +173,27 @@ Plugins (`lpm-watch`, `lpm-bundle`) are released separately from the main LPM bi
 ### Plugin Release Assets
 
 Each plugin release includes:
-- **macOS**: `lpm-<plugin>-macos-x86_64.tar.gz`, `lpm-<plugin>-macos-aarch64.tar.gz`
-- **Linux**: `lpm-<plugin>-linux-x86_64.tar.gz`, `lpm-<plugin>-linux-aarch64.tar.gz`
-- **Windows**: `lpm-<plugin>-windows-x86_64.zip`
+- **macOS**: `depot-<plugin>-macos-x86_64.tar.gz`, `depot-<plugin>-macos-aarch64.tar.gz`
+- **Linux**: `depot-<plugin>-linux-x86_64.tar.gz`, `depot-<plugin>-linux-aarch64.tar.gz`
+- **Windows**: `depot-<plugin>-windows-x86_64.zip`
 
 ### Plugin Release Workflow
 
 The plugin release workflow (`.github/workflows/plugins-release.yml`) supports:
-- **Tag-based releases**: Push tags like `lpm-watch/v0.1.0` or `plugins/v0.1.0`
+- **Tag-based releases**: Push tags like `depot-watch/v0.1.0` or `plugins/v0.1.0`
 - **Manual releases**: Use GitHub Actions UI with `workflow_dispatch`
 
 ## Automation
 
 The release process is automated via GitHub Actions:
 
-### Main LPM Binary
+### Main Depot Binary
 - **Trigger**: Push tag `v*`
 - **Build**: All platforms
 - **Release**: Automatic GitHub release creation
 
 ### Plugins
-- **Trigger**: Push tag `lpm-<plugin>/v*` or `plugins/v*`
+- **Trigger**: Push tag `depot-<plugin>/v*` or `plugins/v*`
 - **Build**: All platforms for each plugin
 - **Release**: Automatic GitHub releases per plugin
 

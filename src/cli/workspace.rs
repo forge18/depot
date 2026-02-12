@@ -1,20 +1,20 @@
-use lpm::core::{LpmError, LpmResult};
-use lpm::workspace::Workspace;
+use depot::core::{DepotError, DepotResult};
+use depot::workspace::Workspace;
 use std::env;
 use std::path::Path;
 
 /// List all packages in the workspace
-pub async fn list() -> LpmResult<()> {
+pub async fn list() -> DepotResult<()> {
     list_from_dir(None).await
 }
 
 /// List all packages in the workspace from a specific directory
 /// Used internally for testing
-async fn list_from_dir(dir: Option<&Path>) -> LpmResult<()> {
+async fn list_from_dir(dir: Option<&Path>) -> DepotResult<()> {
     let current_dir = match dir {
         Some(path) => path.to_path_buf(),
         None => env::current_dir()
-            .map_err(|e| LpmError::Path(format!("Failed to get current directory: {}", e)))?,
+            .map_err(|e| DepotError::Path(format!("Failed to get current directory: {}", e)))?,
     };
 
     let workspace = Workspace::load(&current_dir)?;
@@ -36,9 +36,9 @@ async fn list_from_dir(dir: Option<&Path>) -> LpmResult<()> {
 }
 
 /// Show detailed workspace information
-pub async fn info() -> LpmResult<()> {
+pub async fn info() -> DepotResult<()> {
     let current_dir = env::current_dir()
-        .map_err(|e| LpmError::Path(format!("Failed to get current directory: {}", e)))?;
+        .map_err(|e| DepotError::Path(format!("Failed to get current directory: {}", e)))?;
 
     let workspace = Workspace::load(&current_dir)?;
 
@@ -128,9 +128,9 @@ pub async fn info() -> LpmResult<()> {
 }
 
 /// Show shared dependencies across workspace packages
-pub async fn shared_deps() -> LpmResult<()> {
+pub async fn shared_deps() -> DepotResult<()> {
     let current_dir = env::current_dir()
-        .map_err(|e| LpmError::Path(format!("Failed to get current directory: {}", e)))?;
+        .map_err(|e| DepotError::Path(format!("Failed to get current directory: {}", e)))?;
 
     let workspace = Workspace::load(&current_dir)?;
 

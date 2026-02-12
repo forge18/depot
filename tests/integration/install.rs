@@ -1,6 +1,6 @@
-//! Tests for `lpm install` command
+//! Tests for `depot install` command
 
-use super::common::lpm_command;
+use super::common::depot_command;
 use std::fs;
 use tempfile::TempDir;
 
@@ -17,7 +17,7 @@ fn test_install_package_workflow() {
     .unwrap();
 
     // Try to install (may fail if network unavailable, but should handle gracefully)
-    let output = lpm_command()
+    let output = depot_command()
         .arg("install")
         .current_dir(project_root)
         .output()

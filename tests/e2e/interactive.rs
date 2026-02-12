@@ -14,7 +14,7 @@ fn test_interactive_install_basic() {
 
     ctx.create_package_yaml("name: test\nversion: 1.0.0\n");
 
-    let lpm_path = env!("CARGO_BIN_EXE_lpm");
+    let lpm_path = env!("CARGO_BIN_EXE_depot");
     let mut session = spawn(&format!("{} install --interactive", lpm_path), Some(10000))
         .expect("Failed to spawn lpm");
 
@@ -58,7 +58,7 @@ fn test_init_wizard() {
 
     let ctx = TestContext::new();
 
-    let lpm_path = env!("CARGO_BIN_EXE_lpm");
+    let lpm_path = env!("CARGO_BIN_EXE_depot");
     let mut session =
         spawn(&format!("{} init", lpm_path), Some(10000)).expect("Failed to spawn lpm");
 

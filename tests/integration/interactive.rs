@@ -1,6 +1,6 @@
 //! Tests for interactive mode functionality
 
-use super::common::lpm_command;
+use super::common::depot_command;
 use std::fs;
 use tempfile::TempDir;
 
@@ -10,7 +10,7 @@ fn test_init_with_yes_flag_bypasses_interactive() {
     let project_root = temp.path();
 
     // Using --yes should bypass interactive mode
-    let output = lpm_command()
+    let output = depot_command()
         .arg("init")
         .arg("--yes")
         .current_dir(project_root)
@@ -38,7 +38,7 @@ fn test_init_with_y_flag_short_form() {
     let project_root = temp.path();
 
     // Using -y should also bypass interactive mode
-    let output = lpm_command()
+    let output = depot_command()
         .arg("init")
         .arg("-y")
         .current_dir(project_root)
@@ -64,7 +64,7 @@ fn test_install_without_interactive_flag() {
     .unwrap();
 
     // Without --interactive flag, should run in non-interactive mode
-    let output = lpm_command()
+    let output = depot_command()
         .arg("install")
         .arg("penlight")
         .current_dir(project_root)
@@ -93,7 +93,7 @@ fn test_update_without_interactive_confirmation() {
     .unwrap();
 
     // Update command should work without interactive confirmation when not in TTY
-    let output = lpm_command()
+    let output = depot_command()
         .arg("update")
         .current_dir(project_root)
         .output()
@@ -112,14 +112,15 @@ fn test_update_without_interactive_confirmation() {
 fn test_interactive_functions_available() {
     // Test that interactive functions can be imported and called
     // This verifies the module structure is correct
-    use lpm::package::interactive::{choose, confirm, confirm_with_default};
+    use depot::package::interactive::{choose, confirm, confirm_with_default};
 
     // Functions should exist and have correct signatures
     // We can't fully test them without mocking stdin/stdout,
     // but we can verify they compile and are accessible
-    let _confirm_fn: fn(&str) -> lpm::core::LpmResult<bool> = confirm;
-    let _confirm_default_fn: fn(&str, bool) -> lpm::core::LpmResult<bool> = confirm_with_default;
-    let _choose_fn: fn(&str, &[&str], usize) -> lpm::core::LpmResult<usize> = choose;
+    let _confirm_fn: fn(&str) -> depot::core::DepotResult<bool> = confirm;
+    let _confirm_default_fn: fn(&str, bool) -> depot::core::DepotResult<bool> =
+        confirm_with_default;
+    let _choose_fn: fn(&str, &[&str], usize) -> depot::core::DepotResult<usize> = choose;
 }
 
 #[test]
@@ -136,7 +137,7 @@ fn test_non_interactive_mode_handles_missing_stdin() {
 
     // Commands should work even when stdin is not available (non-interactive mode)
     // This simulates running in a non-TTY environment
-    let output = lpm_command()
+    let output = depot_command()
         .arg("list")
         .current_dir(project_root)
         .output()
@@ -152,7 +153,7 @@ fn test_init_template_non_interactive() {
     let project_root = temp.path();
 
     // Using template with --yes should bypass all interactive prompts
-    let output = lpm_command()
+    let output = depot_command()
         .arg("init")
         .arg("--template")
         .arg("basic-lua")
@@ -187,7 +188,7 @@ fn test_commands_respect_non_interactive_environment() {
     .unwrap();
 
     // Set CI environment variable (common way to detect non-interactive mode)
-    let output = lpm_command()
+    let output = depot_command()
         .arg("list")
         .env("CI", "true")
         .current_dir(project_root)

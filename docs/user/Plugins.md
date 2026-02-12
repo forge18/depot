@@ -1,33 +1,33 @@
-# LPM Plugins
+# Depot Plugins
 
-LPM supports plugins as separate executables that extend core functionality. Plugins are automatically discovered and can be installed globally.
+Depot supports plugins as separate executables that extend core functionality. Plugins are automatically discovered and can be installed globally.
 
 ## Available Plugins
 
-### `lpm-watch` - Dev Server / Watch Mode
+### `depot-watch` - Dev Server / Watch Mode
 
 Auto-reload your Lua applications on file changes. Perfect for Love2D, Neovim plugins, OpenResty, and general development.
 
 #### Installation
 
 ```bash
-lpm install -g lpm-watch
+depot install -g depot-watch
 ```
 
 #### Basic Usage
 
 ```bash
 # Watch and restart on changes
-lpm watch
+depot watch
 
 # Alias for watch
-lpm watch dev
+depot watch dev
 
 # Don't clear screen on reload
-lpm watch --no-clear
+depot watch --no-clear
 
 # Enable WebSocket server for browser reload
-lpm watch --websocket-port 35729
+depot watch --websocket-port 35729
 ```
 
 #### Features
@@ -40,11 +40,11 @@ lpm watch --websocket-port 35729
 - Automatic process restart
 - Configurable ignore patterns
 - Screen clearing (optional)
-- Works with `lpm run` scripts
+- Works with `depot run` scripts
 
 #### Configuration
 
-Configure `lpm-watch` in your `package.yaml`:
+Configure `depot-watch` in your `package.yaml`:
 
 ```yaml
 watch:
@@ -100,7 +100,7 @@ Configure how different file types are handled:
 Enable browser auto-reload by setting `websocket_port` in your configuration or using the `--websocket-port` flag:
 
 ```bash
-lpm watch --websocket-port 35729
+depot watch --websocket-port 35729
 ```
 
 Then add this script to your HTML files:
@@ -136,7 +136,7 @@ All commands will start simultaneously and restart together when watched files c
 #### CLI Options
 
 ```bash
-lpm watch [OPTIONS]
+depot watch [OPTIONS]
 
 Options:
   -c, --command <COMMAND>    Command to run (can be specified multiple times)
@@ -147,48 +147,48 @@ Options:
       --websocket-port <PORT>  WebSocket port for browser reload (0 = disabled)
 ```
 
-### `lpm-bundle` - Package Bundling (Experimental)
+### `depot-bundle` - Package Bundling (Experimental)
 
 Bundle multiple Lua files into a single file for distribution or embedding.
 
 #### Installation
 
 ```bash
-lpm install -g lpm-bundle
+depot install -g depot-bundle
 ```
 
 #### Usage
 
 ```bash
 # Bundle src/main.lua to dist/bundle.lua
-lpm bundle bundle
+depot bundle bundle
 
 # Custom entry point
-lpm bundle bundle -e src/init.lua
+depot bundle bundle -e src/init.lua
 
 # Custom output
-lpm bundle bundle -o dist/app.lua
+depot bundle bundle -o dist/app.lua
 
 # Minify output
-lpm bundle bundle --minify
+depot bundle bundle --minify
 
 # Generate source map
-lpm bundle bundle --source-map
+depot bundle bundle --source-map
 
 # Strip comments (without minifying)
-lpm bundle bundle --no-comments
+depot bundle bundle --no-comments
 
 # Enable tree-shaking
-lpm bundle bundle --tree-shake
+depot bundle bundle --tree-shake
 
 # Track dynamic requires
-lpm bundle bundle --dynamic-requires
+depot bundle bundle --dynamic-requires
 
 # Incremental bundling (only rebuild changed modules)
-lpm bundle bundle --incremental
+depot bundle bundle --incremental
 
 # Watch mode (auto-rebundle on changes)
-lpm bundle watch
+depot bundle watch
 ```
 
 #### Features
@@ -211,16 +211,16 @@ lpm bundle watch
 
 ## Installing Plugins
 
-Plugins are installed globally and become available as `lpm <plugin-name>`:
+Plugins are installed globally and become available as `depot <plugin-name>`:
 
 ```bash
 # Install a plugin
-lpm install -g lpm-watch
-lpm install -g lpm-bundle
+depot install -g depot-watch
+depot install -g depot-bundle
 
 # Plugins are automatically discovered
-lpm watch --help
-lpm bundle --help
+depot watch --help
+depot bundle --help
 ```
 
 ## Plugin Locations
@@ -229,35 +229,35 @@ Plugins are installed to:
 - **macOS**: `~/Library/Application Support/lpm/bin/`
 - **Linux**: `~/.config/lpm/bin/`
 - **Windows**: `%APPDATA%\lpm\bin\`
-- **Legacy**: `~/.lpm/bin/` (for backwards compatibility)
+- **Legacy**: `~/.depot/bin/` (for backwards compatibility)
 
 Plugins can also be installed anywhere in your PATH.
 
 ## Managing Plugins
 
-Use the `lpm plugin` commands to manage plugins:
+Use the `depot plugin` commands to manage plugins:
 
 ```bash
 # List installed plugins
-lpm plugin list
+depot plugin list
 
 # Show plugin information
-lpm plugin info <plugin-name>
+depot plugin info <plugin-name>
 
 # Update plugins
-lpm plugin update
-lpm plugin update <plugin-name>
+depot plugin update
+depot plugin update <plugin-name>
 
 # Check for outdated plugins
-lpm plugin outdated
+depot plugin outdated
 
 # Search for plugins
-lpm plugin search <query>
+depot plugin search <query>
 
 # Configure plugins
-lpm plugin config get <plugin> <key>
-lpm plugin config set <plugin> <key> <value>
-lpm plugin config show <plugin>
+depot plugin config get <plugin> <key>
+depot plugin config set <plugin> <key> <value>
+depot plugin config show <plugin>
 ```
 
 ## Creating Plugins

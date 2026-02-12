@@ -9,7 +9,7 @@ pub mod lockfile;
 pub mod lockfile_builder;
 // manifest moved to lpm-core, re-export for backward compatibility
 pub mod manifest {
-    pub use lpm_core::package::manifest::*;
+    pub use depot_core::package::manifest::*;
 }
 pub mod packager;
 pub mod rollback;

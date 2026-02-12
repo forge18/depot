@@ -1,4 +1,4 @@
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use crate::di::PackageClient;
 use crate::lua_version::compatibility::PackageCompatibility;
 use crate::lua_version::detector::LuaVersion;
@@ -26,7 +26,7 @@ pub struct DownloadResult {
     pub version: String,
     pub rockspec: Rockspec,
     pub source_path: Option<PathBuf>,
-    pub error: Option<LpmError>,
+    pub error: Option<DepotError>,
 }
 
 /// Manages parallel/concurrent package downloads
@@ -115,7 +115,7 @@ impl ParallelDownloader {
                                     version: version.clone(),
                                     rockspec,
                                     source_path: None,
-                                    error: Some(LpmError::Version(format!(
+                                    error: Some(DepotError::Version(format!(
                                         "Package '{}' version '{}' requires Lua {}, but installed version is {}",
                                         name, version,
                                         lua_version_str,
@@ -224,7 +224,7 @@ impl ParallelDownloader {
         &self,
         tasks: Vec<DownloadTask>,
         installed_lua: Option<&LuaVersion>,
-    ) -> LpmResult<Vec<DownloadResult>> {
+    ) -> DepotResult<Vec<DownloadResult>> {
         let total = tasks.len();
 
         // Create progress bar
@@ -257,7 +257,7 @@ impl ParallelDownloader {
         pb.finish_with_message("Download complete");
 
         if error_count > 0 {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Failed to download {} package(s)",
                 error_count
             )));
@@ -490,7 +490,7 @@ mod tests {
                 binary_urls: std::collections::HashMap::new(),
             },
             source_path: None,
-            error: Some(LpmError::Package("test error".to_string())),
+            error: Some(DepotError::Package("test error".to_string())),
         };
         assert!(result.error.is_some());
     }

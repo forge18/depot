@@ -1,24 +1,24 @@
-//! LPM (Local Package Manager) for Lua
+//! Depot (Local Package Manager) for Lua
 //!
-//! This crate provides the main LPM library, re-exporting core functionality
-//! from `lpm-core` and organizing additional modules for package management,
+//! This crate provides the main Depot library, re-exporting core functionality
+//! from `depot-core` and organizing additional modules for package management,
 //! LuaRocks integration, and related features.
 
-pub use lpm_core::package::manifest::PackageManifest;
-pub use lpm_core::path_setup::{LuaRunner, PathSetup, RunOptions};
-pub use lpm_core::{format_error_with_help, CredentialStore, ErrorHelp, LpmError, LpmResult};
+pub use depot_core::package::manifest::PackageManifest;
+pub use depot_core::path_setup::{LuaRunner, PathSetup, RunOptions};
+pub use depot_core::{format_error_with_help, CredentialStore, DepotError, DepotResult, ErrorHelp};
 
 /// Core module re-exported for backward compatibility.
 pub mod core {
-    pub use lpm_core::core::*;
-    pub use lpm_core::*;
+    pub use depot_core::core::*;
+    pub use depot_core::*;
 
-    /// Path module re-exported from lpm-core.
+    /// Path module re-exported from depot-core.
     pub mod path {
-        pub use lpm_core::core::path::*;
+        pub use depot_core::core::path::*;
     }
 
-    /// Path setup for LPM binary (not Lua paths).
+    /// Path setup for Depot binary (not Lua paths).
     pub mod path_setup;
 }
 
@@ -37,9 +37,9 @@ pub mod luarocks;
 /// Dependency resolution.
 pub mod resolver;
 
-/// Path setup and Lua runner (re-exported from lpm-core).
+/// Path setup and Lua runner (re-exported from depot-core).
 pub mod path_setup {
-    pub use lpm_core::path_setup::*;
+    pub use depot_core::path_setup::*;
 }
 
 /// Rust extension building.

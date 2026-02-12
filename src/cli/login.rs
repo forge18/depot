@@ -1,8 +1,8 @@
-use lpm::core::credentials::CredentialStore;
-use lpm::core::{LpmError, LpmResult};
+use depot::core::credentials::CredentialStore;
+use depot::core::{DepotError, DepotResult};
 use std::io::{self, Write};
 
-pub async fn run() -> LpmResult<()> {
+pub async fn run() -> DepotResult<()> {
     println!("LuaRocks Login");
     println!("Enter your LuaRocks credentials:");
     println!();
@@ -15,7 +15,7 @@ pub async fn run() -> LpmResult<()> {
     let username = username.trim().to_string();
 
     if username.is_empty() {
-        return Err(LpmError::Package("Username cannot be empty".to_string()));
+        return Err(DepotError::Package("Username cannot be empty".to_string()));
     }
 
     // Get API key
@@ -26,7 +26,7 @@ pub async fn run() -> LpmResult<()> {
     let api_key = api_key.trim().to_string();
 
     if api_key.is_empty() {
-        return Err(LpmError::Package("API key cannot be empty".to_string()));
+        return Err(DepotError::Package("API key cannot be empty".to_string()));
     }
 
     // Store credentials

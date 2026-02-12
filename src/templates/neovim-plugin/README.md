@@ -4,10 +4,10 @@ A Neovim plugin written in Lua.
 
 ## Installation
 
-Using LPM:
+Using Depot:
 
 ```bash
-lpm install
+depot install
 ```
 
 Or using your Neovim package manager:
@@ -39,9 +39,9 @@ require('{{project_name}}').setup({
 
 ```bash
 # Install dependencies
-lpm install
+depot install
 
 # Run tests
-lpm run test
+depot run test
 ```
 

@@ -1,4 +1,4 @@
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use flate2::read::GzDecoder;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
@@ -17,17 +17,17 @@ impl PackageExtractor {
 
     /// Extract an archive file
     /// Returns the path to the root directory of the extracted archive
-    pub fn extract(&self, archive_path: &Path) -> LpmResult<PathBuf> {
+    pub fn extract(&self, archive_path: &Path) -> DepotResult<PathBuf> {
         // Determine archive type from extension
         let extension = archive_path
             .extension()
             .and_then(|e| e.to_str())
-            .ok_or_else(|| LpmError::Package("Unknown archive format".to_string()))?;
+            .ok_or_else(|| DepotError::Package("Unknown archive format".to_string()))?;
 
         let result = match extension {
             "gz" | "tgz" => self.extract_targz(archive_path),
             "zip" => self.extract_zip(archive_path),
-            _ => Err(LpmError::Package(format!(
+            _ => Err(DepotError::Package(format!(
                 "Unsupported format: {}",
                 extension
             ))),
@@ -48,7 +48,7 @@ impl PackageExtractor {
         result
     }
 
-    fn extract_targz(&self, archive_path: &Path) -> LpmResult<PathBuf> {
+    fn extract_targz(&self, archive_path: &Path) -> DepotResult<PathBuf> {
         let file = File::open(archive_path)?;
         let decoder = GzDecoder::new(file);
         let mut archive = Archive::new(decoder);
@@ -82,7 +82,7 @@ impl PackageExtractor {
             })
             .ok_or_else(|| {
                 // If no root dir, archive might have files at root - use temp_dir itself
-                LpmError::Package(
+                DepotError::Package(
                     "Archive has no root directory. Files at root level not supported.".to_string(),
                 )
             })?;
@@ -90,12 +90,12 @@ impl PackageExtractor {
         Ok(root)
     }
 
-    fn extract_zip(&self, archive_path: &Path) -> LpmResult<PathBuf> {
+    fn extract_zip(&self, archive_path: &Path) -> DepotResult<PathBuf> {
         use zip::ZipArchive;
 
         let file = File::open(archive_path)?;
-        let mut archive =
-            ZipArchive::new(file).map_err(|e| LpmError::Package(format!("Invalid zip: {}", e)))?;
+        let mut archive = ZipArchive::new(file)
+            .map_err(|e| DepotError::Package(format!("Invalid zip: {}", e)))?;
 
         let temp_dir = self.dest_dir.join(format!(
             ".tmp-{}",
@@ -113,7 +113,7 @@ impl PackageExtractor {
 
         archive
             .extract(&temp_dir)
-            .map_err(|e| LpmError::Package(format!("Extract failed: {}", e)))?;
+            .map_err(|e| DepotError::Package(format!("Extract failed: {}", e)))?;
 
         // Find root directory (standardize: use first directory found)
         let mut entries = fs::read_dir(&temp_dir)?;
@@ -127,7 +127,7 @@ impl PackageExtractor {
                 }
             })
             .ok_or_else(|| {
-                LpmError::Package(
+                DepotError::Package(
                     "Archive has no root directory. Files at root level not supported.".to_string(),
                 )
             })?;
@@ -159,7 +159,7 @@ mod tests {
         let result = extractor.extract(&test_file);
         assert!(result.is_err());
         match result {
-            Err(LpmError::Package(msg)) => {
+            Err(DepotError::Package(msg)) => {
                 assert!(msg.contains("Unsupported format") || msg.contains("unknown"));
             }
             _ => panic!("Expected Package error"),
@@ -186,7 +186,7 @@ mod tests {
         let result = extractor.extract(&test_file);
         assert!(result.is_err());
         match result {
-            Err(LpmError::Package(msg)) => {
+            Err(DepotError::Package(msg)) => {
                 assert!(msg.contains("Unknown archive format") || msg.contains("format"));
             }
             _ => panic!("Expected Package error"),

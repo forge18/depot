@@ -1,4 +1,4 @@
-use crate::core::LpmResult;
+use crate::core::DepotResult;
 use crate::package::lockfile::Lockfile;
 use crate::package::manifest::PackageManifest;
 use std::path::Path;
@@ -11,7 +11,7 @@ pub struct RollbackManager {
 
 impl RollbackManager {
     /// Create a new rollback manager and backup current state
-    pub fn new(project_root: &Path) -> LpmResult<Self> {
+    pub fn new(project_root: &Path) -> DepotResult<Self> {
         // Backup lockfile if it exists
         let backup_lockfile = Lockfile::load(project_root)?;
 
@@ -25,7 +25,7 @@ impl RollbackManager {
     }
 
     /// Rollback to the previous state
-    pub fn rollback(&self, project_root: &Path) -> LpmResult<()> {
+    pub fn rollback(&self, project_root: &Path) -> DepotResult<()> {
         // Restore lockfile if we had a backup
         if let Some(ref lockfile) = self.backup_lockfile {
             lockfile.save(project_root)?;
@@ -48,9 +48,9 @@ impl RollbackManager {
 }
 
 /// Execute a function with automatic rollback on error
-pub fn with_rollback<F, T>(project_root: &Path, f: F) -> LpmResult<T>
+pub fn with_rollback<F, T>(project_root: &Path, f: F) -> DepotResult<T>
 where
-    F: FnOnce() -> LpmResult<T>,
+    F: FnOnce() -> DepotResult<T>,
 {
     // Create rollback manager
     let rollback = RollbackManager::new(project_root)?;
@@ -74,10 +74,10 @@ where
 }
 
 /// Execute an async function with automatic rollback on error
-pub async fn with_rollback_async<F, Fut, T>(project_root: &Path, f: F) -> LpmResult<T>
+pub async fn with_rollback_async<F, Fut, T>(project_root: &Path, f: F) -> DepotResult<T>
 where
     F: FnOnce() -> Fut,
-    Fut: std::future::Future<Output = LpmResult<T>>,
+    Fut: std::future::Future<Output = DepotResult<T>>,
 {
     // Create rollback manager
     let rollback = RollbackManager::new(project_root)?;
@@ -147,7 +147,7 @@ mod tests {
     #[test]
     fn test_with_rollback_success() {
         let temp = TempDir::new().unwrap();
-        let result = with_rollback(temp.path(), || Ok::<(), crate::core::LpmError>(()));
+        let result = with_rollback(temp.path(), || Ok::<(), crate::core::DepotError>(()));
         assert!(result.is_ok());
     }
 
@@ -158,7 +158,7 @@ mod tests {
         manifest.save(temp.path()).unwrap();
 
         let result = with_rollback(temp.path(), || {
-            Err::<(), crate::core::LpmError>(crate::core::LpmError::Package(
+            Err::<(), crate::core::DepotError>(crate::core::DepotError::Package(
                 "test error".to_string(),
             ))
         });
@@ -235,7 +235,7 @@ mod tests {
     async fn test_with_rollback_async_success() {
         let temp = TempDir::new().unwrap();
         let result = with_rollback_async(temp.path(), || async {
-            Ok::<(), crate::core::LpmError>(())
+            Ok::<(), crate::core::DepotError>(())
         })
         .await;
         assert!(result.is_ok());
@@ -248,7 +248,7 @@ mod tests {
         manifest.save(temp.path()).unwrap();
 
         let result = with_rollback_async(temp.path(), || async {
-            Err::<(), crate::core::LpmError>(crate::core::LpmError::Package(
+            Err::<(), crate::core::DepotError>(crate::core::DepotError::Package(
                 "test error".to_string(),
             ))
         })

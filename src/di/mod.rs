@@ -1,15 +1,15 @@
-//! Dependency injection infrastructure for LPM
+//! Dependency injection infrastructure for Depot
 //!
 //! This module provides trait-based dependency injection to improve testability,
 //! reduce coupling, and enable better architectural boundaries.
 //!
 //! # Example (Production)
 //! ```no_run
-//! use lpm::di::ServiceContainer;
-//! use lpm::package::installer::PackageInstaller;
+//! use depot::di::ServiceContainer;
+//! use depot::package::installer::PackageInstaller;
 //! use std::path::Path;
 //!
-//! # async fn example() -> lpm::core::LpmResult<()> {
+//! # async fn example() -> depot::core::DepotResult<()> {
 //! let container = ServiceContainer::new()?;
 //! let installer = PackageInstaller::with_container(Path::new("."), container)?;
 //! # Ok(())
@@ -18,7 +18,7 @@
 //!
 //! # Example (Testing)
 //! ```
-//! use lpm::di::{ServiceContainer, mocks::*};
+//! use depot::di::{ServiceContainer, mocks::*};
 //! use std::sync::Arc;
 //!
 //! # fn example() {

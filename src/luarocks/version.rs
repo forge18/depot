@@ -1,5 +1,5 @@
 use crate::core::version::Version;
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 
 /// Normalize LuaRocks version format to SemVer
 ///
@@ -7,13 +7,13 @@ use crate::core::{LpmError, LpmResult};
 /// - "3.0" is the version
 /// - "-1" is the rockspec revision
 ///
-/// LPM converts this to "3.0.1" (SemVer format)
-pub fn normalize_luarocks_version(luarocks_version: &str) -> LpmResult<Version> {
+/// Depot converts this to "3.0.1" (SemVer format)
+pub fn normalize_luarocks_version(luarocks_version: &str) -> DepotResult<Version> {
     // Split on '-' to separate version from revision
     let parts: Vec<&str> = luarocks_version.split('-').collect();
 
     if parts.is_empty() {
-        return Err(LpmError::Version(format!(
+        return Err(DepotError::Version(format!(
             "Invalid LuaRocks version format: {}",
             luarocks_version
         )));

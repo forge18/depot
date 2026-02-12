@@ -1,4 +1,4 @@
-use crate::core::LpmResult;
+use crate::core::DepotResult;
 use crate::di::{CacheProvider, ConfigProvider, PackageClient, SearchProvider, ServiceContainer};
 use crate::luarocks::rockspec::Rockspec;
 use crate::package::lockfile::{LockedPackage, Lockfile};
@@ -23,7 +23,7 @@ pub struct LockfileBuilder {
 
 impl LockfileBuilder {
     /// Create a new lockfile builder with production dependencies
-    pub fn new() -> LpmResult<Self> {
+    pub fn new() -> DepotResult<Self> {
         let container = ServiceContainer::new()?;
         Self::with_dependencies(
             container.config.clone(),
@@ -39,7 +39,7 @@ impl LockfileBuilder {
         cache: Arc<dyn CacheProvider>,
         package_client: Arc<dyn PackageClient>,
         search_provider: Arc<dyn SearchProvider>,
-    ) -> LpmResult<Self> {
+    ) -> DepotResult<Self> {
         Ok(Self {
             config,
             cache,
@@ -50,7 +50,7 @@ impl LockfileBuilder {
 
     /// Create a lockfile builder with custom container (deprecated)
     #[deprecated(note = "Use with_dependencies instead for proper dependency injection")]
-    pub fn with_container(container: ServiceContainer) -> LpmResult<Self> {
+    pub fn with_container(container: ServiceContainer) -> DepotResult<Self> {
         Self::with_dependencies(
             container.config.clone(),
             container.cache.clone(),
@@ -91,7 +91,7 @@ impl LockfileBuilder {
         manifest: &PackageManifest,
         _project_root: &Path,
         exclude_dev: bool,
-    ) -> LpmResult<Lockfile> {
+    ) -> DepotResult<Lockfile> {
         let mut lockfile = Lockfile::new();
 
         // Determine resolution strategy from manifest, then config
@@ -194,7 +194,7 @@ impl LockfileBuilder {
             let checksum = if let Some(ref source_path) = result.source_path {
                 self.cache.checksum(source_path)?
             } else {
-                return Err(crate::core::LpmError::Package(format!(
+                return Err(crate::core::DepotError::Package(format!(
                     "No source path for {}",
                     result.name
                 )));
@@ -251,7 +251,7 @@ impl LockfileBuilder {
     }
 
     /// Build a LockedPackage entry by fetching rockspec and calculating checksum
-    async fn build_locked_package(&self, name: &str, version: &str) -> LpmResult<LockedPackage> {
+    async fn build_locked_package(&self, name: &str, version: &str) -> DepotResult<LockedPackage> {
         // Get rockspec URL and fetch it
         let rockspec_url = self.search_provider.get_rockspec_url(name, version, None);
         let rockspec_content = self.package_client.download_rockspec(&rockspec_url).await?;
@@ -311,7 +311,7 @@ impl LockfileBuilder {
         manifest: &PackageManifest,
         _project_root: &Path,
         exclude_dev: bool,
-    ) -> LpmResult<Lockfile> {
+    ) -> DepotResult<Lockfile> {
         let mut new_lockfile = Lockfile::new();
 
         // Determine resolution strategy from manifest, then config

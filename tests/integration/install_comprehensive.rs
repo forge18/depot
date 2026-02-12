@@ -1,12 +1,12 @@
-//! Comprehensive tests for `lpm install` command
+//! Comprehensive tests for `depot install` command
 
-use super::common::lpm_command;
+use super::common::depot_command;
 use std::fs;
 use tempfile::TempDir;
 
 #[test]
 fn test_install_global_without_package() {
-    let output = lpm_command()
+    let output = depot_command()
         .arg("install")
         .arg("--global")
         .output()
@@ -22,7 +22,7 @@ fn test_install_global_without_package() {
 
 #[test]
 fn test_install_global_with_path() {
-    let output = lpm_command()
+    let output = depot_command()
         .arg("install")
         .arg("--global")
         .arg("--path")
@@ -47,7 +47,7 @@ fn test_install_with_no_dev_and_dev_only() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("install")
         .arg("--no-dev")
         .arg("--dev-only")
@@ -71,7 +71,7 @@ fn test_install_from_path_nonexistent() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("install")
         .arg("--path")
         .arg("/nonexistent/path")
@@ -105,7 +105,7 @@ fn test_install_from_path_valid() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("install")
         .arg("--path")
         .arg(local_pkg.to_str().unwrap())
@@ -141,7 +141,7 @@ fn test_install_with_dev_flag() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("install")
         .arg("--dev")
         .arg("--path")
@@ -177,7 +177,7 @@ dev_dependencies:
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("install")
         .arg("--no-dev")
         .current_dir(project_root)
@@ -210,7 +210,7 @@ dev_dependencies:
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("install")
         .arg("--dev-only")
         .current_dir(project_root)
@@ -232,7 +232,7 @@ fn test_install_empty_dependencies() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("install")
         .current_dir(project_root)
         .output()
@@ -254,7 +254,7 @@ fn test_install_package_with_version_constraint() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("install")
         .arg("luasocket@~>3.0")
         .current_dir(project_root)
@@ -276,7 +276,7 @@ fn test_install_package_invalid_version_constraint() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("install")
         .arg("luasocket@invalid-version")
         .current_dir(project_root)

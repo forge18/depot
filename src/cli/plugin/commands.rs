@@ -3,7 +3,7 @@ use crate::cli::plugin::installer::PluginInstaller;
 use crate::cli::plugin::registry::PluginRegistry;
 use crate::cli::plugin::{list_plugins, PluginInfo};
 use clap::{Parser, Subcommand};
-use lpm_core::{LpmError, LpmResult};
+use depot_core::{DepotError, DepotResult};
 use tokio::runtime::Runtime;
 
 /// Plugin management commands
@@ -67,7 +67,7 @@ pub enum ConfigSubcommand {
 }
 
 /// Run plugin command
-pub fn run(command: PluginSubcommand) -> LpmResult<()> {
+pub fn run(command: PluginSubcommand) -> DepotResult<()> {
     match command {
         PluginSubcommand::List => list_installed_plugins(),
         PluginSubcommand::Info { name } => show_plugin_info(&name),
@@ -78,7 +78,7 @@ pub fn run(command: PluginSubcommand) -> LpmResult<()> {
     }
 }
 
-fn run_config_command(command: ConfigSubcommand) -> LpmResult<()> {
+fn run_config_command(command: ConfigSubcommand) -> DepotResult<()> {
     match command {
         ConfigSubcommand::Get { plugin, key } => {
             let config = PluginConfig::load(&plugin)?;
@@ -125,12 +125,12 @@ fn run_config_command(command: ConfigSubcommand) -> LpmResult<()> {
     }
 }
 
-fn list_installed_plugins() -> LpmResult<()> {
+fn list_installed_plugins() -> DepotResult<()> {
     let plugins = list_plugins()?;
 
     if plugins.is_empty() {
         println!("No plugins installed.");
-        println!("\nInstall plugins with: lpm install -g lpm-<name>");
+        println!("\nInstall plugins with: depot install -g lpm-<name>");
         return Ok(());
     }
 
@@ -149,7 +149,7 @@ fn list_installed_plugins() -> LpmResult<()> {
     Ok(())
 }
 
-fn show_plugin_info(name: &str) -> LpmResult<()> {
+fn show_plugin_info(name: &str) -> DepotResult<()> {
     if let Some(plugin) = PluginInfo::from_installed(name)? {
         println!("Plugin: {}", plugin.metadata.name);
         println!(
@@ -183,7 +183,7 @@ fn show_plugin_info(name: &str) -> LpmResult<()> {
             }
         }
     } else {
-        return Err(LpmError::Package(format!(
+        return Err(DepotError::Package(format!(
             "Plugin '{}' is not installed",
             name
         )));
@@ -192,9 +192,9 @@ fn show_plugin_info(name: &str) -> LpmResult<()> {
     Ok(())
 }
 
-fn update_plugins(names: Option<Vec<String>>) -> LpmResult<()> {
+fn update_plugins(names: Option<Vec<String>>) -> DepotResult<()> {
     let rt = Runtime::new()
-        .map_err(|e| LpmError::Package(format!("Failed to create runtime: {}", e)))?;
+        .map_err(|e| DepotError::Package(format!("Failed to create runtime: {}", e)))?;
 
     if let Some(plugin_names) = names {
         // Update specific plugins
@@ -222,7 +222,7 @@ fn update_plugins(names: Option<Vec<String>>) -> LpmResult<()> {
     Ok(())
 }
 
-fn check_outdated_plugins() -> LpmResult<()> {
+fn check_outdated_plugins() -> DepotResult<()> {
     let plugins = list_plugins()?;
 
     if plugins.is_empty() {
@@ -233,7 +233,7 @@ fn check_outdated_plugins() -> LpmResult<()> {
     println!("Checking for outdated plugins...\n");
 
     let rt = Runtime::new()
-        .map_err(|e| LpmError::Package(format!("Failed to create runtime: {}", e)))?;
+        .map_err(|e| DepotError::Package(format!("Failed to create runtime: {}", e)))?;
     let mut outdated_count = 0;
 
     for plugin in plugins {
@@ -277,7 +277,7 @@ fn check_outdated_plugins() -> LpmResult<()> {
         println!("\nAll plugins are up to date.");
     } else {
         println!(
-            "\n{} plugin(s) have updates available. Run 'lpm plugin update' to update them.",
+            "\n{} plugin(s) have updates available. Run 'depot plugin update' to update them.",
             outdated_count
         );
     }
@@ -285,19 +285,19 @@ fn check_outdated_plugins() -> LpmResult<()> {
     Ok(())
 }
 
-fn search_plugins(query: Option<String>) -> LpmResult<()> {
+fn search_plugins(query: Option<String>) -> DepotResult<()> {
     let search_query = query.as_deref().unwrap_or("lpm");
     println!("Searching for plugins matching '{}'...\n", search_query);
 
     let rt = Runtime::new()
-        .map_err(|e| LpmError::Package(format!("Failed to create runtime: {}", e)))?;
+        .map_err(|e| DepotError::Package(format!("Failed to create runtime: {}", e)))?;
 
     let registry = PluginRegistry::new();
     match rt.block_on(registry.search(search_query)) {
         Ok(results) => {
             if results.is_empty() {
                 println!("No plugins found matching '{}'", search_query);
-                println!("\nTry searching with: lpm plugin search <query>");
+                println!("\nTry searching with: depot plugin search <query>");
             } else {
                 println!("Found {} plugin(s):\n", results.len());
                 for entry in results {
@@ -310,11 +310,11 @@ fn search_plugins(query: Option<String>) -> LpmResult<()> {
                     }
                     println!();
                 }
-                println!("Install with: lpm install -g lpm-<name>");
+                println!("Install with: depot install -g lpm-<name>");
             }
         }
         Err(e) => {
-            return Err(LpmError::Package(format!("Search failed: {}", e)));
+            return Err(DepotError::Package(format!("Search failed: {}", e)));
         }
     }
 

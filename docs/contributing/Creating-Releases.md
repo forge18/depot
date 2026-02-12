@@ -51,15 +51,15 @@ If you've already built the files and pushed them, you can upload them manually:
 Each release includes versioned files in `releases/v{VERSION}/`:
 
 ### macOS
-- `lpm-v{VERSION}-macos-aarch64.pkg` (Apple Silicon)
-- `lpm-v{VERSION}-macos-x86_64.pkg` (Intel)
+- `depot-v{VERSION}-macos-aarch64.pkg` (Apple Silicon)
+- `depot-v{VERSION}-macos-x86_64.pkg` (Intel)
 
 ### Linux
-- `lpm-v{VERSION}-linux-x86_64.tar.gz` (64-bit)
-- `lpm-v{VERSION}-linux-aarch64.tar.gz` (ARM64)
+- `depot-v{VERSION}-linux-x86_64.tar.gz` (64-bit)
+- `depot-v{VERSION}-linux-aarch64.tar.gz` (ARM64)
 
 ### Windows
-- `lpm-v{VERSION}-windows-x86_64.zip` (64-bit)
+- `depot-v{VERSION}-windows-x86_64.zip` (64-bit)
 
 **Example for v0.1.0:**
 - `releases/v0.1.0/lpm-v0.1.0-macos-aarch64.pkg`

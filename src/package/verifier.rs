@@ -1,5 +1,5 @@
 use crate::cache::Cache;
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use crate::package::lockfile::{LockedPackage, Lockfile};
 use std::path::Path;
 
@@ -18,7 +18,7 @@ impl PackageVerifier {
         &self,
         lockfile: &Lockfile,
         project_root: &Path,
-    ) -> LpmResult<VerificationResult> {
+    ) -> DepotResult<VerificationResult> {
         let mut result = VerificationResult::new();
 
         for (name, package) in &lockfile.packages {
@@ -37,13 +37,13 @@ impl PackageVerifier {
         package_name: &str,
         package: &LockedPackage,
         _project_root: &Path,
-    ) -> LpmResult<()> {
+    ) -> DepotResult<()> {
         // Extract checksum from lockfile (format: "sha256:..." or "blake3:...")
         let expected_checksum = &package.checksum;
 
         // Validate checksum format (must have algorithm prefix)
         if !expected_checksum.starts_with("sha256:") && !expected_checksum.starts_with("blake3:") {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Invalid checksum format for '{}': expected 'sha256:...' or 'blake3:...'",
                 package_name
             )));
@@ -53,7 +53,7 @@ impl PackageVerifier {
         let source_path = if let Some(source_url) = &package.source_url {
             self.cache.source_path(source_url)
         } else {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "No source_url for package '{}' in lockfile",
                 package_name
             )));
@@ -61,7 +61,7 @@ impl PackageVerifier {
 
         // Check if source file exists
         if !source_path.exists() {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Source file not found for '{}': {}",
                 package_name,
                 source_path.display()
@@ -70,7 +70,7 @@ impl PackageVerifier {
 
         // Verify using the Cache's verify_checksum method (supports both algorithms)
         if !Cache::verify_checksum(&source_path, expected_checksum)? {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Checksum mismatch for '{}':\n  Expected: {}",
                 package_name, expected_checksum
             )));
@@ -80,16 +80,16 @@ impl PackageVerifier {
     }
 
     /// Verify a package's checksum from a file path
-    pub fn verify_file(&self, file_path: &Path, expected_checksum: &str) -> LpmResult<()> {
+    pub fn verify_file(&self, file_path: &Path, expected_checksum: &str) -> DepotResult<()> {
         // Validate checksum format (must have algorithm prefix)
         if !expected_checksum.starts_with("sha256:") && !expected_checksum.starts_with("blake3:") {
-            return Err(LpmError::Package(
+            return Err(DepotError::Package(
                 "Invalid checksum format: expected 'sha256:...' or 'blake3:...'".to_string(),
             ));
         }
 
         if !file_path.exists() {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "File not found: {}",
                 file_path.display()
             )));
@@ -97,7 +97,7 @@ impl PackageVerifier {
 
         // Verify using the Cache's verify_checksum method (supports both algorithms)
         if !Cache::verify_checksum(file_path, expected_checksum)? {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Checksum mismatch:\n  Expected: {}",
                 expected_checksum
             )));
@@ -193,7 +193,7 @@ mod tests {
         let result = verifier.verify_file(&test_file, invalid_checksum);
         assert!(result.is_err());
         match result {
-            Err(LpmError::Package(msg)) => {
+            Err(DepotError::Package(msg)) => {
                 assert!(msg.contains("Invalid checksum format"));
             }
             _ => panic!("Expected Package error"),
@@ -211,7 +211,7 @@ mod tests {
         let result = verifier.verify_file(&missing_file, checksum);
         assert!(result.is_err());
         match result {
-            Err(LpmError::Package(msg)) => {
+            Err(DepotError::Package(msg)) => {
                 assert!(msg.contains("File not found") || msg.contains("nonexistent"));
             }
             _ => panic!("Expected Package error"),
@@ -320,7 +320,7 @@ mod tests {
         let result = verifier.verify_package("test-package", &package, temp.path());
         assert!(result.is_err());
         match result {
-            Err(LpmError::Package(msg)) => {
+            Err(DepotError::Package(msg)) => {
                 assert!(msg.contains("Invalid checksum format"));
             }
             _ => panic!("Expected Package error"),
@@ -347,7 +347,7 @@ mod tests {
         let result = verifier.verify_package("test-package", &package, temp.path());
         assert!(result.is_err());
         match result {
-            Err(LpmError::Package(msg)) => {
+            Err(DepotError::Package(msg)) => {
                 assert!(msg.contains("No source_url"));
             }
             _ => panic!("Expected Package error"),

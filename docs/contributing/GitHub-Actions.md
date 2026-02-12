@@ -1,6 +1,6 @@
 # GitHub Actions Workflows
 
-This document describes all GitHub Actions workflows available in the LPM project.
+This document describes all GitHub Actions workflows available in the Depot project.
 
 ## Available Workflows
 
@@ -58,7 +58,7 @@ git push origin v0.1.0
 **Purpose:** Build and publish plugin binaries separately from main release
 
 **Triggers:**
-- Push tag matching `lpm-watch/v*`, `lpm-bundle/v*`, or `plugins/v*`
+- Push tag matching `depot-watch/v*`, `depot-bundle/v*`, or `plugins/v*`
 - Manual trigger via `workflow_dispatch`
 
 **What it does:**
@@ -75,8 +75,8 @@ git push origin v0.1.0
 **Example:**
 ```bash
 # Release a specific plugin
-git tag -a lpm-watch/v0.1.0 -m "Release lpm-watch v0.1.0"
-git push origin lpm-watch/v0.1.0
+git tag -a depot-watch/v0.1.0 -m "Release depot-watch v0.1.0"
+git push origin depot-watch/v0.1.0
 
 # Or release all plugins
 git tag -a plugins/v0.1.0 -m "Release all plugins v0.1.0"
@@ -112,7 +112,7 @@ git push origin plugins/v0.1.0
 1. Generate a Personal Access Token:
    - Go to: https://github.com/settings/tokens
    - Click "Generate new token" → "Generate new token (classic)"
-   - Name: `LPM Wiki Sync`
+   - Name: `Depot Wiki Sync`
    - Expiration: Choose your preference (or no expiration)
    - Scopes: Check `repo` (full control of private repositories)
    - Click "Generate token"

@@ -1,4 +1,4 @@
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use crate::luarocks::rockspec::{Rockspec, RockspecBuild, RockspecSource};
 use regex::Regex;
 use std::collections::HashMap;
@@ -7,7 +7,7 @@ use std::collections::HashMap;
 ///
 /// This is a basic parser that extracts common fields from rockspec files.
 /// For full sandboxed parsing, we'll need a Lua interpreter later.
-pub fn parse_rockspec(content: &str) -> LpmResult<Rockspec> {
+pub fn parse_rockspec(content: &str) -> DepotResult<Rockspec> {
     let package = extract_string_field(content, r#"package\s*=\s*"([^"]+)""#)?;
     let version = extract_string_field(content, r#"version\s*=\s*"([^"]+)""#)?;
 
@@ -43,17 +43,17 @@ pub fn parse_rockspec(content: &str) -> LpmResult<Rockspec> {
     })
 }
 
-fn extract_string_field(content: &str, pattern: &str) -> LpmResult<String> {
+fn extract_string_field(content: &str, pattern: &str) -> DepotResult<String> {
     let re = Regex::new(pattern)
-        .map_err(|e| LpmError::Package(format!("Invalid regex pattern: {}", e)))?;
+        .map_err(|e| DepotError::Package(format!("Invalid regex pattern: {}", e)))?;
 
     re.captures(content)
         .and_then(|cap| cap.get(1))
         .map(|m| m.as_str().to_string())
-        .ok_or_else(|| LpmError::Package(format!("Field not found: {}", pattern)))
+        .ok_or_else(|| DepotError::Package(format!("Field not found: {}", pattern)))
 }
 
-fn parse_source(content: &str) -> LpmResult<RockspecSource> {
+fn parse_source(content: &str) -> DepotResult<RockspecSource> {
     // Extract source table
     let source_block = extract_table_block(content, "source")?;
 
@@ -71,12 +71,12 @@ fn parse_source(content: &str) -> LpmResult<RockspecSource> {
     Ok(RockspecSource { url, tag, branch })
 }
 
-fn parse_dependencies(content: &str) -> LpmResult<Vec<String>> {
+fn parse_dependencies(content: &str) -> DepotResult<Vec<String>> {
     let deps_block = extract_table_block(content, "dependencies")?;
 
     // Match entries like: "lua >= 5.1" or 'luasocket'
     let re = Regex::new(r#"(?m)^\s*["']([^"']+)["']"#)
-        .map_err(|e| LpmError::Package(format!("Invalid regex: {}", e)))?;
+        .map_err(|e| DepotError::Package(format!("Invalid regex: {}", e)))?;
 
     let mut deps = Vec::new();
     for cap in re.captures_iter(&deps_block) {
@@ -88,7 +88,7 @@ fn parse_dependencies(content: &str) -> LpmResult<Vec<String>> {
     Ok(deps)
 }
 
-fn parse_build(content: &str) -> LpmResult<RockspecBuild> {
+fn parse_build(content: &str) -> DepotResult<RockspecBuild> {
     let build_block = extract_table_block(content, "build")?;
 
     let build_type = extract_string_field(&build_block, r#"type\s*=\s*"([^"]+)""#)
@@ -110,7 +110,7 @@ fn parse_build(content: &str) -> LpmResult<RockspecBuild> {
 
 /// Parse install table from build block
 /// Format: install = { bin = { ["name"] = "path" }, lua = { ... }, lib = { ... }, conf = { ... } }
-fn parse_install_table(build_block: &str) -> LpmResult<crate::luarocks::rockspec::InstallTable> {
+fn parse_install_table(build_block: &str) -> DepotResult<crate::luarocks::rockspec::InstallTable> {
     use crate::luarocks::rockspec::InstallTable;
 
     let install_block = extract_table_block(build_block, "install").unwrap_or_default();
@@ -132,12 +132,12 @@ fn parse_install_table(build_block: &str) -> LpmResult<crate::luarocks::rockspec
 fn parse_install_section(
     install_block: &str,
     section_name: &str,
-) -> LpmResult<HashMap<String, String>> {
+) -> DepotResult<HashMap<String, String>> {
     let section_block = extract_table_block(install_block, section_name).unwrap_or_default();
 
     // Match entries like: ["name"] = "path" or name = "path"
     let re = Regex::new(r#"(?m)^\s*(?:\["([^"]+)"\]|(\w+))\s*=\s*["']([^"']+)["']"#)
-        .map_err(|e| LpmError::Package(format!("Invalid regex: {}", e)))?;
+        .map_err(|e| DepotError::Package(format!("Invalid regex: {}", e)))?;
 
     let mut entries = HashMap::new();
     for cap in re.captures_iter(&section_block) {
@@ -146,10 +146,10 @@ fn parse_install_section(
             .or_else(|| cap.get(2))
             .map(|m| m.as_str().to_string())
             .ok_or_else(|| {
-                LpmError::Package(format!("Invalid entry in install.{}", section_name))
+                DepotError::Package(format!("Invalid entry in install.{}", section_name))
             })?;
         let path = cap.get(3).map(|m| m.as_str().to_string()).ok_or_else(|| {
-            LpmError::Package(format!("Invalid path in install.{}", section_name))
+            DepotError::Package(format!("Invalid path in install.{}", section_name))
         })?;
         entries.insert(name, path);
     }
@@ -157,13 +157,13 @@ fn parse_install_section(
     Ok(entries)
 }
 
-fn parse_modules_table(build_block: &str) -> LpmResult<HashMap<String, String>> {
+fn parse_modules_table(build_block: &str) -> DepotResult<HashMap<String, String>> {
     // Extract modules table block
     let modules_block = extract_table_block(build_block, "modules").unwrap_or_default();
 
     // Match entries like: socket = "src/socket.lua"
     let re = Regex::new(r#"(?m)^\s*(\w+)\s*=\s*["']([^"']+)["']"#)
-        .map_err(|e| LpmError::Package(format!("Invalid regex: {}", e)))?;
+        .map_err(|e| DepotError::Package(format!("Invalid regex: {}", e)))?;
 
     let mut modules = HashMap::new();
     for cap in re.captures_iter(&modules_block) {
@@ -178,7 +178,7 @@ fn parse_modules_table(build_block: &str) -> LpmResult<HashMap<String, String>> 
 /// Parse binary_urls table from metadata section
 /// Format: binary_urls = { ["5.4-x86_64-unknown-linux-gnu"] = "https://..." }
 /// Or directly: binary_urls = { ["5.4-x86_64-unknown-linux-gnu"] = "https://..." }
-fn parse_binary_urls(content: &str) -> LpmResult<HashMap<String, String>> {
+fn parse_binary_urls(content: &str) -> DepotResult<HashMap<String, String>> {
     // Try to find binary_urls directly first
     let binary_urls_block = extract_table_block(content, "binary_urls")
         .or_else(|_| {
@@ -194,7 +194,7 @@ fn parse_binary_urls(content: &str) -> LpmResult<HashMap<String, String>> {
 
     // Match entries like: ["5.4-x86_64-unknown-linux-gnu"] = "https://..."
     let re = Regex::new(r#"(?m)\["([^\]]+)"\]\s*=\s*["']([^"']+)["']"#)
-        .map_err(|e| LpmError::Package(format!("Invalid regex: {}", e)))?;
+        .map_err(|e| DepotError::Package(format!("Invalid regex: {}", e)))?;
 
     let mut urls = HashMap::new();
     for cap in re.captures_iter(&binary_urls_block) {
@@ -212,14 +212,14 @@ fn parse_binary_urls(content: &str) -> LpmResult<HashMap<String, String>> {
 ///   field = {
 ///     ...
 ///   }
-fn extract_table_block(content: &str, field_name: &str) -> LpmResult<String> {
+fn extract_table_block(content: &str, field_name: &str) -> DepotResult<String> {
     let pattern = format!(r#"{}\s*=\s*\{{"#, field_name);
     let start_re =
-        Regex::new(&pattern).map_err(|e| LpmError::Package(format!("Invalid regex: {}", e)))?;
+        Regex::new(&pattern).map_err(|e| DepotError::Package(format!("Invalid regex: {}", e)))?;
 
     let start_match = start_re
         .find(content)
-        .ok_or_else(|| LpmError::Package(format!("Field '{}' not found", field_name)))?;
+        .ok_or_else(|| DepotError::Package(format!("Field '{}' not found", field_name)))?;
 
     let start_pos = start_match.end();
     let mut brace_count = 1;
@@ -236,7 +236,7 @@ fn extract_table_block(content: &str, field_name: &str) -> LpmResult<String> {
     }
 
     if brace_count != 0 {
-        return Err(LpmError::Package(format!(
+        return Err(DepotError::Package(format!(
             "Unclosed table block for '{}'",
             field_name
         )));

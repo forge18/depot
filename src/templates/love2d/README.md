@@ -6,12 +6,12 @@ A Love2D game project.
 
 ```bash
 # Install dependencies
-lpm install
+depot install
 
 # Run the game
 love .
 # or
-lpm run dev
+depot run dev
 ```
 
 ## Project Structure

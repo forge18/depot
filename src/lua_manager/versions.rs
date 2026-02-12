@@ -1,11 +1,11 @@
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 
 /// Parse and validate Lua version strings
-pub fn parse_version(version: &str) -> LpmResult<(u32, u32, u32)> {
+pub fn parse_version(version: &str) -> DepotResult<(u32, u32, u32)> {
     let parts: Vec<&str> = version.split('.').collect();
 
     if parts.len() < 2 {
-        return Err(LpmError::Package(format!(
+        return Err(DepotError::Package(format!(
             "Invalid version format: {}. Expected format: X.Y.Z",
             version
         )));
@@ -13,16 +13,16 @@ pub fn parse_version(version: &str) -> LpmResult<(u32, u32, u32)> {
 
     let major = parts[0]
         .parse::<u32>()
-        .map_err(|_| LpmError::Package(format!("Invalid major version: {}", parts[0])))?;
+        .map_err(|_| DepotError::Package(format!("Invalid major version: {}", parts[0])))?;
 
     let minor = parts[1]
         .parse::<u32>()
-        .map_err(|_| LpmError::Package(format!("Invalid minor version: {}", parts[1])))?;
+        .map_err(|_| DepotError::Package(format!("Invalid minor version: {}", parts[1])))?;
 
     let patch = if parts.len() > 2 {
         parts[2]
             .parse::<u32>()
-            .map_err(|_| LpmError::Package(format!("Invalid patch version: {}", parts[2])))?
+            .map_err(|_| DepotError::Package(format!("Invalid patch version: {}", parts[2])))?
     } else {
         0
     };
@@ -31,13 +31,13 @@ pub fn parse_version(version: &str) -> LpmResult<(u32, u32, u32)> {
 }
 
 /// Extract version code from version string (e.g., "5.4.8" -> "54")
-pub fn version_code(version: &str) -> LpmResult<String> {
+pub fn version_code(version: &str) -> DepotResult<String> {
     let (major, minor, _) = parse_version(version)?;
     Ok(format!("{}{}", major, minor))
 }
 
 /// Compare two version strings
-pub fn compare_versions(a: &str, b: &str) -> LpmResult<std::cmp::Ordering> {
+pub fn compare_versions(a: &str, b: &str) -> DepotResult<std::cmp::Ordering> {
     let a_parts = parse_version(a)?;
     let b_parts = parse_version(b)?;
     Ok(a_parts.cmp(&b_parts))

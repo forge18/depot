@@ -4,8 +4,8 @@ on:
   push:
     tags:
       - 'plugins/v*'
-      - 'lpm-watch/v*'
-      - 'lpm-bundle/v*'
+      - 'depot-watch/v*'
+      - 'depot-bundle/v*'
   workflow_dispatch:
     inputs:
       plugin:
@@ -133,20 +133,20 @@ jobs:
       - name: Build plugin binary
         run: |
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            cargo xwin build --release --target ${{ matrix.target }} -p lpm-${{ matrix.plugin }}
+            cargo xwin build --release --target ${{ matrix.target }} -p depot-${{ matrix.plugin }}
           elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
             SDKROOT=$(xcrun --sdk macosx --show-sdk-path)
             export SDKROOT
             export RUSTFLAGS="-C link-arg=-F${SDKROOT}/System/Library/Frameworks"
-            cargo zigbuild --release --target ${{ matrix.target }} -p lpm-${{ matrix.plugin }}
+            cargo zigbuild --release --target ${{ matrix.target }} -p depot-${{ matrix.plugin }}
           else
-            cargo zigbuild --release --target ${{ matrix.target }} -p lpm-${{ matrix.plugin }}
+            cargo zigbuild --release --target ${{ matrix.target }} -p depot-${{ matrix.plugin }}
           fi
 
       - name: Prepare binary
         run: |
           mkdir -p .output
-          BINARY_NAME="lpm-${{ matrix.plugin }}${{ matrix.binary_ext }}"
+          BINARY_NAME="depot-${{ matrix.plugin }}${{ matrix.binary_ext }}"
           SOURCE_PATH="target/${{ matrix.target }}/release/$BINARY_NAME"
           
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
@@ -154,14 +154,14 @@ jobs:
             mkdir -p plugin-release
             cp "$SOURCE_PATH" plugin-release/
             cd plugin-release
-            zip -q ../.output/lpm-${{ matrix.plugin }}-${{ matrix.platform }}-${{ matrix.arch }}.zip "$BINARY_NAME"
+            zip -q ../.output/depot-${{ matrix.plugin }}-${{ matrix.platform }}-${{ matrix.arch }}.zip "$BINARY_NAME"
             cd ..
             rm -rf plugin-release
           else
             # For Unix, create a tar.gz
             mkdir -p plugin-release
             cp "$SOURCE_PATH" plugin-release/
-            tar czf .output/lpm-${{ matrix.plugin }}-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz -C plugin-release "$BINARY_NAME"
+            tar czf .output/depot-${{ matrix.plugin }}-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz -C plugin-release "$BINARY_NAME"
             rm -rf plugin-release
           fi
 
@@ -169,7 +169,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.plugin }}-${{ matrix.platform }}-${{ matrix.arch }}
-          path: .output/lpm-${{ matrix.plugin }}-${{ matrix.platform }}-${{ matrix.arch }}.*
+          path: .output/depot-${{ matrix.plugin }}-${{ matrix.platform }}-${{ matrix.arch }}.*
           if-no-files-found: error
 
   release:
@@ -199,12 +199,12 @@ jobs:
             if [[ "$TAG" == plugins/v* ]]; then
               PLUGIN="all"
               VERSION="${TAG#plugins/v}"
-            elif [[ "$TAG" == lpm-watch/v* ]]; then
+            elif [[ "$TAG" == depot-watch/v* ]]; then
               PLUGIN="watch"
-              VERSION="${TAG#lpm-watch/v}"
-            elif [[ "$TAG" == lpm-bundle/v* ]]; then
+              VERSION="${TAG#depot-watch/v}"
+            elif [[ "$TAG" == depot-bundle/v* ]]; then
               PLUGIN="bundle"
-              VERSION="${TAG#lpm-bundle/v}"
+              VERSION="${TAG#depot-bundle/v}"
             else
               echo "Unknown tag format: $TAG"
               exit 1
@@ -222,17 +222,17 @@ jobs:
         if: steps.tag_info.outputs.plugin == 'watch' || steps.tag_info.outputs.plugin == 'all'
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: lpm-watch/v${{ steps.tag_info.outputs.version }}
-          name: lpm-watch v${{ steps.tag_info.outputs.version }}
+          tag_name: depot-watch/v${{ steps.tag_info.outputs.version }}
+          name: depot-watch v${{ steps.tag_info.outputs.version }}
           body: |
-            ## lpm-watch v${{ steps.tag_info.outputs.version }}
+            ## depot-watch v${{ steps.tag_info.outputs.version }}
             
-            Plugin release for lpm-watch.
+            Plugin release for depot-watch.
             
             ### Installation
             
             ```bash
-            lpm install -g lpm-watch
+            depot install -g depot-watch
             ```
             
             ### Binaries
@@ -248,17 +248,17 @@ jobs:
         if: steps.tag_info.outputs.plugin == 'bundle' || steps.tag_info.outputs.plugin == 'all'
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: lpm-bundle/v${{ steps.tag_info.outputs.version }}
-          name: lpm-bundle v${{ steps.tag_info.outputs.version }}
+          tag_name: depot-bundle/v${{ steps.tag_info.outputs.version }}
+          name: depot-bundle v${{ steps.tag_info.outputs.version }}
           body: |
-            ## lpm-bundle v${{ steps.tag_info.outputs.version }}
+            ## depot-bundle v${{ steps.tag_info.outputs.version }}
             
-            Plugin release for lpm-bundle.
+            Plugin release for depot-bundle.
             
             ### Installation
             
             ```bash
-            lpm install -g lpm-bundle
+            depot install -g depot-bundle
             ```
             
             ### Binaries

@@ -1,6 +1,6 @@
-//! Tests for `lpm clean` command
+//! Tests for `depot clean` command
 
-use super::common::lpm_command;
+use super::common::depot_command;
 use std::fs;
 use tempfile::TempDir;
 
@@ -20,13 +20,13 @@ fn test_clean_removes_lua_modules() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("clean")
         .current_dir(project_root)
         .output()
         .unwrap();
 
-    assert!(output.status.success(), "lpm clean should succeed");
+    assert!(output.status.success(), "depot clean should succeed");
     assert!(!lua_modules.exists(), "lua_modules should be removed");
 }
 
@@ -41,7 +41,7 @@ fn test_clean_without_lua_modules() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("clean")
         .current_dir(project_root)
         .output()
@@ -57,7 +57,7 @@ fn test_clean_without_package_yaml() {
     let temp = TempDir::new().unwrap();
     let project_root = temp.path();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("clean")
         .current_dir(project_root)
         .output()
@@ -75,7 +75,7 @@ fn test_clean_counts_packages() {
     let lua_modules = project_root.join("lua_modules");
     fs::create_dir_all(lua_modules.join("package1")).unwrap();
     fs::create_dir_all(lua_modules.join("package2")).unwrap();
-    fs::create_dir_all(lua_modules.join(".lpm")).unwrap(); // Should be skipped
+    fs::create_dir_all(lua_modules.join(".depot")).unwrap(); // Should be skipped
 
     fs::write(
         project_root.join("package.yaml"),
@@ -83,7 +83,7 @@ fn test_clean_counts_packages() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("clean")
         .current_dir(project_root)
         .output()

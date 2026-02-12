@@ -1,6 +1,6 @@
-# Contributing to LPM
+# Contributing to Depot
 
-Thank you for your interest in contributing to LPM! This document provides a quick overview. For detailed information, see [docs/contributing/Contributing.md](docs/contributing/Contributing.md).
+Thank you for your interest in contributing to Depot! This document provides a quick overview. For detailed information, see [docs/contributing/Contributing.md](docs/contributing/Contributing.md).
 
 ## Quick Start
 

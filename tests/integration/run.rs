@@ -1,6 +1,6 @@
-//! Tests for `lpm run` command
+//! Tests for `depot run` command
 
-use super::common::lpm_command;
+use super::common::depot_command;
 use std::fs;
 use tempfile::TempDir;
 
@@ -9,7 +9,7 @@ fn test_run_without_package_yaml() {
     let temp = TempDir::new().unwrap();
     let project_root = temp.path();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("run")
         .arg("test")
         .current_dir(project_root)
@@ -30,7 +30,7 @@ fn test_run_nonexistent_script() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("run")
         .arg("nonexistent-script")
         .current_dir(project_root)
@@ -58,7 +58,7 @@ scripts:
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("run")
         .arg("test")
         .current_dir(project_root)
@@ -85,7 +85,7 @@ scripts:
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("run")
         .arg("empty")
         .current_dir(project_root)

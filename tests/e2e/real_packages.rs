@@ -47,7 +47,7 @@ fn test_package_installation_and_loading(name: &str, version: &str, require_name
     // Install package
     println!("  Installing {}@{}...", name, version);
     let result = ctx
-        .lpm()
+        .depot()
         .arg("install")
         .arg(format!("{}@{}", name, version))
         .output();
@@ -66,7 +66,7 @@ fn test_package_installation_and_loading(name: &str, version: &str, require_name
             }
         }
         Err(e) => {
-            panic!("Failed to run lpm install: {}", e);
+            panic!("Failed to run depot install: {}", e);
         }
     }
 
@@ -134,7 +134,7 @@ fn test_penlight_functionality() {
     TestContext::require_network();
     let ctx = TestContext::new();
 
-    ctx.lpm()
+    ctx.depot()
         .arg("install")
         .arg(format!(
             "{}@{}",
@@ -197,7 +197,7 @@ fn test_package_with_dependencies() {
     let ctx = TestContext::new();
 
     // busted has multiple dependencies
-    ctx.lpm()
+    ctx.depot()
         .arg("install")
         .arg(format!(
             "{}@{}",
@@ -258,7 +258,7 @@ fn test_c_extension_package() {
     let ctx = TestContext::new();
 
     // luasocket is a C extension
-    ctx.lpm()
+    ctx.depot()
         .arg("install")
         .arg(format!(
             "{}@{}",

@@ -1,6 +1,6 @@
 //! Trait definitions for dependency injection
 
-use crate::core::LpmResult;
+use crate::core::DepotResult;
 use crate::luarocks::manifest::Manifest;
 use crate::luarocks::rockspec::Rockspec;
 use async_trait::async_trait;
@@ -15,7 +15,7 @@ pub trait ConfigProvider: Send + Sync {
     fn luarocks_manifest_url(&self) -> &str;
 
     /// Get the cache directory path
-    fn cache_dir(&self) -> LpmResult<PathBuf>;
+    fn cache_dir(&self) -> DepotResult<PathBuf>;
 
     /// Check if checksum verification is enabled
     fn verify_checksums(&self) -> bool;
@@ -54,16 +54,16 @@ pub trait CacheProvider: Send + Sync {
     fn exists(&self, path: &Path) -> bool;
 
     /// Read a file from the cache
-    fn read(&self, path: &Path) -> LpmResult<Vec<u8>>;
+    fn read(&self, path: &Path) -> DepotResult<Vec<u8>>;
 
     /// Write a file to the cache
-    fn write(&self, path: &Path, data: &[u8]) -> LpmResult<()>;
+    fn write(&self, path: &Path, data: &[u8]) -> DepotResult<()>;
 
     /// Calculate the checksum of a file
-    fn checksum(&self, path: &Path) -> LpmResult<String>;
+    fn checksum(&self, path: &Path) -> DepotResult<String>;
 
     /// Verify the checksum of a file
-    fn verify_checksum(&self, path: &Path, expected: &str) -> LpmResult<bool>;
+    fn verify_checksum(&self, path: &Path, expected: &str) -> DepotResult<bool>;
 
     /// Get the cache path for a Rust build artifact
     fn rust_build_path(
@@ -86,7 +86,7 @@ pub trait CacheProvider: Send + Sync {
         lua_version: &str,
         target: &str,
         artifact_path: &Path,
-    ) -> LpmResult<PathBuf>;
+    ) -> DepotResult<PathBuf>;
 
     /// Get a Rust build artifact from cache
     fn get_rust_build(
@@ -105,16 +105,16 @@ pub trait CacheProvider: Send + Sync {
 #[async_trait]
 pub trait PackageClient: Send + Sync {
     /// Fetch the LuaRocks manifest
-    async fn fetch_manifest(&self) -> LpmResult<Manifest>;
+    async fn fetch_manifest(&self) -> DepotResult<Manifest>;
 
     /// Download a rockspec file from a URL
-    async fn download_rockspec(&self, url: &str) -> LpmResult<String>;
+    async fn download_rockspec(&self, url: &str) -> DepotResult<String>;
 
     /// Parse a rockspec from its Lua content
-    fn parse_rockspec(&self, content: &str) -> LpmResult<Rockspec>;
+    fn parse_rockspec(&self, content: &str) -> DepotResult<Rockspec>;
 
     /// Download a source package from a URL
-    async fn download_source(&self, url: &str) -> LpmResult<PathBuf>;
+    async fn download_source(&self, url: &str) -> DepotResult<PathBuf>;
 }
 
 /// Trait for package search and discovery
@@ -124,12 +124,12 @@ pub trait PackageClient: Send + Sync {
 #[async_trait]
 pub trait SearchProvider: Send + Sync {
     /// Get the latest version of a package
-    async fn get_latest_version(&self, package_name: &str) -> LpmResult<String>;
+    async fn get_latest_version(&self, package_name: &str) -> DepotResult<String>;
 
     /// Construct a rockspec URL for a package
     fn get_rockspec_url(&self, package_name: &str, version: &str, manifest: Option<&str>)
         -> String;
 
     /// Verify that a rockspec URL is accessible
-    async fn verify_rockspec_url(&self, url: &str) -> LpmResult<()>;
+    async fn verify_rockspec_url(&self, url: &str) -> DepotResult<()>;
 }

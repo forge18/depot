@@ -1,4 +1,4 @@
-use lpm_core::{LpmError, LpmResult};
+use depot_core::{DepotError, DepotResult};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -18,7 +18,7 @@ pub struct PluginMetadata {
     pub homepage: Option<String>,
     /// Plugin dependencies (other plugins this plugin requires)
     pub dependencies: Vec<PluginDependency>,
-    /// Minimum LPM version required
+    /// Minimum Depot version required
     pub min_lpm_version: Option<String>,
 }
 
@@ -33,9 +33,9 @@ pub struct PluginDependency {
 
 impl PluginMetadata {
     /// Load plugin metadata from a file
-    pub fn load(metadata_path: &Path) -> LpmResult<Self> {
+    pub fn load(metadata_path: &Path) -> DepotResult<Self> {
         if !metadata_path.exists() {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Plugin metadata not found: {}",
                 metadata_path.display()
             )));
@@ -43,27 +43,27 @@ impl PluginMetadata {
 
         let content = fs::read_to_string(metadata_path)?;
         let metadata: PluginMetadata = serde_yaml::from_str(&content)
-            .map_err(|e| LpmError::Package(format!("Invalid plugin metadata: {}", e)))?;
+            .map_err(|e| DepotError::Package(format!("Invalid plugin metadata: {}", e)))?;
 
         Ok(metadata)
     }
 
     /// Save plugin metadata to a file
-    pub fn save(&self, metadata_path: &Path) -> LpmResult<()> {
+    pub fn save(&self, metadata_path: &Path) -> DepotResult<()> {
         if let Some(parent) = metadata_path.parent() {
             fs::create_dir_all(parent)?;
         }
 
         let content = serde_yaml::to_string(self)
-            .map_err(|e| LpmError::Package(format!("Failed to serialize metadata: {}", e)))?;
+            .map_err(|e| DepotError::Package(format!("Failed to serialize metadata: {}", e)))?;
         fs::write(metadata_path, content)?;
 
         Ok(())
     }
 
     /// Get metadata file path for a plugin
-    pub fn metadata_path(plugin_name: &str) -> LpmResult<PathBuf> {
-        let lpm_home = lpm_core::core::path::lpm_home()?;
+    pub fn metadata_path(plugin_name: &str) -> DepotResult<PathBuf> {
+        let lpm_home = depot_core::core::path::depot_home()?;
         Ok(lpm_home
             .join("plugins")
             .join(format!("{}.yaml", plugin_name)))
@@ -83,7 +83,7 @@ pub struct PluginInfo {
 
 impl PluginInfo {
     /// Load plugin info from installed plugin
-    pub fn from_installed(plugin_name: &str) -> LpmResult<Option<Self>> {
+    pub fn from_installed(plugin_name: &str) -> DepotResult<Option<Self>> {
         use crate::cli::plugin::find_plugin;
 
         if let Some(executable_path) = find_plugin(plugin_name) {
@@ -120,7 +120,7 @@ impl PluginInfo {
     }
 
     /// Get version from plugin executable
-    fn get_executable_version(executable_path: &Path) -> LpmResult<Option<String>> {
+    fn get_executable_version(executable_path: &Path) -> DepotResult<Option<String>> {
         use std::process::Command;
 
         let output = Command::new(executable_path).arg("--version").output();

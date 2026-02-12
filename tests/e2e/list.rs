@@ -7,7 +7,7 @@ fn test_list_installed_packages() {
     let ctx = TestContext::new();
 
     // Install a package
-    ctx.lpm()
+    ctx.depot()
         .arg("install")
         .arg(format!(
             "{}@{}",
@@ -18,7 +18,7 @@ fn test_list_installed_packages() {
         .success();
 
     // List packages
-    ctx.lpm()
+    ctx.depot()
         .arg("list")
         .assert()
         .success()
@@ -32,7 +32,7 @@ fn test_list_with_tree() {
     let ctx = TestContext::new();
 
     // Install a package with dependencies
-    ctx.lpm()
+    ctx.depot()
         .arg("install")
         .arg(format!(
             "{}@{}",
@@ -43,7 +43,7 @@ fn test_list_with_tree() {
         .success();
 
     // List with tree view
-    ctx.lpm()
+    ctx.depot()
         .arg("list")
         .arg("--tree")
         .assert()

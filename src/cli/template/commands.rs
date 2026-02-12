@@ -1,6 +1,6 @@
 use super::TemplateDiscovery;
 use clap::Subcommand;
-use lpm_core::LpmResult;
+use depot_core::DepotResult;
 
 #[derive(Subcommand)]
 pub enum TemplateCommands {
@@ -20,14 +20,14 @@ pub enum TemplateCommands {
     },
 }
 
-pub fn run(cmd: TemplateCommands) -> LpmResult<()> {
+pub fn run(cmd: TemplateCommands) -> DepotResult<()> {
     match cmd {
         TemplateCommands::List { search } => list_templates(search),
         TemplateCommands::Create { name, description } => create_template(name, description),
     }
 }
 
-fn list_templates(search_query: Option<String>) -> LpmResult<()> {
+fn list_templates(search_query: Option<String>) -> DepotResult<()> {
     let mut templates = TemplateDiscovery::list_templates()?;
 
     // Filter by search query if provided
@@ -48,13 +48,13 @@ fn list_templates(search_query: Option<String>) -> LpmResult<()> {
             println!("No templates found.");
         }
         println!("\nTemplates can be:");
-        println!("  - Built-in templates (in LPM installation)");
+        println!("  - Built-in templates (in Depot installation)");
         println!(
             "  - User templates (in {})",
             TemplateDiscovery::user_templates_dir()?.display()
         );
-        println!("\nCreate a template with: lpm template create <name>");
-        println!("Search templates with: lpm template list --search <query>");
+        println!("\nCreate a template with: depot template create <name>");
+        println!("Search templates with: depot template list --search <query>");
         return Ok(());
     }
 
@@ -77,8 +77,8 @@ fn list_templates(search_query: Option<String>) -> LpmResult<()> {
     Ok(())
 }
 
-fn create_template(name: String, description: Option<String>) -> LpmResult<()> {
-    use lpm_core::core::path::find_project_root;
+fn create_template(name: String, description: Option<String>) -> DepotResult<()> {
+    use depot_core::core::path::find_project_root;
     use std::env;
     use std::fs;
 
@@ -87,7 +87,7 @@ fn create_template(name: String, description: Option<String>) -> LpmResult<()> {
 
     // Check if we're in a project
     if project_root != current_dir {
-        return Err(lpm_core::LpmError::Config(
+        return Err(depot_core::DepotError::Config(
             "Template creation must be run from the project root directory".to_string(),
         ));
     }
@@ -96,7 +96,7 @@ fn create_template(name: String, description: Option<String>) -> LpmResult<()> {
     let template_dir = user_templates_dir.join(&name);
 
     if template_dir.exists() {
-        return Err(lpm_core::LpmError::Config(format!(
+        return Err(depot_core::DepotError::Config(format!(
             "Template '{}' already exists at {}",
             name,
             template_dir.display()
@@ -145,14 +145,14 @@ variables:
 fn copy_template_files(
     source: &std::path::Path,
     target: &std::path::Path,
-) -> lpm_core::LpmResult<()> {
+) -> depot_core::DepotResult<()> {
     use std::fs;
     use walkdir::WalkDir;
 
     let ignore_patterns = [
         "lua_modules",
         ".git",
-        ".lpm",
+        ".depot",
         "target",
         "node_modules",
         ".DS_Store",
@@ -170,9 +170,9 @@ fn copy_template_files(
     }) {
         let entry = entry?;
         let source_path = entry.path();
-        let relative_path = source_path
-            .strip_prefix(source)
-            .map_err(|e| lpm_core::LpmError::Path(format!("Failed to get relative path: {}", e)))?;
+        let relative_path = source_path.strip_prefix(source).map_err(|e| {
+            depot_core::DepotError::Path(format!("Failed to get relative path: {}", e))
+        })?;
         let target_path = target.join(relative_path);
 
         if source_path.is_dir() {

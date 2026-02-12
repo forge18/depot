@@ -1,4 +1,4 @@
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use std::fs;
 use std::path::Path;
 use std::process::Command;
@@ -15,7 +15,7 @@ impl WrapperGenerator {
     }
 
     /// Generate binary wrappers for lua and luac
-    pub fn generate(&self) -> LpmResult<()> {
+    pub fn generate(&self) -> DepotResult<()> {
         fs::create_dir_all(&self.bin_dir)?;
 
         self.compile_wrapper("lua")?;
@@ -33,7 +33,7 @@ impl WrapperGenerator {
     /// 1. Checks for .lua-version file in current/parent directories
     /// 2. Falls back to current version
     /// 3. Executes the correct binary
-    fn compile_wrapper(&self, binary: &str) -> LpmResult<()> {
+    fn compile_wrapper(&self, binary: &str) -> DepotResult<()> {
         let wrapper_source = self.wrapper_source_code(binary);
         let source_path = self.bin_dir.join(format!("{}_wrapper.rs", binary));
         fs::write(&source_path, wrapper_source)?;
@@ -52,7 +52,7 @@ impl WrapperGenerator {
             .status()?;
 
         if !status.success() {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Failed to compile {} wrapper. Make sure rustc is available.",
                 binary
             )));
@@ -71,12 +71,12 @@ impl WrapperGenerator {
     use std::path::PathBuf;
     use std::process::Command;
     
-    let lpm_home = env::var("LPM_LUA_DIR")
+    let lpm_home = env::var("Depot_LUA_DIR")
         .unwrap_or_else(|_| {{
             #[cfg(unix)]
             {{
                 let home = env::var("HOME").expect("HOME environment variable not set");
-                format!("{{}}/.lpm", home)
+                format!("{{}}/.depot", home)
             }}
             #[cfg(windows)]
             {{
@@ -119,7 +119,7 @@ impl WrapperGenerator {
                     PathBuf::from(&lpm_home).join("versions").join(version).join("bin").join("{}")
                 }} else {{
                     eprintln!("Error: No Lua version is currently selected");
-                    eprintln!("Run: lpm lua use <version>");
+                    eprintln!("Run: depot lua use <version>");
                     std::process::exit(1);
                 }}
             }} else {{
@@ -128,7 +128,7 @@ impl WrapperGenerator {
             }}
         }} else {{
             eprintln!("Error: No Lua version is currently selected");
-            eprintln!("Run: lpm lua use <version>");
+            eprintln!("Run: depot lua use <version>");
             std::process::exit(1);
         }}
     }};
@@ -154,7 +154,7 @@ impl WrapperGenerator {
 
     fn print_setup_instructions(&self) {
         println!();
-        println!("To use LPM-managed Lua versions, add this to your PATH:");
+        println!("To use Depot-managed Lua versions, add this to your PATH:");
         println!("  {}", self.bin_dir.display());
         println!();
 
@@ -200,7 +200,7 @@ mod tests {
 
         // Verify the source code contains expected patterns
         assert!(source.contains("fn main()"));
-        assert!(source.contains("LPM_LUA_DIR"));
+        assert!(source.contains("Depot_LUA_DIR"));
         assert!(source.contains(".lua-version"));
         assert!(source.contains("lua"));
     }

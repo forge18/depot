@@ -1,4 +1,4 @@
-use crate::core::LpmResult;
+use crate::core::DepotResult;
 use crate::package::manifest::{BuildConfig, PackageManifest};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -65,13 +65,13 @@ impl Rockspec {
     /// Rockspecs are simple data files, so we can parse them without
     /// embedding a Lua interpreter. This simplifies cross-compilation
     /// and removes the need for Lua version selection.
-    pub fn parse_lua(content: &str) -> LpmResult<Self> {
+    pub fn parse_lua(content: &str) -> DepotResult<Self> {
         crate::luarocks::rockspec_parser::parse_rockspec(content)
     }
 
     /// Convert rockspec to PackageManifest format
     pub fn to_package_manifest(&self) -> PackageManifest {
-        // Convert dependencies from LuaRocks format to LPM format
+        // Convert dependencies from LuaRocks format to Depot format
         let mut dependencies = HashMap::new();
         for dep in &self.dependencies {
             // Parse dependency like "lua >= 5.1" or "luasocket" or "luasocket ~> 3.0"

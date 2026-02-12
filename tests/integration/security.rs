@@ -2,7 +2,7 @@
 //!
 //! Tests that verify security features work correctly in an integrated environment.
 
-use lpm::luarocks::rockspec::Rockspec;
+use depot::luarocks::rockspec::Rockspec;
 
 #[test]
 fn test_rockspec_parser_ignores_code_execution() {
@@ -68,8 +68,8 @@ license = "MIT"
 
 #[test]
 fn test_checksum_verification_prevents_tampering() {
-    use lpm::cache::Cache;
-    use lpm::package::checksum::ChecksumRecorder;
+    use depot::cache::Cache;
+    use depot::package::checksum::ChecksumRecorder;
     use std::fs;
     use tempfile::TempDir;
 

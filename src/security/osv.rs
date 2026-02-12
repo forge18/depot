@@ -1,4 +1,4 @@
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use crate::security::vulnerability::{Severity, Vulnerability};
 use serde::{Deserialize, Serialize};
 
@@ -58,7 +58,11 @@ impl OsvApi {
 
     /// Query OSV API for vulnerabilities in a package version
     /// Returns empty vector if no vulnerabilities found or on API errors (non-fatal)
-    pub async fn query_package(&self, name: &str, version: &str) -> LpmResult<Vec<Vulnerability>> {
+    pub async fn query_package(
+        &self,
+        name: &str,
+        version: &str,
+    ) -> DepotResult<Vec<Vulnerability>> {
         let query = OsvQuery {
             package: OsvPackage {
                 // Check OSV docs for correct ecosystem name - try "LuaRocks" first
@@ -75,7 +79,7 @@ impl OsvApi {
             .json(&query)
             .send()
             .await
-            .map_err(LpmError::Http)?;
+            .map_err(DepotError::Http)?;
 
         // Non-200 responses mean no vulnerabilities (or API issue - treat as none)
         if !response.status().is_success() {
@@ -85,7 +89,7 @@ impl OsvApi {
         let osv_response: OsvResponse = response
             .json()
             .await
-            .map_err(|e| LpmError::LuaRocks(format!("OSV parse error: {}", e)))?;
+            .map_err(|e| DepotError::LuaRocks(format!("OSV parse error: {}", e)))?;
 
         Ok(osv_response
             .vulns

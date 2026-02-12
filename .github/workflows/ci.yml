@@ -76,7 +76,7 @@ jobs:
         timeout-minutes: 15
 
       - name: Run bin tests
-        run: cargo test --all-features --bin lpm
+        run: cargo test --all-features --bin depot
         timeout-minutes: 15
 
       - name: Run integration tests
@@ -141,7 +141,7 @@ jobs:
         run: cargo test --all-features --lib
 
       - name: Run bin tests
-        run: cargo test --all-features --bin lpm
+        run: cargo test --all-features --bin depot
 
       - name: Run integration tests
         run: cargo test --all-features --test integration_tests

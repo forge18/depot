@@ -1,6 +1,6 @@
 //! Integration tests module
 //!
-//! This module contains all integration tests for LPM CLI commands.
+//! This module contains all integration tests for Depot CLI commands.
 
 pub mod audit;
 pub mod build;

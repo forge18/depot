@@ -1,4 +1,4 @@
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use crate::lua_manager::versions;
 use reqwest::Client;
 use std::collections::HashMap;
@@ -12,7 +12,7 @@ pub struct LuaDownloader {
 }
 
 impl LuaDownloader {
-    pub fn new(cache_dir: PathBuf) -> LpmResult<Self> {
+    pub fn new(cache_dir: PathBuf) -> DepotResult<Self> {
         // Get source URLs from config
         let config = crate::config::Config::load().unwrap_or_default();
         let default_source_url = config.lua_binary_source_url.unwrap_or_else(|| {
@@ -41,7 +41,7 @@ impl LuaDownloader {
     /// Extracts major.minor from version (e.g., "5.4.8" -> "54")
     /// This allows future versions to work without code changes
     /// Format: lua<version_code>-<platform> or luac<version_code>-<platform>
-    fn get_binary_name(&self, version: &str, binary: &str) -> LpmResult<String> {
+    fn get_binary_name(&self, version: &str, binary: &str) -> DepotResult<String> {
         // Use version_code helper from versions module
         let version_code = versions::version_code(version)?;
 
@@ -75,7 +75,7 @@ impl LuaDownloader {
 
         #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
         {
-            Err(LpmError::Package(format!(
+            Err(DepotError::Package(format!(
                 "Platform not supported: {}-{}",
                 std::env::consts::OS,
                 std::env::consts::ARCH
@@ -84,7 +84,7 @@ impl LuaDownloader {
     }
 
     /// Download Lua binary from configured source
-    pub async fn download_binary(&self, version: &str, binary: &str) -> LpmResult<PathBuf> {
+    pub async fn download_binary(&self, version: &str, binary: &str) -> DepotResult<PathBuf> {
         let filename = self.get_binary_name(version, binary)?;
         let source_url = self.get_source_url(version);
         let url = format!("{}/{}", source_url, filename);
@@ -100,10 +100,10 @@ impl LuaDownloader {
 
         let response = self.client.get(&url).send().await?;
         if !response.status().is_success() {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Lua {} is not available for this platform from source: {}\n\
                  Available versions: 5.1.5, 5.3.6, 5.4.8\n\
-                 You can set a version-specific source with: lpm config set lua_binary_sources.{} <url>",
+                 You can set a version-specific source with: depot config set lua_binary_sources.{} <url>",
                 version,
                 source_url,
                 version

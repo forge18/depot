@@ -1,6 +1,6 @@
 # Package Management
 
-Complete guide to managing dependencies with LPM.
+Complete guide to managing dependencies with Depot.
 
 ## package.yaml Format
 
@@ -32,7 +32,7 @@ scripts:
 
 ## Version Constraints
 
-LPM uses Semantic Versioning (SemVer) constraints with full pre-release and build metadata support:
+Depot uses Semantic Versioning (SemVer) constraints with full pre-release and build metadata support:
 
 - `"3.0.0"` - Exact version
 - `"^1.13.0"` - Compatible version (>=1.13.0 <2.0.0)
@@ -46,7 +46,7 @@ LPM uses Semantic Versioning (SemVer) constraints with full pre-release and buil
 
 ### Pre-release Versions
 
-LPM fully supports pre-release versions following SemVer 2.0.0:
+Depot fully supports pre-release versions following SemVer 2.0.0:
 
 ```yaml
 dependencies:
@@ -58,11 +58,11 @@ dependencies:
 
 ## Dependency Resolution
 
-LPM automatically resolves dependency conflicts:
+Depot automatically resolves dependency conflicts:
 
 1. **Version Selection**: Chooses the highest compatible version
 2. **Conflict Detection**: Warns if dependencies conflict (strict mode enabled by default)
-3. **Lockfile Generation**: Creates `lpm.lock` with exact versions and BLAKE3 checksums
+3. **Lockfile Generation**: Creates `depot.lock` with exact versions and BLAKE3 checksums
 
 ### Example Resolution
 
@@ -73,11 +73,11 @@ dependencies:
   package-b: "^1.0.0"  # Conflicts with package-a's requirement
 ```
 
-LPM will detect this conflict and suggest a resolution.
+Depot will detect this conflict and suggest a resolution.
 
 ### Resolution Strategies
 
-You can configure how LPM resolves version conflicts in `package.yaml`:
+You can configure how Depot resolves version conflicts in `package.yaml`:
 
 ```yaml
 config:
@@ -92,14 +92,14 @@ config:
 
 ### Strict Conflict Detection
 
-By default, LPM uses strict conflict detection to catch potential version incompatibilities:
+By default, Depot uses strict conflict detection to catch potential version incompatibilities:
 
 ```yaml
 config:
   strict_conflicts: true  # Default: enabled
 ```
 
-When enabled, LPM will:
+When enabled, Depot will:
 - Fail installation if dependency versions cannot be resolved
 - Warn about transitive dependency conflicts
 - Require explicit resolutions for ambiguous cases
@@ -111,9 +111,9 @@ config:
   strict_conflicts: false
 ```
 
-## Lockfile (lpm.lock)
+## Lockfile (depot.lock)
 
-The `lpm.lock` file ensures reproducible builds with cryptographic verification:
+The `depot.lock` file ensures reproducible builds with cryptographic verification:
 
 ```yaml
 packages:
@@ -128,9 +128,9 @@ packages:
       luafilesystem: "1.8.0"
 ```
 
-**Important**: Commit `lpm.lock` to version control for reproducible builds.
+**Important**: Commit `depot.lock` to version control for reproducible builds.
 
-**Checksum Algorithm**: LPM uses BLAKE3 for fast, cryptographically secure checksums to verify package integrity and prevent supply chain attacks.
+**Checksum Algorithm**: Depot uses BLAKE3 for fast, cryptographically secure checksums to verify package integrity and prevent supply chain attacks.
 
 ## Dev Dependencies
 
@@ -144,18 +144,18 @@ dev_dependencies:
 
 ```bash
 # Install all dependencies (including dev)
-lpm install
+depot install
 
 # Skip dev dependencies (production)
-lpm install --no-dev
+depot install --no-dev
 
 # Install only dev dependencies
-lpm install --dev-only
+depot install --dev-only
 ```
 
 ## Workspace Support
 
-LPM provides monorepo/workspace support with filtering capabilities for multi-package projects.
+Depot provides monorepo/workspace support with filtering capabilities for multi-package projects.
 
 ### Workspace Structure
 
@@ -233,7 +233,7 @@ workspace:
 
 ### Package Discovery
 
-LPM automatically discovers packages using glob patterns:
+Depot automatically discovers packages using glob patterns:
 
 - `packages/*` - All direct subdirectories in `packages/`
 - `apps/*` - All direct subdirectories in `apps/`
@@ -325,8 +325,8 @@ default-members:
   - packages/cli
 ```
 
-When running `lpm install` without filters, only default members will be processed.
-Use `lpm install --all` to install all workspace packages.
+When running `depot install` without filters, only default members will be processed.
+Use `depot install --all` to install all workspace packages.
 
 ### Workspace Commands
 
@@ -334,22 +334,22 @@ Inspect and manage your workspace:
 
 ```bash
 # List all packages in workspace
-lpm workspace list
+depot workspace list
 
 # Show detailed workspace information
-lpm workspace info
+depot workspace info
 
 # Check shared dependencies across packages
-lpm workspace shared-deps
+depot workspace shared-deps
 ```
 
 ### Shared Dependencies
 
-LPM detects dependencies shared across multiple workspace packages and can identify version conflicts:
+Depot detects dependencies shared across multiple workspace packages and can identify version conflicts:
 
 ```bash
 # Check shared dependencies
-lpm workspace shared-deps
+depot workspace shared-deps
 ```
 
 This helps identify:
@@ -363,24 +363,24 @@ Filter operations to specific workspace members for faster CI/CD:
 
 ```bash
 # Install dependencies only for specific packages
-lpm install --filter package-a
-lpm install --filter package-b
+depot install --filter package-a
+depot install --filter package-b
 
 # Multiple filters
-lpm install --filter package-a --filter package-b
+depot install --filter package-a --filter package-b
 
 # Glob patterns in filters
-lpm install --filter "packages/*"
+depot install --filter "packages/*"
 
 # Run commands on filtered workspaces
-lpm run test --filter package-a
-lpm build --filter package-a --filter package-b
+depot run test --filter package-a
+depot build --filter package-a --filter package-b
 
 # Include dependents (packages that depend on this package)
-lpm test --filter package-a...
+depot test --filter package-a...
 
 # Include dependencies (packages this package depends on)
-lpm test --filter ...package-a
+depot test --filter ...package-a
 ```
 
 **Workspace filtering benefits**:
@@ -394,7 +394,7 @@ lpm test --filter ...package-a
 Install packages from local paths:
 
 ```bash
-lpm install --path ./local-package
+depot install --path ./local-package
 ```
 
 Or in `package.yaml`:
@@ -411,36 +411,36 @@ Install packages globally so they're available everywhere (like `npm install -g`
 
 ```bash
 # Install globally
-lpm install -g luacheck
-lpm install -g busted
+depot install -g luacheck
+depot install -g busted
 
-# Now available everywhere (after adding ~/.lpm/bin/ to PATH)
+# Now available everywhere (after adding ~/.depot/bin/ to PATH)
 luacheck my_file.lua
 busted
 ```
 
 **Global installation directory:**
-- Packages: `~/.lpm/global/lua_modules/`
-- Executables: `~/.lpm/bin/`
+- Packages: `~/.depot/global/lua_modules/`
+- Executables: `~/.depot/bin/`
 
 **Setup PATH for global tools:**
 
 ```bash
 # Unix/macOS - add to ~/.bashrc, ~/.zshrc, etc.
-export PATH="$HOME/.lpm/bin:$PATH"
+export PATH="$HOME/.depot/bin:$PATH"
 
 # Or on macOS:
 export PATH="$HOME/Library/Application Support/lpm/bin:$PATH"
 ```
 
-**Note**: Global tools use LPM-managed Lua versions automatically. Make sure you have a Lua version installed with `lpm lua install latest`.
+**Note**: Global tools use Depot-managed Lua versions automatically. Make sure you have a Lua version installed with `depot lua install latest`.
 
 ## Updating Dependencies
 
 ### Update All
 
 ```bash
-lpm update
+depot update
 ```
 
 Updates all dependencies to their latest compatible versions.
@@ -448,13 +448,13 @@ Updates all dependencies to their latest compatible versions.
 ### Update Specific Package
 
 ```bash
-lpm update luasocket
+depot update luasocket
 ```
 
 ### Check for Updates
 
 ```bash
-lpm outdated
+depot outdated
 ```
 
 Shows which packages have newer versions available.
@@ -462,7 +462,7 @@ Shows which packages have newer versions available.
 ## Removing Dependencies
 
 ```bash
-lpm remove luasocket
+depot remove luasocket
 ```
 
 Removes the package from `package.yaml` and `lua_modules/`.
@@ -472,14 +472,14 @@ Removes the package from `package.yaml` and `lua_modules/`.
 Verify package integrity:
 
 ```bash
-lpm verify
+depot verify
 ```
 
-Checks all package checksums against `lpm.lock`.
+Checks all package checksums against `depot.lock`.
 
 ## Building from Source
 
-LPM supports building packages from source for `make`, `cmake`, `command`, and `rust` build types:
+Depot supports building packages from source for `make`, `cmake`, `command`, and `rust` build types:
 
 - **`make`**: Runs `make` and `make install` to build and install native extensions
 - **`cmake`**: Runs `cmake`, `cmake --build`, and `cmake --install` to build and install
@@ -495,7 +495,7 @@ LPM supports building packages from source for `make`, `cmake`, `command`, and `
 
 ## Binary Package Support
 
-LPM supports downloading pre-built binaries from external URLs. This is useful for packages with native extensions that don't include binaries in their source archives.
+Depot supports downloading pre-built binaries from external URLs. This is useful for packages with native extensions that don't include binaries in their source archives.
 
 ### Using Binary URLs in Rockspecs
 
@@ -520,7 +520,7 @@ binary_urls = {
 }
 ```
 
-LPM will:
+Depot will:
 1. Check for a binary URL matching your Lua version and platform
 2. Download the binary if available
 3. Cache it for future use
@@ -528,7 +528,7 @@ LPM will:
 
 ### Performance Benefits
 
-- **Parallel Downloads**: LPM downloads multiple packages in parallel (up to 10 concurrent downloads) for faster installation
+- **Parallel Downloads**: Depot downloads multiple packages in parallel (up to 10 concurrent downloads) for faster installation
 - **Incremental Lockfile Updates**: Only changed packages are rebuilt when updating the lockfile
 - **Manifest Caching**: LuaRocks manifest is cached locally for faster lookups
 

@@ -1,4 +1,4 @@
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -16,15 +16,15 @@ impl VersionSwitcher {
     }
 
     /// Switch to a specific version globally
-    pub fn switch(&self, version: &str) -> LpmResult<()> {
+    pub fn switch(&self, version: &str) -> DepotResult<()> {
         let target = self.versions_dir.join(version);
 
         if !target.exists() {
             let installed = self.list_installed()?;
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Lua {} is not installed.\n\
                  Installed versions: {}\n\
-                 Run: lpm lua install {}",
+                 Run: depot lua install {}",
                 version,
                 installed.join(", "),
                 version
@@ -34,7 +34,7 @@ impl VersionSwitcher {
         // Verify installation is complete
         let lua_bin = target.join("bin").join("lua");
         if !lua_bin.exists() {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Lua {} installation is incomplete (missing lua binary)",
                 version
             )));
@@ -52,12 +52,12 @@ impl VersionSwitcher {
     }
 
     /// Set version for current project (creates .lua-version file)
-    pub fn set_local(&self, version: &str, project_dir: &Path) -> LpmResult<()> {
+    pub fn set_local(&self, version: &str, project_dir: &Path) -> DepotResult<()> {
         // Verify version is installed
         let target = self.versions_dir.join(version);
         if !target.exists() {
-            return Err(LpmError::Package(format!(
-                "Lua {} is not installed. Run: lpm lua install {}",
+            return Err(DepotError::Package(format!(
+                "Lua {} is not installed. Run: depot lua install {}",
                 version, version
             )));
         }
@@ -73,11 +73,11 @@ impl VersionSwitcher {
     }
 
     /// Get currently active version
-    pub fn current(&self) -> LpmResult<String> {
+    pub fn current(&self) -> DepotResult<String> {
         if !self.current_file.exists() {
-            return Err(LpmError::Package(
+            return Err(DepotError::Package(
                 "No Lua version is currently selected.\n\
-                 Run: lpm lua use <version>"
+                 Run: depot lua use <version>"
                     .to_string(),
             ));
         }
@@ -85,18 +85,18 @@ impl VersionSwitcher {
         let version = fs::read_to_string(&self.current_file)?.trim().to_string();
 
         if version.is_empty() {
-            return Err(LpmError::Package(
+            return Err(DepotError::Package(
                 "Current version file is empty.\n\
-                 Run: lpm lua use <version>"
+                 Run: depot lua use <version>"
                     .to_string(),
             ));
         }
 
         // Verify version is still installed
         if !self.versions_dir.join(&version).exists() {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Current version {} is no longer installed.\n\
-                 Run: lpm lua use <version>",
+                 Run: depot lua use <version>",
                 version
             )));
         }
@@ -105,7 +105,7 @@ impl VersionSwitcher {
     }
 
     /// List all installed versions
-    pub fn list_installed(&self) -> LpmResult<Vec<String>> {
+    pub fn list_installed(&self) -> DepotResult<Vec<String>> {
         if !self.versions_dir.exists() {
             return Ok(vec![]);
         }
@@ -133,10 +133,10 @@ impl VersionSwitcher {
     }
 
     /// Verify that the current version file points to the expected version
-    fn verify_current_version(&self, expected: &str) -> LpmResult<()> {
+    fn verify_current_version(&self, expected: &str) -> DepotResult<()> {
         let actual = self.current()?;
         if actual != expected {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Version switch verification failed: expected {}, got {}",
                 expected, actual
             )));

@@ -1,15 +1,15 @@
-use lpm::core::{LpmError, LpmResult};
+use depot::core::{DepotError, DepotResult};
 use std::env;
 use std::fs;
 
-/// Create a new LPM project in a new directory
-pub async fn run(name: String, template: Option<String>, yes: bool) -> LpmResult<()> {
+/// Create a new Depot project in a new directory
+pub async fn run(name: String, template: Option<String>, yes: bool) -> DepotResult<()> {
     let current_dir = env::current_dir()
-        .map_err(|e| LpmError::Path(format!("Failed to get current directory: {}", e)))?;
+        .map_err(|e| DepotError::Path(format!("Failed to get current directory: {}", e)))?;
     let project_dir = current_dir.join(&name);
 
     if project_dir.exists() {
-        return Err(LpmError::Path(format!(
+        return Err(DepotError::Path(format!(
             "Directory '{}' already exists",
             name
         )));
@@ -89,7 +89,7 @@ mod tests {
         assert!(result2.is_err(), "Should fail when package.yaml exists");
         let err_msg = result2.unwrap_err().to_string();
         assert!(
-            err_msg.contains("Already in an LPM project"),
+            err_msg.contains("Already in an Depot project"),
             "Error message should mention already in project: {}",
             err_msg
         );

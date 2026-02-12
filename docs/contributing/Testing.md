@@ -1,6 +1,6 @@
 # Testing
 
-Testing guidelines and practices for LPM.
+Testing guidelines and practices for Depot.
 
 ## Test Organization
 

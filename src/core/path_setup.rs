@@ -1,20 +1,20 @@
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use std::env;
 use std::path::PathBuf;
 
 /// Check if lpm is in PATH and provide setup instructions if not
-pub fn check_path_setup() -> LpmResult<()> {
+pub fn check_path_setup() -> DepotResult<()> {
     // Get the current executable path
     // nosemgrep: rust.lang.security.current-exe.current-exe
     // Justification: Used only to check if lpm is in PATH and provide setup instructions.
     // No security risk as the path is not used for privilege escalation.
     let current_exe = env::current_exe()
-        .map_err(|e| LpmError::Path(format!("Failed to get current executable: {}", e)))?;
+        .map_err(|e| DepotError::Path(format!("Failed to get current executable: {}", e)))?;
 
     // Get the directory containing the executable
     let exe_dir = current_exe
         .parent()
-        .ok_or_else(|| LpmError::Path("Could not get executable directory".to_string()))?;
+        .ok_or_else(|| DepotError::Path("Could not get executable directory".to_string()))?;
 
     // Get cargo bin directory
     let cargo_bin = get_cargo_bin_dir()?;
@@ -65,8 +65,8 @@ pub fn check_path_setup() -> LpmResult<()> {
     // Check if we're in a common cargo bin location
     if exe_dir_normalized == cargo_bin_normalized || current_exe.starts_with(&cargo_bin) {
         // We're installed via cargo, but not in PATH
-        eprintln!("\n⚠️  LPM is not in your PATH");
-        eprintln!("\nTo add LPM to your PATH:");
+        eprintln!("\n⚠️  Depot is not in your PATH");
+        eprintln!("\nTo add Depot to your PATH:");
 
         if cfg!(target_os = "windows") {
             eprintln!("  1. Open System Properties > Environment Variables");
@@ -92,22 +92,22 @@ pub fn check_path_setup() -> LpmResult<()> {
             eprintln!("  source {}", profile_file);
         }
 
-        eprintln!("\nCurrent LPM location: {}", current_exe.display());
+        eprintln!("\nCurrent Depot location: {}", current_exe.display());
     }
 
     Ok(())
 }
 
 /// Get the cargo bin directory
-fn get_cargo_bin_dir() -> LpmResult<PathBuf> {
+fn get_cargo_bin_dir() -> DepotResult<PathBuf> {
     if cfg!(target_os = "windows") {
         // Windows: %USERPROFILE%\.cargo\bin
         let userprofile = env::var("USERPROFILE")
-            .map_err(|_| LpmError::Path("USERPROFILE not set".to_string()))?;
+            .map_err(|_| DepotError::Path("USERPROFILE not set".to_string()))?;
         Ok(PathBuf::from(userprofile).join(".cargo").join("bin"))
     } else {
         // Unix: ~/.cargo/bin
-        let home = env::var("HOME").map_err(|_| LpmError::Path("HOME not set".to_string()))?;
+        let home = env::var("HOME").map_err(|_| DepotError::Path("HOME not set".to_string()))?;
         Ok(PathBuf::from(home).join(".cargo").join("bin"))
     }
 }
@@ -154,9 +154,9 @@ fn get_shell_profile(shell: &str) -> String {
 /// Attempt to automatically add cargo bin to PATH (Unix only)
 ///
 /// This modifies the user's shell profile file. Use with caution.
-pub fn setup_path_auto() -> LpmResult<()> {
+pub fn setup_path_auto() -> DepotResult<()> {
     if cfg!(target_os = "windows") {
-        return Err(LpmError::Package(
+        return Err(DepotError::Package(
             "Automatic PATH setup not supported on Windows. Please add manually.".to_string(),
         ));
     }
@@ -167,7 +167,7 @@ pub fn setup_path_auto() -> LpmResult<()> {
     let profile_file = get_shell_profile(&shell);
 
     // Expand ~ to home directory
-    let home = env::var("HOME").map_err(|_| LpmError::Path("HOME not set".to_string()))?;
+    let home = env::var("HOME").map_err(|_| DepotError::Path("HOME not set".to_string()))?;
     let profile_path = profile_file.replace("~", &home);
 
     // Check if PATH is already set
@@ -187,12 +187,12 @@ pub fn setup_path_auto() -> LpmResult<()> {
         .append(true)
         .create(true)
         .open(&profile_path)
-        .map_err(|e| LpmError::Path(format!("Failed to open {}: {}", profile_file, e)))?;
+        .map_err(|e| DepotError::Path(format!("Failed to open {}: {}", profile_file, e)))?;
 
     file.write_all(path_line.as_bytes())
-        .map_err(|e| LpmError::Path(format!("Failed to write to {}: {}", profile_file, e)))?;
+        .map_err(|e| DepotError::Path(format!("Failed to write to {}: {}", profile_file, e)))?;
 
-    println!("✓ Added LPM to PATH in {}", profile_file);
+    println!("✓ Added Depot to PATH in {}", profile_file);
     println!("  Run 'source {}' to apply changes", profile_file);
 
     Ok(())

@@ -1,6 +1,6 @@
-//! Tests for `lpm init` command
+//! Tests for `depot init` command
 
-use super::common::lpm_command;
+use super::common::depot_command;
 use std::fs;
 use tempfile::TempDir;
 
@@ -10,14 +10,14 @@ fn test_init_creates_package_yaml() {
     let project_root = temp.path();
 
     // Use --yes flag for non-interactive mode
-    let output = lpm_command()
+    let output = depot_command()
         .arg("init")
         .arg("--yes")
         .current_dir(project_root)
         .output()
         .unwrap();
 
-    assert!(output.status.success(), "lpm init --yes should succeed");
+    assert!(output.status.success(), "depot init --yes should succeed");
 
     let package_yaml = project_root.join("package.yaml");
     assert!(package_yaml.exists(), "package.yaml should be created");
@@ -45,7 +45,7 @@ fn test_init_with_existing_package_yaml() {
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("init")
         .current_dir(project_root)
         .output()
@@ -65,14 +65,14 @@ fn test_init_non_interactive_mode() {
     let temp = TempDir::new().unwrap();
     let project_root = temp.path();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("init")
         .arg("--yes")
         .current_dir(project_root)
         .output()
         .unwrap();
 
-    assert!(output.status.success(), "lpm init --yes should succeed");
+    assert!(output.status.success(), "depot init --yes should succeed");
 
     let package_yaml = project_root.join("package.yaml");
     assert!(package_yaml.exists(), "package.yaml should be created");
@@ -108,7 +108,7 @@ fn test_init_with_template_flag() {
     let project_root = temp.path();
 
     // Test with --yes and --template (non-interactive with template)
-    let output = lpm_command()
+    let output = depot_command()
         .arg("init")
         .arg("--template")
         .arg("basic-lua")
@@ -140,7 +140,7 @@ fn test_init_creates_basic_structure() {
     let temp = TempDir::new().unwrap();
     let project_root = temp.path();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("init")
         .arg("--yes")
         .current_dir(project_root)
@@ -186,7 +186,7 @@ fn test_init_with_template_non_interactive() {
     let project_root = temp.path();
 
     // Test non-interactive mode with template
-    let output = lpm_command()
+    let output = depot_command()
         .arg("init")
         .arg("--template")
         .arg("basic-lua")
@@ -225,7 +225,7 @@ fn test_init_non_interactive_creates_structure() {
     let temp = TempDir::new().unwrap();
     let project_root = temp.path();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("init")
         .arg("--yes")
         .current_dir(project_root)
@@ -234,7 +234,7 @@ fn test_init_non_interactive_creates_structure() {
 
     assert!(
         output.status.success(),
-        "lpm init --yes should succeed. stderr: {}",
+        "depot init --yes should succeed. stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 
@@ -257,7 +257,7 @@ fn test_init_with_all_flags() {
     let project_root = temp.path();
 
     // Test --yes flag
-    let output1 = lpm_command()
+    let output1 = depot_command()
         .arg("init")
         .arg("-y")
         .current_dir(project_root)
@@ -272,7 +272,7 @@ fn test_init_with_all_flags() {
     fs::remove_dir_all(project_root.join("lib")).ok();
     fs::remove_dir_all(project_root.join("tests")).ok();
 
-    let output2 = lpm_command()
+    let output2 = depot_command()
         .arg("init")
         .arg("--template")
         .arg("basic-lua")

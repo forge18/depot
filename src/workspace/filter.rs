@@ -1,4 +1,4 @@
-use crate::core::LpmResult;
+use crate::core::DepotResult;
 use crate::workspace::workspace_config::{Workspace, WorkspacePackage};
 use std::collections::HashSet;
 
@@ -53,7 +53,7 @@ impl WorkspaceFilter {
     pub fn filter_packages<'a>(
         &self,
         workspace: &'a Workspace,
-    ) -> LpmResult<Vec<&'a WorkspacePackage>> {
+    ) -> DepotResult<Vec<&'a WorkspacePackage>> {
         if self.patterns.is_empty() {
             // No filter - return all packages
             return Ok(workspace.packages.values().collect());

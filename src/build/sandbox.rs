@@ -1,4 +1,4 @@
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use std::path::Path;
 use std::process::Command;
 
@@ -11,12 +11,12 @@ impl BuildSandbox {
     /// The sandbox limits:
     /// - Filesystem access to project directory only
     /// - Network access only for cargo (crates.io, GitHub)
-    /// - Cannot access ~/.lpm/credentials, ~/.ssh/, etc.
+    /// - Cannot access ~/.depot/credentials, ~/.ssh/, etc.
     pub fn execute_cargo(
         project_root: &Path,
         args: &[&str],
         env_vars: &[(&str, &str)],
-    ) -> LpmResult<()> {
+    ) -> DepotResult<()> {
         let mut cmd = Command::new("cargo");
         cmd.args(args);
         cmd.current_dir(project_root);
@@ -39,7 +39,7 @@ impl BuildSandbox {
         let status = cmd.status()?;
 
         if !status.success() {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Cargo build failed with exit code: {}",
                 status.code().unwrap_or(1)
             )));
@@ -57,7 +57,7 @@ impl BuildSandbox {
     }
 
     /// Install cargo-zigbuild if not present
-    pub fn ensure_cargo_zigbuild() -> LpmResult<()> {
+    pub fn ensure_cargo_zigbuild() -> DepotResult<()> {
         if Self::check_cargo_zigbuild() {
             return Ok(());
         }
@@ -68,7 +68,7 @@ impl BuildSandbox {
             .status()?;
 
         if !status.success() {
-            return Err(LpmError::Package(
+            return Err(DepotError::Package(
                 "Failed to install cargo-zigbuild. Please install it manually: cargo install cargo-zigbuild"
                     .to_string(),
             ));

@@ -1,4 +1,4 @@
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use crate::package::lockfile::Lockfile;
 use crate::security::advisory::AdvisoryDatabase;
 use crate::security::vulnerability::{Severity, Vulnerability, VulnerabilityReport};
@@ -11,7 +11,7 @@ pub struct SecurityAuditor {
 
 impl SecurityAuditor {
     /// Create a new security auditor
-    pub fn new() -> LpmResult<Self> {
+    pub fn new() -> DepotResult<Self> {
         let advisory_db = AdvisoryDatabase::load()?;
         Ok(Self { advisory_db })
     }
@@ -19,7 +19,7 @@ impl SecurityAuditor {
     /// Create a new security auditor with OSV integration
     ///
     /// This will query OSV for vulnerabilities in the provided packages.
-    pub async fn new_with_osv(packages: &[String]) -> LpmResult<Self> {
+    pub async fn new_with_osv(packages: &[String]) -> DepotResult<Self> {
         let mut advisory_db = AdvisoryDatabase::load()?;
 
         // Load from OSV
@@ -29,18 +29,18 @@ impl SecurityAuditor {
     }
 
     /// Run a security audit on the current project
-    pub fn audit_project(project_root: &Path) -> LpmResult<VulnerabilityReport> {
+    pub fn audit_project(project_root: &Path) -> DepotResult<VulnerabilityReport> {
         let auditor = Self::new()?;
         auditor.audit(project_root)
     }
 
     /// Run a security audit with OSV integration
-    pub async fn audit_project_with_osv(project_root: &Path) -> LpmResult<VulnerabilityReport> {
+    pub async fn audit_project_with_osv(project_root: &Path) -> DepotResult<VulnerabilityReport> {
         // Load lockfile to get package names
         let lockfile =
             crate::package::lockfile::Lockfile::load(project_root)?.ok_or_else(|| {
-                LpmError::Package(format!(
-                    "No {} found. Run 'lpm install' first.",
+                DepotError::Package(format!(
+                    "No {} found. Run 'depot install' first.",
                     crate::package::lockfile::LOCKFILE_NAME
                 ))
             })?;
@@ -52,11 +52,11 @@ impl SecurityAuditor {
     }
 
     /// Perform security audit
-    fn audit(&self, project_root: &Path) -> LpmResult<VulnerabilityReport> {
+    fn audit(&self, project_root: &Path) -> DepotResult<VulnerabilityReport> {
         // Load lockfile to get installed packages
         let lockfile = Lockfile::load(project_root)?.ok_or_else(|| {
-            LpmError::Package(format!(
-                "No {} found. Run 'lpm install' first.",
+            DepotError::Package(format!(
+                "No {} found. Run 'depot install' first.",
                 crate::package::lockfile::LOCKFILE_NAME
             ))
         })?;
@@ -193,10 +193,10 @@ pub fn format_report(report: &VulnerabilityReport) -> String {
     } else {
         writeln!(output, "  • Consider updating packages to latest versions").unwrap();
     }
-    writeln!(output, "  • Run 'lpm outdated' to see available updates").unwrap();
+    writeln!(output, "  • Run 'depot outdated' to see available updates").unwrap();
     writeln!(
         output,
-        "  • Run 'lpm update <package>' to update specific packages"
+        "  • Run 'depot update <package>' to update specific packages"
     )
     .unwrap();
 
@@ -445,7 +445,7 @@ mod tests {
 
         let output = format_report(&report);
         assert!(output.contains("Consider updating packages"));
-        assert!(output.contains("lpm outdated"));
+        assert!(output.contains("depot outdated"));
     }
 
     #[tokio::test]
@@ -454,7 +454,7 @@ mod tests {
         // No lockfile
         let result = SecurityAuditor::audit_project_with_osv(temp.path()).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("No lpm.lock"));
+        assert!(result.unwrap_err().to_string().contains("No depot.lock"));
     }
 
     #[tokio::test]
@@ -480,7 +480,7 @@ mod tests {
         let temp = tempfile::TempDir::new().unwrap();
         let result = SecurityAuditor::audit_project(temp.path());
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("No lpm.lock"));
+        assert!(result.unwrap_err().to_string().contains("No depot.lock"));
     }
 
     #[test]

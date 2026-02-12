@@ -1,4 +1,4 @@
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use crate::lua_version::detector::LuaVersion;
 
 /// Lua version constraint parser
@@ -45,7 +45,7 @@ impl LuaVersionConstraint {
 /// - ">=5.1" -> GreaterOrEqual(5.1)
 /// - "<5.3" -> LessThan(5.3)
 /// - "5.1 || 5.3 || 5.4" -> Multiple([5.1, 5.3, 5.4])
-pub fn parse_lua_version_constraint(constraint: &str) -> LpmResult<LuaVersionConstraint> {
+pub fn parse_lua_version_constraint(constraint: &str) -> DepotResult<LuaVersionConstraint> {
     let constraint = constraint.trim();
 
     // Check for multiple versions (OR)
@@ -66,7 +66,7 @@ pub fn parse_lua_version_constraint(constraint: &str) -> LpmResult<LuaVersionCon
             .collect::<Result<Vec<_>, _>>()?;
 
         if versions.is_empty() {
-            return Err(LpmError::Version(
+            return Err(DepotError::Version(
                 "Empty version list in constraint".to_string(),
             ));
         }

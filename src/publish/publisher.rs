@@ -1,5 +1,5 @@
 use crate::core::credentials::CredentialStore;
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use crate::package::manifest::PackageManifest;
 use crate::publish::packager::PublishPackager;
 use crate::publish::rockspec_generator::RockspecGenerator;
@@ -23,18 +23,18 @@ impl Publisher {
     }
 
     /// Publish the package to LuaRocks
-    pub async fn publish(&self, include_binaries: bool) -> LpmResult<()> {
+    pub async fn publish(&self, include_binaries: bool) -> DepotResult<()> {
         // 1. Validate package
         println!("Validating package...");
         PublishValidator::validate(&self.manifest, &self.project_root)?;
 
         // 2. Check for LuaRocks credentials
         let username = CredentialStore::retrieve("luarocks_username").map_err(|_| {
-            LpmError::Package("LuaRocks username not found. Run 'lpm login' first.".to_string())
+            DepotError::Package("LuaRocks username not found. Run 'depot login' first.".to_string())
         })?;
 
         let api_key = CredentialStore::retrieve("luarocks_api_key").map_err(|_| {
-            LpmError::Package("LuaRocks API key not found. Run 'lpm login' first.".to_string())
+            DepotError::Package("LuaRocks API key not found. Run 'depot login' first.".to_string())
         })?;
 
         println!("Publishing package...");
@@ -74,7 +74,7 @@ impl Publisher {
         archive_path: &Path,
         username: &str,
         api_key: &str,
-    ) -> LpmResult<()> {
+    ) -> DepotResult<()> {
         // LuaRocks API endpoint for uploading
         let api_url = "https://luarocks.org/api/upload";
 
@@ -85,22 +85,22 @@ impl Publisher {
 
         let mut rockspec_file = File::open(rockspec_path)
             .await
-            .map_err(|e| LpmError::Package(format!("Failed to open rockspec: {}", e)))?;
+            .map_err(|e| DepotError::Package(format!("Failed to open rockspec: {}", e)))?;
         let mut archive_file = File::open(archive_path)
             .await
-            .map_err(|e| LpmError::Package(format!("Failed to open archive: {}", e)))?;
+            .map_err(|e| DepotError::Package(format!("Failed to open archive: {}", e)))?;
 
         let mut rockspec_bytes = Vec::new();
         rockspec_file
             .read_to_end(&mut rockspec_bytes)
             .await
-            .map_err(|e| LpmError::Package(format!("Failed to read rockspec: {}", e)))?;
+            .map_err(|e| DepotError::Package(format!("Failed to read rockspec: {}", e)))?;
 
         let mut archive_bytes = Vec::new();
         archive_file
             .read_to_end(&mut archive_bytes)
             .await
-            .map_err(|e| LpmError::Package(format!("Failed to read archive: {}", e)))?;
+            .map_err(|e| DepotError::Package(format!("Failed to read archive: {}", e)))?;
 
         let rockspec_part = multipart::Part::bytes(rockspec_bytes)
             .file_name(
@@ -111,7 +111,7 @@ impl Publisher {
                     .to_string(),
             )
             .mime_str("text/x-lua")
-            .map_err(|e| LpmError::Package(format!("Failed to create multipart part: {}", e)))?;
+            .map_err(|e| DepotError::Package(format!("Failed to create multipart part: {}", e)))?;
 
         let archive_part = multipart::Part::bytes(archive_bytes)
             .file_name(
@@ -122,7 +122,7 @@ impl Publisher {
                     .to_string(),
             )
             .mime_str("application/gzip")
-            .map_err(|e| LpmError::Package(format!("Failed to create multipart part: {}", e)))?;
+            .map_err(|e| DepotError::Package(format!("Failed to create multipart part: {}", e)))?;
 
         let form = multipart::Form::new()
             .text("username", username.to_string())
@@ -136,12 +136,12 @@ impl Publisher {
             .multipart(form)
             .send()
             .await
-            .map_err(|e| LpmError::Package(format!("Failed to upload to LuaRocks: {}", e)))?;
+            .map_err(|e| DepotError::Package(format!("Failed to upload to LuaRocks: {}", e)))?;
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Failed to upload to LuaRocks: HTTP {} - {}",
                 status, body
             )));

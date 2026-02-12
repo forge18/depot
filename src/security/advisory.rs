@@ -1,4 +1,4 @@
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use crate::security::vulnerability::{Severity, Vulnerability};
 use std::collections::HashMap;
 
@@ -18,7 +18,7 @@ impl AdvisoryDatabase {
     }
 
     /// Load advisories from a source (currently uses built-in data)
-    pub fn load() -> LpmResult<Self> {
+    pub fn load() -> DepotResult<Self> {
         let mut db = Self::new();
 
         // Load built-in advisories
@@ -26,7 +26,7 @@ impl AdvisoryDatabase {
 
         // Future enhancement: Load from external sources (API, file, etc.)
         // This would enable automatic updates and integration with vulnerability databases
-        // db.load_from_file("~/.lpm/advisories.json")?;
+        // db.load_from_file("~/.depot/advisories.json")?;
         // db.load_from_api("https://advisories.luarocks.org/api/v1/advisories")?;
 
         Ok(db)
@@ -97,7 +97,7 @@ impl AdvisoryDatabase {
     ///
     /// This queries OSV for Lua package vulnerabilities.
     /// Note: OSV uses "LuaRocks" as the ecosystem identifier.
-    pub async fn load_from_osv(&mut self, package_name: &str) -> LpmResult<()> {
+    pub async fn load_from_osv(&mut self, package_name: &str) -> DepotResult<()> {
         use reqwest;
 
         let client = reqwest::Client::new();
@@ -114,13 +114,13 @@ impl AdvisoryDatabase {
             .json(&query)
             .send()
             .await
-            .map_err(|e| LpmError::Package(format!("Failed to query OSV API: {}", e)))?;
+            .map_err(|e| DepotError::Package(format!("Failed to query OSV API: {}", e)))?;
 
         if response.status().is_success() {
             let osv_response: serde_json::Value = response
                 .json()
                 .await
-                .map_err(|e| LpmError::Package(format!("Failed to parse OSV response: {}", e)))?;
+                .map_err(|e| DepotError::Package(format!("Failed to parse OSV response: {}", e)))?;
 
             // Parse OSV vulnerabilities
             if let Some(vulns) = osv_response.get("vulns").and_then(|v| v.as_array()) {
@@ -222,7 +222,7 @@ impl AdvisoryDatabase {
     }
 
     /// Batch load advisories for multiple packages from OSV
-    pub async fn load_from_osv_batch(&mut self, packages: &[String]) -> LpmResult<()> {
+    pub async fn load_from_osv_batch(&mut self, packages: &[String]) -> DepotResult<()> {
         for package in packages {
             if let Err(e) = self.load_from_osv(package).await {
                 eprintln!(

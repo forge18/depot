@@ -1,14 +1,14 @@
-use lpm::cache::Cache;
-use lpm::config::Config;
-use lpm::core::path::find_project_root;
-use lpm::core::{LpmError, LpmResult};
-use lpm::package::lockfile::Lockfile;
-use lpm::package::verifier::PackageVerifier;
+use depot::cache::Cache;
+use depot::config::Config;
+use depot::core::path::find_project_root;
+use depot::core::{DepotError, DepotResult};
+use depot::package::lockfile::Lockfile;
+use depot::package::verifier::PackageVerifier;
 use std::env;
 
-pub fn run() -> LpmResult<()> {
+pub fn run() -> DepotResult<()> {
     let current_dir = env::current_dir()
-        .map_err(|e| LpmError::Path(format!("Failed to get current directory: {}", e)))?;
+        .map_err(|e| DepotError::Path(format!("Failed to get current directory: {}", e)))?;
 
     let project_root = find_project_root(&current_dir)?;
 
@@ -19,12 +19,12 @@ pub fn run() -> LpmResult<()> {
     run_with_cache(&project_root, cache)
 }
 
-pub fn run_with_cache(project_root: &std::path::Path, cache: Cache) -> LpmResult<()> {
+pub fn run_with_cache(project_root: &std::path::Path, cache: Cache) -> DepotResult<()> {
     // Load lockfile
     let lockfile = Lockfile::load(project_root)?.ok_or_else(|| {
-        LpmError::Package(format!(
-            "No {} found. Run 'lpm install' first to generate a lockfile.",
-            lpm::package::lockfile::LOCKFILE_NAME
+        DepotError::Package(format!(
+            "No {} found. Run 'depot install' first to generate a lockfile.",
+            depot::package::lockfile::LOCKFILE_NAME
         ))
     })?;
 
@@ -54,7 +54,7 @@ pub fn run_with_cache(project_root: &std::path::Path, cache: Cache) -> LpmResult
             println!("  ❌ {}: {}", package, error);
         }
 
-        return Err(LpmError::Package(format!(
+        return Err(DepotError::Package(format!(
             "Verification failed for {} package(s)",
             result.failed.len()
         )));
@@ -66,8 +66,8 @@ pub fn run_with_cache(project_root: &std::path::Path, cache: Cache) -> LpmResult
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lpm::package::lockfile::{LockedPackage, Lockfile};
-    use lpm::package::verifier::VerificationResult;
+    use depot::package::lockfile::{LockedPackage, Lockfile};
+    use depot::package::verifier::VerificationResult;
     use std::collections::HashMap;
     use std::fs;
     use tempfile::TempDir;
@@ -240,7 +240,7 @@ mod tests {
         lockfile.save(temp.path()).unwrap();
 
         // Create cache directory structure
-        fs::create_dir_all(temp.path().join(".lpm").join("cache")).unwrap();
+        fs::create_dir_all(temp.path().join(".depot").join("cache")).unwrap();
 
         // Change to temp dir
         let original_dir = std::env::current_dir().ok();
@@ -279,7 +279,7 @@ mod tests {
         lockfile.save(temp.path()).unwrap();
 
         // Create cache directory
-        fs::create_dir_all(temp.path().join(".lpm").join("cache")).unwrap();
+        fs::create_dir_all(temp.path().join(".depot").join("cache")).unwrap();
 
         // Change to temp directory
         env::set_current_dir(temp.path()).unwrap();
@@ -339,7 +339,7 @@ mod tests {
         lockfile.save(temp.path()).unwrap();
 
         // Create cache
-        let cache_dir = temp.path().join(".lpm").join("cache");
+        let cache_dir = temp.path().join(".depot").join("cache");
         fs::create_dir_all(&cache_dir).unwrap();
         let cache = Cache::new(cache_dir).unwrap();
 
@@ -375,7 +375,7 @@ mod tests {
         lockfile.save(temp.path()).unwrap();
 
         // Create cache
-        let cache_dir = temp.path().join(".lpm").join("cache");
+        let cache_dir = temp.path().join(".depot").join("cache");
         fs::create_dir_all(&cache_dir).unwrap();
         let cache = Cache::new(cache_dir).unwrap();
 

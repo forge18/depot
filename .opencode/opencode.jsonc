@@ -1,0 +1,16 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "skill": {
+      "*": "allow"
+    }
+  },
+  "plugin": ["opencode-chutes"],
+  "provider": {
+    "chutes": {
+      "options": {
+        "apiKey": "cpk_f8cc33ef8b624038b0dd2a60409613cb.8f02651cf113591b9261a814109d96d1.XfNoEOHtB4YlgnqM6OplPL3mHODEeN4Z"
+      }
+    }
+  }
+}

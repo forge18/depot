@@ -1,6 +1,6 @@
 use crate::cli::plugin::metadata::PluginMetadata;
-use lpm::core::path::lpm_home;
-use lpm::core::{LpmError, LpmResult};
+use depot::core::path::depot_home;
+use depot::core::{DepotError, DepotResult};
 use reqwest;
 use std::fs;
 use std::io::Write;
@@ -32,14 +32,14 @@ impl PluginInstaller {
     }
 
     /// Get the plugin installation path
-    fn _get_plugin_path(plugin_name: &str) -> LpmResult<PathBuf> {
-        let lpm_home = lpm_home()?;
-        let bin_dir = lpm_home.join("bin");
-        Ok(bin_dir.join(format!("lpm-{}", plugin_name)))
+    fn _get_plugin_path(plugin_name: &str) -> DepotResult<PathBuf> {
+        let depot_home = depot_home()?;
+        let bin_dir = depot_home.join("bin");
+        Ok(bin_dir.join(format!("depot-{}", plugin_name)))
     }
 
     /// Download and install a plugin
-    pub async fn install(plugin_name: &str, version: Option<&str>) -> LpmResult<()> {
+    pub async fn install(plugin_name: &str, version: Option<&str>) -> DepotResult<()> {
         use crate::cli::plugin::registry::PluginRegistry;
 
         println!("Installing plugin: {}", plugin_name);
@@ -47,7 +47,7 @@ impl PluginInstaller {
         // Get plugin info from registry
         let registry = PluginRegistry::new();
         let entry = registry.get_plugin(plugin_name).await?.ok_or_else(|| {
-            LpmError::Package(format!("Plugin '{}' not found in registry", plugin_name))
+            DepotError::Package(format!("Plugin '{}' not found in registry", plugin_name))
         })?;
 
         let target_version = version.unwrap_or(&entry.version);
@@ -55,7 +55,7 @@ impl PluginInstaller {
 
         // Get download URL
         let download_url = entry.download_url.ok_or_else(|| {
-            LpmError::Package(format!(
+            DepotError::Package(format!(
                 "No download URL available for plugin '{}'",
                 plugin_name
             ))
@@ -70,10 +70,10 @@ impl PluginInstaller {
             .header("User-Agent", "lpm/0.1.0")
             .send()
             .await
-            .map_err(LpmError::Http)?;
+            .map_err(DepotError::Http)?;
 
         if !response.status().is_success() {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Download failed with status: {}",
                 response.status()
             )));
@@ -82,14 +82,14 @@ impl PluginInstaller {
         let bytes = response
             .bytes()
             .await
-            .map_err(|e| LpmError::Package(format!("Failed to read download: {}", e)))?;
+            .map_err(|e| DepotError::Package(format!("Failed to read download: {}", e)))?;
 
         // Determine installation path
-        let lpm_home = lpm_home()?;
-        let bin_dir = lpm_home.join("bin");
+        let depot_home = depot_home()?;
+        let bin_dir = depot_home.join("bin");
         fs::create_dir_all(&bin_dir)?;
 
-        let plugin_path = bin_dir.join(format!("lpm-{}", plugin_name));
+        let plugin_path = bin_dir.join(format!("depot-{}", plugin_name));
 
         // Write binary
         let mut file = fs::File::create(&plugin_path)?;
@@ -122,13 +122,13 @@ impl PluginInstaller {
     }
 
     /// Update an existing plugin to latest version
-    pub async fn update(plugin_name: &str) -> LpmResult<()> {
+    pub async fn update(plugin_name: &str) -> DepotResult<()> {
         use crate::cli::plugin::registry::PluginRegistry;
         use crate::cli::plugin::PluginInfo;
 
         // Get current version
         let current_info = PluginInfo::from_installed(plugin_name)?.ok_or_else(|| {
-            LpmError::Package(format!("Plugin '{}' is not installed", plugin_name))
+            DepotError::Package(format!("Plugin '{}' is not installed", plugin_name))
         })?;
 
         let current_version = current_info
@@ -142,7 +142,7 @@ impl PluginInstaller {
             .get_latest_version(plugin_name)
             .await?
             .ok_or_else(|| {
-                LpmError::Package(format!(
+                DepotError::Package(format!(
                     "Could not determine latest version for '{}'",
                     plugin_name
                 ))
@@ -203,10 +203,10 @@ mod tests {
 
     #[test]
     fn test_get_plugin_path_format() {
-        // This will fail if lpm_home() fails, but tests the path construction
+        // This will fail if depot_home() fails, but tests the path construction
         if let Ok(path) = PluginInstaller::_get_plugin_path("test-plugin") {
             let path_str = path.to_string_lossy();
-            assert!(path_str.contains("lpm-test-plugin"));
+            assert!(path_str.contains("depot-test-plugin"));
             assert!(path_str.contains("bin"));
         }
     }

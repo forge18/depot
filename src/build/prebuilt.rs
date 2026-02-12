@@ -1,7 +1,7 @@
 use crate::build::targets::Target;
 use crate::cache::Cache;
 use crate::core::path::cache_dir;
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use crate::lua_version::detector::LuaVersion;
 use std::fs;
 use std::path::PathBuf;
@@ -16,7 +16,7 @@ pub struct PrebuiltBinaryManager {
 
 impl PrebuiltBinaryManager {
     /// Create a new pre-built binary manager
-    pub fn new() -> LpmResult<Self> {
+    pub fn new() -> DepotResult<Self> {
         let cache = Cache::new(cache_dir()?)?;
         Ok(Self { cache })
     }
@@ -65,7 +65,7 @@ impl PrebuiltBinaryManager {
         lua_version: &LuaVersion,
         target: &Target,
         url: &str,
-    ) -> LpmResult<PathBuf> {
+    ) -> DepotResult<PathBuf> {
         use tokio::fs::File;
         use tokio::io::AsyncWriteExt;
 
@@ -83,11 +83,11 @@ impl PrebuiltBinaryManager {
 
         // Download the binary
         let response = reqwest::get(url).await.map_err(|e| {
-            LpmError::Package(format!("Failed to download pre-built binary: {}", e))
+            DepotError::Package(format!("Failed to download pre-built binary: {}", e))
         })?;
 
         if !response.status().is_success() {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Failed to download pre-built binary: HTTP {}",
                 response.status()
             )));
@@ -96,20 +96,20 @@ impl PrebuiltBinaryManager {
         let bytes = response
             .bytes()
             .await
-            .map_err(|e| LpmError::Package(format!("Failed to read binary data: {}", e)))?;
+            .map_err(|e| DepotError::Package(format!("Failed to read binary data: {}", e)))?;
 
         // Write to cache
         let mut file = File::create(&cache_path)
             .await
-            .map_err(|e| LpmError::Cache(format!("Failed to create cache file: {}", e)))?;
+            .map_err(|e| DepotError::Cache(format!("Failed to create cache file: {}", e)))?;
 
         file.write_all(&bytes)
             .await
-            .map_err(|e| LpmError::Cache(format!("Failed to write binary to cache: {}", e)))?;
+            .map_err(|e| DepotError::Cache(format!("Failed to write binary to cache: {}", e)))?;
 
         file.sync_all()
             .await
-            .map_err(|e| LpmError::Cache(format!("Failed to sync cache file: {}", e)))?;
+            .map_err(|e| DepotError::Cache(format!("Failed to sync cache file: {}", e)))?;
 
         eprintln!("✓ Downloaded pre-built binary: {}", cache_path.display());
 
@@ -140,7 +140,7 @@ impl PrebuiltBinaryManager {
         lua_version: &LuaVersion,
         target: &Target,
         binary_url: Option<&str>,
-    ) -> LpmResult<Option<PathBuf>> {
+    ) -> DepotResult<Option<PathBuf>> {
         // First, check if we already have it cached
         if let Some(cached) = self.get_prebuilt(package, version, lua_version, target) {
             return Ok(Some(cached));

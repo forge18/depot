@@ -5,7 +5,7 @@ fn test_template_list() {
     let ctx = TestContext::new();
 
     // List available templates
-    ctx.lpm()
+    ctx.depot()
         .arg("template")
         .arg("list")
         .assert()
@@ -20,7 +20,7 @@ fn test_template_create() {
 
     // Create a custom template
     // This test may need adjustment based on actual template creation command
-    ctx.lpm()
+    ctx.depot()
         .arg("template")
         .arg("create")
         .arg("test-template")

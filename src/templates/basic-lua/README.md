@@ -6,10 +6,10 @@
 
 ```bash
 # Install dependencies
-lpm install
+depot install
 
 # Run the project
-lpm run start
+depot run start
 # or
 lua src/main.lua
 ```
@@ -19,5 +19,5 @@ lua src/main.lua
 - `src/` - Source code
 - `lib/` - Library code
 - `tests/` - Test files
-- `lua_modules/` - Dependencies (managed by LPM)
+- `lua_modules/` - Dependencies (managed by Depot)
 

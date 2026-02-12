@@ -13,11 +13,11 @@ fn test_complete_project_workflow() {
 
     // 1. Initialize new project
     println!("Step 1: Initialize project");
-    ctx.lpm().arg("init").arg("--yes").assert().success();
+    ctx.depot().arg("init").arg("--yes").assert().success();
 
     // 2. Install a dependency
     println!("Step 2: Install dependency");
-    ctx.lpm()
+    ctx.depot()
         .arg("install")
         .arg(format!(
             "{}@{}",
@@ -29,7 +29,7 @@ fn test_complete_project_workflow() {
 
     // 3. Verify installation
     println!("Step 3: List packages");
-    ctx.lpm()
+    ctx.depot()
         .arg("list")
         .assert()
         .success()
@@ -37,7 +37,7 @@ fn test_complete_project_workflow() {
 
     // 4. Verify checksums
     println!("Step 4: Verify checksums");
-    ctx.lpm().arg("verify").assert().success();
+    ctx.depot().arg("verify").assert().success();
 
     // 5. Test the package works
     println!("Step 5: Test package functionality");
@@ -62,7 +62,7 @@ print("Package works!")
 
     // 6. Remove the package
     println!("Step 6: Remove package");
-    ctx.lpm().arg("remove").arg("penlight").assert().success();
+    ctx.depot().arg("remove").arg("penlight").assert().success();
 
     // 7. Verify removal
     println!("Step 7: Verify removal");
@@ -83,7 +83,7 @@ fn test_template_to_working_project_love2d() {
     let ctx = TestContext::new();
 
     // Initialize with love2d template
-    ctx.lpm()
+    ctx.depot()
         .arg("init")
         .arg("--template")
         .arg(constants::TEMPLATE_LOVE2D)
@@ -110,10 +110,10 @@ fn test_dev_workflow() {
     let ctx = TestContext::new();
 
     // Initialize
-    ctx.lpm().arg("init").arg("--yes").assert().success();
+    ctx.depot().arg("init").arg("--yes").assert().success();
 
     // Install production dependency
-    ctx.lpm()
+    ctx.depot()
         .arg("install")
         .arg(format!(
             "{}@{}",
@@ -124,7 +124,7 @@ fn test_dev_workflow() {
         .success();
 
     // Install dev dependency
-    ctx.lpm()
+    ctx.depot()
         .arg("install")
         .arg("--dev")
         .arg(format!(
@@ -144,9 +144,13 @@ fn test_dev_workflow() {
         .assert(predicate::path::exists());
 
     // Clean and install with --no-dev
-    ctx.lpm().arg("clean").assert().success();
+    ctx.depot().arg("clean").assert().success();
 
-    ctx.lpm().arg("install").arg("--no-dev").assert().success();
+    ctx.depot()
+        .arg("install")
+        .arg("--no-dev")
+        .assert()
+        .success();
 
     // Verify only production deps installed
     ctx.temp

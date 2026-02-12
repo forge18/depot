@@ -1,10 +1,10 @@
 # Architecture
 
-Overview of LPM's architecture and design decisions.
+Overview of Depot's architecture and design decisions.
 
 ## High-Level Architecture
 
-LPM is built in Rust and organized into several key modules:
+Depot is built in Rust and organized into several key modules:
 
 ```
 ┌─────────────────────────────────────────┐
@@ -34,7 +34,7 @@ LPM is built in Rust and organized into several key modules:
 
 ## Core Modules
 
-### `crates/lpm-core/`
+### `crates/depot-core/`
 
 Core functionality shared across the application and plugins:
 
@@ -47,7 +47,7 @@ Core functionality shared across the application and plugins:
 - **`path_setup/runner.rs`**: Lua script execution with proper paths
 - **`package/manifest.rs`**: Package manifest parsing and management
 
-The `lpm-core` crate is a shared library that both the main `lpm` binary and plugins can depend on. The main `lpm` crate re-exports `lpm-core` for backward compatibility.
+The `depot-core` crate is a shared library that both the main `depot` binary and plugins can depend on. The main `depot` crate re-exports `depot-core` for backward compatibility.
 
 ### `src/cli/`
 
@@ -61,11 +61,11 @@ CLI command implementations:
 
 ### Plugin System
 
-LPM supports plugins as separate executables:
+Depot supports plugins as separate executables:
 
-- **Plugin Discovery**: Automatically finds `lpm-<name>` executables in `~/.lpm/bin/` and PATH
+- **Plugin Discovery**: Automatically finds `depot-<name>` executables in `~/.depot/bin/` and PATH
 - **Plugin Execution**: Delegates unknown commands to plugins
-- **lpm-core**: Shared library providing utilities for plugins
+- **depot-core**: Shared library providing utilities for plugins
 
 See [Plugin Development Guide](Plugin-Development) for details.
 
@@ -88,7 +88,7 @@ CLI command implementations:
 Package management:
 
 - **`manifest.rs`**: `package.yaml` parsing and management
-- **`lockfile.rs`**: `lpm.lock` generation and validation
+- **`lockfile.rs`**: `depot.lock` generation and validation
 - **`lockfile_builder.rs`**: Lockfile generation with parallel downloads and incremental updates
 - **`resolver.rs`**: Dependency resolution
 - **`installer.rs`**: Package installation to `lua_modules/`
@@ -133,31 +133,31 @@ Security features:
 
 ### `src/path_setup/`
 
-Path configuration for LPM binary (not Lua paths):
+Path configuration for Depot binary (not Lua paths):
 
-- **`mod.rs`**: PATH detection and setup for LPM binary itself
+- **`mod.rs`**: PATH detection and setup for Depot binary itself
 
-Note: Lua path setup (loader and runner) has been moved to `crates/lpm-core/src/path_setup/`.
+Note: Lua path setup (loader and runner) has been moved to `crates/depot-core/src/path_setup/`.
 
 ## Data Flow
 
 ### Installation Flow
 
 ```
-1. User: lpm install luasocket
+1. User: depot install luasocket
 2. CLI: Parse command → install.rs
 3. Resolver: Resolve dependencies → resolver.rs (uses cached manifest)
 4. LuaRocks: Download packages in parallel → package/downloader.rs (ParallelDownloader)
 5. Installer: Install to lua_modules/ → package/installer.rs
    - Checks for binary URLs in rockspec metadata
    - Downloads pre-built binaries if available
-6. Lockfile: Update lpm.lock incrementally → package/lockfile_builder.rs
+6. Lockfile: Update depot.lock incrementally → package/lockfile_builder.rs
 ```
 
 ### Build Flow
 
 ```
-1. User: lpm build
+1. User: depot build
 2. CLI: Parse command → build.rs
 3. Builder: Check cache → build/builder.rs
 4. Builder: Build or download pre-built → build/prebuilt.rs
@@ -176,21 +176,21 @@ All packages install to `./lua_modules/` - no global installation. This ensures:
 
 ### 2. Lockfile-Based Reproducibility
 
-`lpm.lock` stores exact versions and BLAKE3 checksums:
+`depot.lock` stores exact versions and BLAKE3 checksums:
 - Ensures reproducible builds
 - Enables checksum verification
 - Prevents supply chain attacks
 
 ### 3. LuaRocks as Upstream
 
-LPM uses LuaRocks as the package source:
+Depot uses LuaRocks as the package source:
 - Leverages existing ecosystem
 - No need to maintain separate registry
 - Users can migrate easily
 
 ### 4. Rust for Performance
 
-LPM is written in Rust for:
+Depot is written in Rust for:
 - Fast dependency resolution
 - Safe concurrent downloads
 - Cross-platform compatibility
@@ -205,7 +205,7 @@ Rust extensions build in sandboxed environments:
 
 ## Error Handling
 
-LPM uses a custom error type (`LpmError`) with:
+Depot uses a custom error type (`LpmError`) with:
 - Contextual error messages
 - Helpful suggestions
 - Chain of error causes
@@ -219,7 +219,7 @@ Automatically formatted with suggestions via `error_help.rs`.
 
 ## Caching Strategy
 
-LPM caches:
+Depot caches:
 - Downloaded packages (LuaRocks)
 - Rust build artifacts (per Lua version and target)
 - Pre-built binaries
@@ -236,7 +236,7 @@ Cache location: OS-specific cache directory (`~/.cache/lpm` on Linux)
 
 ## Extension Points
 
-LPM is designed to be extensible:
+Depot is designed to be extensible:
 
 - **New Commands**: Add to `src/cli/`
 - **New Build Targets**: Add to `src/build/targets.rs`

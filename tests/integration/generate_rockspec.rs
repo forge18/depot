@@ -1,6 +1,6 @@
-//! Tests for `lpm generate-rockspec` command
+//! Tests for `depot generate-rockspec` command
 
-use super::common::lpm_command;
+use super::common::depot_command;
 use std::fs;
 use tempfile::TempDir;
 
@@ -9,7 +9,7 @@ fn test_generate_rockspec_without_package_yaml() {
     let temp = TempDir::new().unwrap();
     let project_root = temp.path();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("generate-rockspec")
         .current_dir(project_root)
         .output()
@@ -33,7 +33,7 @@ description: A test project
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("generate-rockspec")
         .current_dir(project_root)
         .output()
@@ -67,7 +67,7 @@ dependencies:
     )
     .unwrap();
 
-    let output = lpm_command()
+    let output = depot_command()
         .arg("generate-rockspec")
         .current_dir(project_root)
         .output()

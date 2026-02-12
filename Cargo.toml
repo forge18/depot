@@ -1,23 +1,23 @@
 [workspace]
-members = ["crates/lpm-core", "crates/lpm-watch", "crates/lpm-bundle"]
+members = ["crates/depot-core", "crates/depot-watch", "crates/depot-bundle"]
 resolver = "2"
 
 [package]
-name = "lpm"
+name = "depot"
 version = "0.1.0"
 edition = "2021"
-authors = ["LPM Contributors"]
+authors = ["Depot Contributors"]
 description = "Local package management for Lua. Because global installs are legacy."
 license = "MIT"
-repository = "https://github.com/yourusername/lpm"
+repository = "https://github.com/yourusername/depot"
 
 [[bin]]
-name = "lpm"
+name = "depot"
 path = "src/main.rs"
 
 [dependencies]
-# Core LPM library
-lpm-core = { path = "crates/lpm-core" }
+# Core Depot library
+depot-core = { path = "crates/depot-core" }
 
 # CLI and argument parsing
 clap = { version = "4.4", features = ["derive"] }
@@ -105,4 +105,3 @@ rexpect = "0.5"
 [[bench]]
 name = "performance_benchmarks"
 harness = false
-

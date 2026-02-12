@@ -1,6 +1,6 @@
-# Contributing to LPM
+# Contributing to Depot
 
-Thank you for your interest in contributing to LPM! This guide will help you get started.
+Thank you for your interest in contributing to Depot! This guide will help you get started.
 
 ## Getting Started
 
@@ -39,7 +39,7 @@ Thank you for your interest in contributing to LPM! This guide will help you get
    
    The hooks are now active!
 
-5. **Run LPM locally:**
+5. **Run Depot locally:**
    ```bash
    cargo run -- install
    ```
@@ -90,15 +90,15 @@ Thank you for your interest in contributing to LPM! This guide will help you get
 ```
 lpm/
 ├── crates/
-│   ├── lpm-core/      # Core library (shared with plugins)
+│   ├── depot-core/      # Core library (shared with plugins)
 │   │   ├── src/
 │   │   │   ├── core/  # Core utilities (errors, paths, version)
 │   │   │   ├── package/# Package manifest
 │   │   │   └── path_setup/# Lua path setup and runner
 │   │   └── Cargo.toml
-│   ├── lpm-watch/     # Watch mode plugin
+│   ├── depot-watch/     # Watch mode plugin
 │   │   └── src/
-│   └── lpm-bundle/    # Bundle plugin (experimental)
+│   └── depot-bundle/    # Bundle plugin (experimental)
 │       └── src/
 ├── src/
 │   ├── cli/           # CLI command implementations
@@ -117,7 +117,7 @@ lpm/
 
 ### Plugin Development
 
-LPM supports plugins as separate executables. See [Plugin Development Guide](Plugin-Development) for details.
+Depot supports plugins as separate executables. See [Plugin Development Guide](Plugin-Development) for details.
 
 ## Testing
 
@@ -202,7 +202,7 @@ Tests that require network access or terminal interaction are automatically skip
 
 Each test gets an isolated environment via `TestContext`:
 - Temporary directory for each test (automatically cleaned up)
-- Isolated LPM home directory (config and cache)
+- Isolated Depot home directory (config and cache)
 - Platform-specific environment variable isolation
 - No shared state between tests
 

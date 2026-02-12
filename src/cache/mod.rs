@@ -1,5 +1,5 @@
 use crate::core::path::{cache_dir, ensure_dir};
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use crate::di::CacheProvider;
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -39,13 +39,13 @@ pub struct Cache {
 
 impl Cache {
     /// Create a new cache instance
-    pub fn new(cache_root: PathBuf) -> LpmResult<Self> {
+    pub fn new(cache_root: PathBuf) -> DepotResult<Self> {
         ensure_dir(&cache_root)?;
         Ok(Self { root: cache_root })
     }
 
     /// Get the default cache directory
-    pub fn default_cache() -> LpmResult<Self> {
+    pub fn default_cache() -> DepotResult<Self> {
         Self::new(cache_dir()?)
     }
 
@@ -70,7 +70,7 @@ impl Cache {
     }
 
     /// Initialize cache directory structure
-    pub fn init(&self) -> LpmResult<()> {
+    pub fn init(&self) -> DepotResult<()> {
         ensure_dir(&self.luarocks_dir())?;
         ensure_dir(&self.rockspecs_dir())?;
         ensure_dir(&self.sources_dir())?;
@@ -101,9 +101,9 @@ impl Cache {
     }
 
     /// Read a file from cache
-    pub fn read(&self, path: &Path) -> LpmResult<Vec<u8>> {
+    pub fn read(&self, path: &Path) -> DepotResult<Vec<u8>> {
         fs::read(path).map_err(|e| {
-            LpmError::Cache(format!(
+            DepotError::Cache(format!(
                 "Failed to read from cache: {}: {}",
                 path.display(),
                 e
@@ -112,19 +112,19 @@ impl Cache {
     }
 
     /// Write a file to cache
-    pub fn write(&self, path: &Path, data: &[u8]) -> LpmResult<()> {
+    pub fn write(&self, path: &Path, data: &[u8]) -> DepotResult<()> {
         if let Some(parent) = path.parent() {
             ensure_dir(parent)?;
         }
         let mut file = fs::File::create(path).map_err(|e| {
-            LpmError::Cache(format!(
+            DepotError::Cache(format!(
                 "Failed to create cache file: {}: {}",
                 path.display(),
                 e
             ))
         })?;
         file.write_all(data).map_err(|e| {
-            LpmError::Cache(format!(
+            DepotError::Cache(format!(
                 "Failed to write to cache: {}: {}",
                 path.display(),
                 e
@@ -134,7 +134,10 @@ impl Cache {
     }
 
     /// Calculate checksum of a file using the specified algorithm
-    pub fn checksum_with_algorithm(path: &Path, algorithm: ChecksumAlgorithm) -> LpmResult<String> {
+    pub fn checksum_with_algorithm(
+        path: &Path,
+        algorithm: ChecksumAlgorithm,
+    ) -> DepotResult<String> {
         let data = fs::read(path)?;
         match algorithm {
             ChecksumAlgorithm::Sha256 => {
@@ -150,12 +153,12 @@ impl Cache {
     }
 
     /// Calculate checksum of a file (defaults to BLAKE3)
-    pub fn checksum(path: &Path) -> LpmResult<String> {
+    pub fn checksum(path: &Path) -> DepotResult<String> {
         Self::checksum_with_algorithm(path, ChecksumAlgorithm::default())
     }
 
     /// Verify a file's checksum matches the expected value (supports both SHA-256 and BLAKE3)
-    pub fn verify_checksum(path: &Path, expected: &str) -> LpmResult<bool> {
+    pub fn verify_checksum(path: &Path, expected: &str) -> DepotResult<bool> {
         let algorithm = ChecksumAlgorithm::from_checksum(expected);
         let actual = Self::checksum_with_algorithm(path, algorithm)?;
 
@@ -223,7 +226,7 @@ impl Cache {
         lua_version: &str,
         target: &str,
         artifact_path: &Path,
-    ) -> LpmResult<PathBuf> {
+    ) -> DepotResult<PathBuf> {
         let cache_path = self.rust_build_path(package, version, lua_version, target);
 
         // Ensure parent directory exists
@@ -233,7 +236,7 @@ impl Cache {
 
         // Copy artifact to cache
         fs::copy(artifact_path, &cache_path).map_err(|e| {
-            LpmError::Cache(format!("Failed to copy build artifact to cache: {}", e))
+            DepotError::Cache(format!("Failed to copy build artifact to cache: {}", e))
         })?;
 
         Ok(cache_path)
@@ -256,7 +259,7 @@ impl Cache {
     }
 
     /// Clean old cache entries based on age and size
-    pub fn clean(&self, max_age_days: u64, max_size_mb: u64) -> LpmResult<CacheCleanResult> {
+    pub fn clean(&self, max_age_days: u64, max_size_mb: u64) -> DepotResult<CacheCleanResult> {
         use std::time::{Duration, SystemTime};
 
         let max_age = Duration::from_secs(max_age_days * 24 * 60 * 60);
@@ -287,7 +290,7 @@ impl Cache {
         now: &SystemTime,
         max_age: Duration,
         max_size_bytes: u64,
-    ) -> LpmResult<CacheCleanResult> {
+    ) -> DepotResult<CacheCleanResult> {
         use walkdir::WalkDir;
 
         if !dir.exists() {
@@ -375,19 +378,19 @@ impl CacheProvider for Cache {
         self.exists(path)
     }
 
-    fn read(&self, path: &Path) -> LpmResult<Vec<u8>> {
+    fn read(&self, path: &Path) -> DepotResult<Vec<u8>> {
         self.read(path)
     }
 
-    fn write(&self, path: &Path, data: &[u8]) -> LpmResult<()> {
+    fn write(&self, path: &Path, data: &[u8]) -> DepotResult<()> {
         self.write(path, data)
     }
 
-    fn checksum(&self, path: &Path) -> LpmResult<String> {
+    fn checksum(&self, path: &Path) -> DepotResult<String> {
         Cache::checksum(path)
     }
 
-    fn verify_checksum(&self, path: &Path, expected: &str) -> LpmResult<bool> {
+    fn verify_checksum(&self, path: &Path, expected: &str) -> DepotResult<bool> {
         Cache::verify_checksum(path, expected)
     }
 
@@ -418,7 +421,7 @@ impl CacheProvider for Cache {
         lua_version: &str,
         target: &str,
         artifact_path: &Path,
-    ) -> LpmResult<PathBuf> {
+    ) -> DepotResult<PathBuf> {
         self.store_rust_build(package, version, lua_version, target, artifact_path)
     }
 

@@ -1,6 +1,6 @@
 use crate::build::builder::RustBuilder;
 use crate::build::targets::Target;
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use crate::package::manifest::PackageManifest;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -24,7 +24,7 @@ impl BinaryPackager {
     }
 
     /// Package built binaries for a specific target
-    pub fn package_target(&self, target: &Target) -> LpmResult<PathBuf> {
+    pub fn package_target(&self, target: &Target) -> DepotResult<PathBuf> {
         // Build the extension for the target
         let builder = RustBuilder::new(&self.project_root, &self.manifest)?;
         let rt = tokio::runtime::Runtime::new().unwrap();
@@ -41,7 +41,7 @@ impl BinaryPackager {
         // Copy binary to package directory
         let binary_name = binary_path
             .file_name()
-            .ok_or_else(|| LpmError::Package("Invalid binary path".to_string()))?;
+            .ok_or_else(|| DepotError::Package("Invalid binary path".to_string()))?;
         let dest_binary = package_dir.join(binary_name);
         fs::copy(&binary_path, &dest_binary)?;
 
@@ -64,9 +64,9 @@ impl BinaryPackager {
         package_dir: &Path,
         target: &Target,
         binary_path: &Path,
-    ) -> LpmResult<()> {
+    ) -> DepotResult<()> {
         let manifest_content = format!(
-            r#"# LPM Binary Package Manifest
+            r#"# Depot Binary Package Manifest
 name: {}
 version: {}
 target: {}
@@ -87,7 +87,7 @@ generated_at: "{}"
     }
 
     /// Create an archive (tar.gz on Unix, zip on Windows)
-    fn create_archive(&self, package_dir: &Path, package_name: &str) -> LpmResult<PathBuf> {
+    fn create_archive(&self, package_dir: &Path, package_name: &str) -> DepotResult<PathBuf> {
         let dist_dir = package_dir.parent().unwrap();
         let archive_name = format!(
             "{}.{}",
@@ -112,7 +112,7 @@ generated_at: "{}"
     }
 
     /// Create a zip archive (Windows)
-    fn create_zip(&self, source_dir: &Path, archive_path: &Path) -> LpmResult<()> {
+    fn create_zip(&self, source_dir: &Path, archive_path: &Path) -> DepotResult<()> {
         use std::process::Command;
 
         // Try to use system zip command
@@ -124,7 +124,7 @@ generated_at: "{}"
             .status()?;
 
         if !status.success() {
-            return Err(LpmError::Package(
+            return Err(DepotError::Package(
                 "Failed to create zip archive. Install 'zip' command.".to_string(),
             ));
         }
@@ -133,7 +133,7 @@ generated_at: "{}"
     }
 
     /// Create a tar.gz archive (Unix)
-    fn create_tar_gz(&self, source_dir: &Path, archive_path: &Path) -> LpmResult<()> {
+    fn create_tar_gz(&self, source_dir: &Path, archive_path: &Path) -> DepotResult<()> {
         use std::process::Command;
 
         let status = Command::new("tar")
@@ -145,7 +145,7 @@ generated_at: "{}"
             .status()?;
 
         if !status.success() {
-            return Err(LpmError::Package(
+            return Err(DepotError::Package(
                 "Failed to create tar.gz archive. Install 'tar' command.".to_string(),
             ));
         }
@@ -154,7 +154,7 @@ generated_at: "{}"
     }
 
     /// Package binaries for all targets
-    pub fn package_all_targets(&self) -> LpmResult<Vec<(Target, PathBuf)>> {
+    pub fn package_all_targets(&self) -> DepotResult<Vec<(Target, PathBuf)>> {
         let mut results = Vec::new();
 
         for target_triple in crate::build::targets::SUPPORTED_TARGETS {
@@ -174,7 +174,7 @@ generated_at: "{}"
         }
 
         if results.is_empty() {
-            return Err(LpmError::Package(
+            return Err(DepotError::Package(
                 "Failed to package for all targets".to_string(),
             ));
         }

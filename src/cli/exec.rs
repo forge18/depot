@@ -1,11 +1,11 @@
-use lpm::core::path::find_project_root;
-use lpm::core::LpmResult;
-use lpm::path_setup::{LuaRunner, RunOptions};
+use depot::core::path::find_project_root;
+use depot::core::DepotResult;
+use depot::path_setup::{LuaRunner, RunOptions};
 use std::env;
 
-pub fn run(command: Vec<String>) -> LpmResult<()> {
+pub fn run(command: Vec<String>) -> DepotResult<()> {
     if command.is_empty() {
-        return Err(lpm::core::LpmError::Package(
+        return Err(depot::core::DepotError::Package(
             "No command provided".to_string(),
         ));
     }

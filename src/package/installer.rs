@@ -1,5 +1,5 @@
-use crate::core::path::{ensure_dir, lpm_metadata_dir, lua_modules_dir, packages_metadata_dir};
-use crate::core::{LpmError, LpmResult};
+use crate::core::path::{depot_metadata_dir, ensure_dir, lua_modules_dir, packages_metadata_dir};
+use crate::core::{DepotError, DepotResult};
 use crate::di::{CacheProvider, PackageClient, SearchProvider, ServiceContainer};
 use crate::luarocks::rockspec::Rockspec;
 
@@ -32,7 +32,7 @@ pub struct PackageInstaller {
 
 impl PackageInstaller {
     /// Create a new installer for a project
-    pub fn new(project_root: &Path) -> LpmResult<Self> {
+    pub fn new(project_root: &Path) -> DepotResult<Self> {
         let container = ServiceContainer::new()?;
         Self::with_dependencies(
             project_root,
@@ -51,9 +51,9 @@ impl PackageInstaller {
         cache: Arc<dyn CacheProvider>,
         package_client: Arc<dyn PackageClient>,
         search_provider: Arc<dyn SearchProvider>,
-    ) -> LpmResult<Self> {
+    ) -> DepotResult<Self> {
         let lua_modules = lua_modules_dir(project_root);
-        let metadata_dir = lpm_metadata_dir(project_root);
+        let metadata_dir = depot_metadata_dir(project_root);
         let packages_dir = packages_metadata_dir(project_root);
         let extractor = PackageExtractor::new(lua_modules.clone());
 
@@ -73,7 +73,7 @@ impl PackageInstaller {
     ///
     /// Deprecated: Use with_dependencies for proper DI
     #[deprecated(note = "Use with_dependencies instead for proper dependency injection")]
-    pub fn with_container(project_root: &Path, container: ServiceContainer) -> LpmResult<Self> {
+    pub fn with_container(project_root: &Path, container: ServiceContainer) -> DepotResult<Self> {
         Self::with_dependencies(
             project_root,
             container.cache.clone(),
@@ -87,9 +87,9 @@ impl PackageInstaller {
     /// DEPRECATED: Use `with_dependencies` instead for better testability.
     #[cfg(test)]
     #[deprecated(note = "Use with_dependencies instead")]
-    pub fn with_config(project_root: &Path, config: Config, cache: Cache) -> LpmResult<Self> {
+    pub fn with_config(project_root: &Path, config: Config, cache: Cache) -> DepotResult<Self> {
         let lua_modules = lua_modules_dir(project_root);
-        let metadata_dir = lpm_metadata_dir(project_root);
+        let metadata_dir = depot_metadata_dir(project_root);
         let packages_dir = packages_metadata_dir(project_root);
         let client = LuaRocksClient::new(&config, cache.clone());
         let search_api = SearchAPI::new();
@@ -110,7 +110,7 @@ impl PackageInstaller {
     }
 
     /// Initialize the directory structure
-    pub fn init(&self) -> LpmResult<()> {
+    pub fn init(&self) -> DepotResult<()> {
         ensure_dir(&self.lua_modules)?;
         ensure_dir(&self.metadata_dir)?;
         ensure_dir(&self.packages_dir)?;
@@ -118,7 +118,7 @@ impl PackageInstaller {
     }
 
     /// Install a package
-    pub async fn install_package(&self, name: &str, version: &str) -> LpmResult<PathBuf> {
+    pub async fn install_package(&self, name: &str, version: &str) -> DepotResult<PathBuf> {
         println!("Installing {}@{}", name, version);
 
         // Step 1: Construct and verify rockspec URL
@@ -146,7 +146,7 @@ impl PackageInstaller {
                 println!("  Verifying checksum...");
                 let actual = self.cache.checksum(&source_path)?;
                 if actual != locked_pkg.checksum {
-                    return Err(LpmError::Package(format!(
+                    return Err(DepotError::Package(format!(
                         "Checksum mismatch for {}@{}. Expected {}, got {}",
                         name, version, locked_pkg.checksum, actual
                     )));
@@ -176,7 +176,7 @@ impl PackageInstaller {
         source_path: &Path,
         package_name: &str,
         rockspec: &Rockspec,
-    ) -> LpmResult<()> {
+    ) -> DepotResult<()> {
         match rockspec.build.build_type.as_str() {
             "none" | "builtin" => {
                 // Pure Lua modules: copy files directly without building.
@@ -198,7 +198,7 @@ impl PackageInstaller {
                 // Rust extensions using mlua: build with cargo.
                 self.build_with_rust(source_path, package_name, rockspec)
             },
-            _ => Err(LpmError::NotImplemented(format!(
+            _ => Err(DepotError::NotImplemented(format!(
                 "Build type '{}' not supported. Supported types: builtin, none, make, cmake, command, rust.",
                 rockspec.build.build_type
             ))),
@@ -210,7 +210,7 @@ impl PackageInstaller {
         source_path: &Path,
         package_name: &str,
         rockspec: &Rockspec,
-    ) -> LpmResult<()> {
+    ) -> DepotResult<()> {
         use std::process::Command;
 
         println!("  Building with make...");
@@ -220,10 +220,10 @@ impl PackageInstaller {
 
         let status = make_cmd
             .status()
-            .map_err(|e| LpmError::Package(format!("Failed to run make: {}", e)))?;
+            .map_err(|e| DepotError::Package(format!("Failed to run make: {}", e)))?;
 
         if !status.success() {
-            return Err(LpmError::Package("make build failed".to_string()));
+            return Err(DepotError::Package("make build failed".to_string()));
         }
 
         // Install using make install (if install target exists) or copy built files
@@ -255,7 +255,7 @@ impl PackageInstaller {
                 if src.exists() {
                     let relative = src
                         .strip_prefix(source_path)
-                        .map_err(|e| LpmError::Path(e.to_string()))?;
+                        .map_err(|e| DepotError::Path(e.to_string()))?;
                     let dst = dest.join(relative);
 
                     if let Some(parent) = dst.parent() {
@@ -276,7 +276,7 @@ impl PackageInstaller {
                 if src.exists() {
                     let relative = src
                         .strip_prefix(source_path)
-                        .map_err(|e| LpmError::Path(e.to_string()))?;
+                        .map_err(|e| DepotError::Path(e.to_string()))?;
                     let dst = dest.join(relative);
 
                     if let Some(parent) = dst.parent() {
@@ -297,7 +297,7 @@ impl PackageInstaller {
                 if src.exists() {
                     let relative = src
                         .strip_prefix(source_path)
-                        .map_err(|e| LpmError::Path(e.to_string()))?;
+                        .map_err(|e| DepotError::Path(e.to_string()))?;
                     let dst = dest.join(relative);
 
                     if let Some(parent) = dst.parent() {
@@ -314,7 +314,7 @@ impl PackageInstaller {
                 if src.exists() {
                     let relative = src
                         .strip_prefix(source_path)
-                        .map_err(|e| LpmError::Path(e.to_string()))?;
+                        .map_err(|e| DepotError::Path(e.to_string()))?;
                     let dst = dest.join(relative);
 
                     if let Some(parent) = dst.parent() {
@@ -335,7 +335,7 @@ impl PackageInstaller {
                 if src.exists() {
                     let relative = src
                         .strip_prefix(source_path)
-                        .map_err(|e| LpmError::Path(e.to_string()))?;
+                        .map_err(|e| DepotError::Path(e.to_string()))?;
                     let dst = dest.join(relative);
 
                     if let Some(parent) = dst.parent() {
@@ -358,7 +358,7 @@ impl PackageInstaller {
         source_path: &Path,
         package_name: &str,
         rockspec: &Rockspec,
-    ) -> LpmResult<()> {
+    ) -> DepotResult<()> {
         use std::process::Command;
 
         println!("  Building with cmake...");
@@ -374,10 +374,10 @@ impl PackageInstaller {
 
         let status = cmake_cmd
             .status()
-            .map_err(|e| LpmError::Package(format!("Failed to run cmake: {}", e)))?;
+            .map_err(|e| DepotError::Package(format!("Failed to run cmake: {}", e)))?;
 
         if !status.success() {
-            return Err(LpmError::Package("cmake configure failed".to_string()));
+            return Err(DepotError::Package("cmake configure failed".to_string()));
         }
 
         // Run cmake build step.
@@ -387,10 +387,10 @@ impl PackageInstaller {
 
         let status = build_cmd
             .status()
-            .map_err(|e| LpmError::Package(format!("Failed to run cmake build: {}", e)))?;
+            .map_err(|e| DepotError::Package(format!("Failed to run cmake build: {}", e)))?;
 
         if !status.success() {
-            return Err(LpmError::Package("cmake build failed".to_string()));
+            return Err(DepotError::Package("cmake build failed".to_string()));
         }
 
         // Install built files to destination.
@@ -420,7 +420,7 @@ impl PackageInstaller {
                 if src.exists() {
                     let relative = src
                         .strip_prefix(&build_dir)
-                        .map_err(|e| LpmError::Path(e.to_string()))?;
+                        .map_err(|e| DepotError::Path(e.to_string()))?;
                     let dst = dest.join(relative);
 
                     if let Some(parent) = dst.parent() {
@@ -440,7 +440,7 @@ impl PackageInstaller {
                 if src.exists() {
                     let relative = src
                         .strip_prefix(&build_dir)
-                        .map_err(|e| LpmError::Path(e.to_string()))?;
+                        .map_err(|e| DepotError::Path(e.to_string()))?;
                     let dst = dest.join(relative);
 
                     if let Some(parent) = dst.parent() {
@@ -456,7 +456,7 @@ impl PackageInstaller {
                 if src.exists() {
                     let relative = src
                         .strip_prefix(&build_dir)
-                        .map_err(|e| LpmError::Path(e.to_string()))?;
+                        .map_err(|e| DepotError::Path(e.to_string()))?;
                     let dst = dest.join(relative);
 
                     if let Some(parent) = dst.parent() {
@@ -480,7 +480,7 @@ impl PackageInstaller {
         source_path: &Path,
         package_name: &str,
         rockspec: &Rockspec,
-    ) -> LpmResult<()> {
+    ) -> DepotResult<()> {
         use std::process::Command;
 
         // For "command" build type, parse the command from rockspec.
@@ -499,13 +499,15 @@ impl PackageInstaller {
 
             let status = cmd
                 .status()
-                .map_err(|e| LpmError::Package(format!("Failed to run build script: {}", e)))?;
+                .map_err(|e| DepotError::Package(format!("Failed to run build script: {}", e)))?;
 
             if !status.success() {
-                return Err(LpmError::Package("Custom build command failed".to_string()));
+                return Err(DepotError::Package(
+                    "Custom build command failed".to_string(),
+                ));
             }
         } else {
-            return Err(LpmError::Package(
+            return Err(DepotError::Package(
                 "command build type requires a build script or command specification in rockspec"
                     .to_string(),
             ));
@@ -527,7 +529,7 @@ impl PackageInstaller {
                 if src.exists() {
                     let relative = src
                         .strip_prefix(source_path)
-                        .map_err(|e| LpmError::Path(e.to_string()))?;
+                        .map_err(|e| DepotError::Path(e.to_string()))?;
                     let dst = dest.join(relative);
 
                     if let Some(parent) = dst.parent() {
@@ -547,7 +549,7 @@ impl PackageInstaller {
                 if src.exists() {
                     let relative = src
                         .strip_prefix(source_path)
-                        .map_err(|e| LpmError::Path(e.to_string()))?;
+                        .map_err(|e| DepotError::Path(e.to_string()))?;
                     let dst = dest.join(relative);
 
                     if let Some(parent) = dst.parent() {
@@ -571,7 +573,7 @@ impl PackageInstaller {
         source_path: &Path,
         package_name: &str,
         rockspec: &Rockspec,
-    ) -> LpmResult<()> {
+    ) -> DepotResult<()> {
         use std::process::Command;
 
         println!("  Building Rust extension...");
@@ -579,7 +581,7 @@ impl PackageInstaller {
         // Verify Cargo.toml exists (required for Rust builds).
         let cargo_toml = source_path.join("Cargo.toml");
         if !cargo_toml.exists() {
-            return Err(LpmError::Package(
+            return Err(DepotError::Package(
                 "Rust build type requires Cargo.toml in package source".to_string(),
             ));
         }
@@ -591,10 +593,10 @@ impl PackageInstaller {
 
         let status = build_cmd
             .status()
-            .map_err(|e| LpmError::Package(format!("Failed to run cargo build: {}", e)))?;
+            .map_err(|e| DepotError::Package(format!("Failed to run cargo build: {}", e)))?;
 
         if !status.success() {
-            return Err(LpmError::Package("cargo build failed".to_string()));
+            return Err(DepotError::Package("cargo build failed".to_string()));
         }
 
         // Find the built library in target/release/.
@@ -628,7 +630,7 @@ impl PackageInstaller {
             let lib_path = lib_entry.path();
             let lib_name = lib_path
                 .file_name()
-                .ok_or_else(|| LpmError::Package("Invalid library path".to_string()))?;
+                .ok_or_else(|| DepotError::Package("Invalid library path".to_string()))?;
             let dest_lib = dest.join(lib_name);
             fs::copy(&lib_path, &dest_lib)?;
             println!("  ✓ Copied library: {}", lib_name.to_string_lossy());
@@ -641,7 +643,7 @@ impl PackageInstaller {
                 if src.exists() {
                     let relative = src
                         .strip_prefix(source_path)
-                        .map_err(|e| LpmError::Path(e.to_string()))?;
+                        .map_err(|e| DepotError::Path(e.to_string()))?;
                     let dst = dest.join(relative);
 
                     if let Some(parent) = dst.parent() {
@@ -664,7 +666,7 @@ impl PackageInstaller {
                 if src.exists() {
                     let relative = src
                         .strip_prefix(source_path)
-                        .map_err(|e| LpmError::Path(e.to_string()))?;
+                        .map_err(|e| DepotError::Path(e.to_string()))?;
                     let dst = dest.join(relative);
 
                     if let Some(parent) = dst.parent() {
@@ -680,7 +682,7 @@ impl PackageInstaller {
                 if src.exists() {
                     let relative = src
                         .strip_prefix(source_path)
-                        .map_err(|e| LpmError::Path(e.to_string()))?;
+                        .map_err(|e| DepotError::Path(e.to_string()))?;
                     let dst = dest.join(relative);
 
                     if let Some(parent) = dst.parent() {
@@ -696,7 +698,7 @@ impl PackageInstaller {
                 if src.exists() {
                     let relative = src
                         .strip_prefix(source_path)
-                        .map_err(|e| LpmError::Path(e.to_string()))?;
+                        .map_err(|e| DepotError::Path(e.to_string()))?;
                     let dst = dest.join(relative);
 
                     if let Some(parent) = dst.parent() {
@@ -717,7 +719,7 @@ impl PackageInstaller {
         source_path: &Path,
         package_name: &str,
         rockspec: &Rockspec,
-    ) -> LpmResult<()> {
+    ) -> DepotResult<()> {
         let dest = self.lua_modules.join(package_name);
         fs::create_dir_all(&dest)?;
 
@@ -729,7 +731,7 @@ impl PackageInstaller {
             for source_file in rockspec.build.modules.values() {
                 let src = source_path.join(source_file);
                 if !src.exists() {
-                    return Err(LpmError::Package(format!(
+                    return Err(DepotError::Package(format!(
                         "Module file not found in source: {}",
                         source_file
                     )));
@@ -737,7 +739,7 @@ impl PackageInstaller {
 
                 let relative = src
                     .strip_prefix(source_path)
-                    .map_err(|e| LpmError::Path(e.to_string()))?;
+                    .map_err(|e| DepotError::Path(e.to_string()))?;
                 let dst = dest.join(relative);
 
                 if let Some(parent) = dst.parent() {
@@ -761,7 +763,7 @@ impl PackageInstaller {
     }
 
     /// Remove a package
-    pub fn remove_package(&self, name: &str) -> LpmResult<()> {
+    pub fn remove_package(&self, name: &str) -> DepotResult<()> {
         let package_dir = self.lua_modules.join(name);
         let metadata_dir = self.packages_dir.join(name);
 
@@ -778,13 +780,13 @@ impl PackageInstaller {
 }
 
 /// Copy directory recursively from source to destination
-fn copy_dir_recursive(src: &Path, dst: &Path) -> LpmResult<()> {
+fn copy_dir_recursive(src: &Path, dst: &Path) -> DepotResult<()> {
     for entry in WalkDir::new(src) {
         let entry = entry?;
         let path = entry.path();
         let relative = path
             .strip_prefix(src)
-            .map_err(|e| LpmError::Path(e.to_string()))?;
+            .map_err(|e| DepotError::Path(e.to_string()))?;
         let dest_path = dst.join(relative);
 
         if entry.file_type().is_dir() {
@@ -911,7 +913,7 @@ mod tests {
 
         assert_eq!(installer.project_root, project_root);
         assert!(installer.lua_modules.ends_with("lua_modules"));
-        assert!(installer.metadata_dir.ends_with(".lpm"));
+        assert!(installer.metadata_dir.ends_with(".depot"));
     }
 
     #[test]
@@ -1196,7 +1198,7 @@ mod tests {
         let result = installer.install_builtin(&source_path, "test-package", &rockspec);
         assert!(result.is_err());
         match result {
-            Err(LpmError::Package(msg)) => {
+            Err(DepotError::Package(msg)) => {
                 assert!(msg.contains("Module file not found") || msg.contains("nonexistent"));
             }
             _ => panic!("Expected Package error"),
@@ -1240,7 +1242,7 @@ mod tests {
         let result = installer.install_from_source(&source_path, "test-package", &rockspec);
         assert!(result.is_err());
         match result {
-            Err(LpmError::NotImplemented(msg)) => {
+            Err(DepotError::NotImplemented(msg)) => {
                 assert!(msg.contains("not supported") || msg.contains("unsupported"));
             }
             _ => panic!("Expected NotImplemented error"),
@@ -1668,7 +1670,7 @@ mod tests {
         // This will fail because Cargo.toml doesn't exist
         let result = installer.install_from_source(&source_path, "test-package", &rockspec);
         assert!(result.is_err());
-        if let Err(LpmError::Package(msg)) = result {
+        if let Err(DepotError::Package(msg)) = result {
             assert!(msg.contains("Cargo.toml") || msg.contains("Rust build"));
         }
     }
@@ -1815,7 +1817,7 @@ mod tests {
 
         let result = installer.install_from_source(&source_path, "test-package", &rockspec);
         assert!(result.is_err());
-        if let Err(LpmError::Package(msg)) = result {
+        if let Err(DepotError::Package(msg)) = result {
             assert!(msg.contains("Module file not found") || msg.contains("missing"));
         }
     }

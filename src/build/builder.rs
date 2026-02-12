@@ -3,7 +3,7 @@ use crate::build::sandbox::BuildSandbox;
 use crate::build::targets::Target;
 use crate::cache::Cache;
 use crate::core::path::cache_dir;
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use crate::lua_version::detector::{LuaVersion, LuaVersionDetector};
 use crate::package::manifest::{BuildConfig, PackageManifest};
 use std::path::{Path, PathBuf};
@@ -20,17 +20,17 @@ pub struct RustBuilder {
 
 impl RustBuilder {
     /// Create a new Rust builder from a manifest
-    pub fn new(project_root: &Path, manifest: &PackageManifest) -> LpmResult<Self> {
+    pub fn new(project_root: &Path, manifest: &PackageManifest) -> DepotResult<Self> {
         let build_config = manifest
             .build
             .as_ref()
             .ok_or_else(|| {
-                LpmError::Package("No build configuration found in package.yaml".to_string())
+                DepotError::Package("No build configuration found in package.yaml".to_string())
             })?
             .clone();
 
         if build_config.build_type != "rust" {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Build type '{}' is not supported. Only 'rust' is supported",
                 build_config.build_type
             )));
@@ -48,7 +48,7 @@ impl RustBuilder {
     /// 1. Check for pre-built binaries (local cache or download)
     /// 2. Check for locally cached builds
     /// 3. Build from source if neither is available
-    pub async fn build(&self, target: Option<&Target>) -> LpmResult<PathBuf> {
+    pub async fn build(&self, target: Option<&Target>) -> DepotResult<PathBuf> {
         let default_target = Target::default_target();
         let target = target.unwrap_or(&default_target);
 
@@ -144,7 +144,7 @@ impl RustBuilder {
     }
 
     /// Build using cargo-zigbuild
-    fn build_with_zigbuild(&self, target: &Target) -> LpmResult<()> {
+    fn build_with_zigbuild(&self, target: &Target) -> DepotResult<()> {
         let manifest_path = self
             .build_config
             .manifest
@@ -153,7 +153,7 @@ impl RustBuilder {
             .unwrap_or_else(|| self.project_root.join("Cargo.toml"));
 
         if !manifest_path.exists() {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Cargo.toml not found at {}",
                 manifest_path.display()
             )));
@@ -205,7 +205,7 @@ impl RustBuilder {
     }
 
     /// Build using regular cargo
-    fn build_with_cargo(&self) -> LpmResult<()> {
+    fn build_with_cargo(&self) -> DepotResult<()> {
         let manifest_path = self
             .build_config
             .manifest
@@ -214,7 +214,7 @@ impl RustBuilder {
             .unwrap_or_else(|| self.project_root.join("Cargo.toml"));
 
         if !manifest_path.exists() {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Cargo.toml not found at {}",
                 manifest_path.display()
             )));
@@ -260,7 +260,7 @@ impl RustBuilder {
     }
 
     /// Find the built library file
-    fn find_built_library(&self, target: &Target) -> LpmResult<PathBuf> {
+    fn find_built_library(&self, target: &Target) -> DepotResult<PathBuf> {
         // Determine output directory based on target
         let target_dir = if target.triple == Target::default_target().triple {
             "target/release"
@@ -289,7 +289,7 @@ impl RustBuilder {
             }
         }
 
-        Err(LpmError::Package(
+        Err(DepotError::Package(
             "Could not find built library. Check that the build completed successfully and the module path is correct in package.yaml"
                 .to_string(),
         ))
@@ -299,7 +299,7 @@ impl RustBuilder {
     ///
     /// This is now handled in the CLI layer since build() is async.
     /// Kept for backwards compatibility but delegates to async version.
-    pub async fn build_all_targets(&self) -> LpmResult<Vec<(Target, PathBuf)>> {
+    pub async fn build_all_targets(&self) -> DepotResult<Vec<(Target, PathBuf)>> {
         let mut results = Vec::new();
 
         for target_triple in crate::build::targets::SUPPORTED_TARGETS {
@@ -319,7 +319,7 @@ impl RustBuilder {
         }
 
         if results.is_empty() {
-            return Err(LpmError::Package(
+            return Err(DepotError::Package(
                 "Failed to build for all targets".to_string(),
             ));
         }
@@ -331,12 +331,12 @@ impl RustBuilder {
     ///
     /// This detects the installed Lua version and ensures mlua is built
     /// with the correct feature flags (lua51, lua53, or lua54)
-    pub fn detect_lua_version() -> LpmResult<LuaVersion> {
+    pub fn detect_lua_version() -> DepotResult<LuaVersion> {
         LuaVersionDetector::detect()
     }
 
     /// Get mlua feature flags for the detected Lua version
-    pub fn get_mlua_features() -> LpmResult<String> {
+    pub fn get_mlua_features() -> DepotResult<String> {
         let version = Self::detect_lua_version()?;
         Ok(version.mlua_feature().to_string())
     }
@@ -388,7 +388,7 @@ mod tests {
         let builder = RustBuilder::new(temp.path(), &manifest);
         assert!(builder.is_err());
         match builder {
-            Err(LpmError::Package(msg)) => {
+            Err(DepotError::Package(msg)) => {
                 assert!(msg.contains("not supported") || msg.contains("rust"));
             }
             _ => panic!("Expected Package error"),

@@ -1,6 +1,6 @@
 # Git Hooks Setup
 
-LPM uses git hooks to enforce code quality before commits.
+Depot uses git hooks to enforce code quality before commits.
 
 ## Quick Setup
 

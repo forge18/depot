@@ -1,6 +1,6 @@
 use crate::cache::Cache;
 use crate::config::Config;
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 use crate::di::PackageClient;
 use crate::luarocks::manifest::Manifest;
 use crate::luarocks::rockspec::Rockspec;
@@ -26,25 +26,30 @@ impl LuaRocksClient {
     }
 
     /// Fetch the LuaRocks manifest
-    pub async fn fetch_manifest(&self) -> LpmResult<Manifest> {
+    pub async fn fetch_manifest(&self) -> DepotResult<Manifest> {
         // Check cache first
         let cache_path = self.cache.rockspecs_dir().join("manifest.json");
 
         let content = if self.cache.exists(&cache_path) {
             // Use cached version
             String::from_utf8(self.cache.read(&cache_path)?)
-                .map_err(|e| LpmError::Cache(format!("Failed to read cached manifest: {}", e)))?
+                .map_err(|e| DepotError::Cache(format!("Failed to read cached manifest: {}", e)))?
         } else {
             // Download manifest as JSON
             println!("Downloading LuaRocks manifest...");
             let url = format!("{}?format=json", self.manifest_url);
-            let response = self.client.get(&url).send().await.map_err(LpmError::Http)?;
+            let response = self
+                .client
+                .get(&url)
+                .send()
+                .await
+                .map_err(DepotError::Http)?;
 
             if !response.status().is_success() {
-                return Err(LpmError::Http(response.error_for_status().unwrap_err()));
+                return Err(DepotError::Http(response.error_for_status().unwrap_err()));
             }
 
-            let content = response.text().await.map_err(LpmError::Http)?;
+            let content = response.text().await.map_err(DepotError::Http)?;
 
             // Cache it
             self.cache.write(&cache_path, content.as_bytes())?;
@@ -56,7 +61,7 @@ impl LuaRocksClient {
     }
 
     /// Download a rockspec file
-    pub async fn download_rockspec(&self, url: &str) -> LpmResult<String> {
+    pub async fn download_rockspec(&self, url: &str) -> DepotResult<String> {
         // Check cache first
         let cache_path = self.cache.rockspec_path(
             &extract_package_name_from_url(url),
@@ -65,18 +70,23 @@ impl LuaRocksClient {
 
         if self.cache.exists(&cache_path) {
             return String::from_utf8(self.cache.read(&cache_path)?)
-                .map_err(|e| LpmError::Cache(format!("Failed to read cached rockspec: {}", e)));
+                .map_err(|e| DepotError::Cache(format!("Failed to read cached rockspec: {}", e)));
         }
 
         // Download rockspec
         println!("Downloading rockspec: {}", url);
-        let response = self.client.get(url).send().await.map_err(LpmError::Http)?;
+        let response = self
+            .client
+            .get(url)
+            .send()
+            .await
+            .map_err(DepotError::Http)?;
 
         if !response.status().is_success() {
-            return Err(LpmError::Http(response.error_for_status().unwrap_err()));
+            return Err(DepotError::Http(response.error_for_status().unwrap_err()));
         }
 
-        let content = response.text().await.map_err(LpmError::Http)?;
+        let content = response.text().await.map_err(DepotError::Http)?;
 
         // Cache it
         self.cache.write(&cache_path, content.as_bytes())?;
@@ -85,12 +95,12 @@ impl LuaRocksClient {
     }
 
     /// Parse a rockspec (sandboxed)
-    pub fn parse_rockspec(&self, content: &str) -> LpmResult<Rockspec> {
+    pub fn parse_rockspec(&self, content: &str) -> DepotResult<Rockspec> {
         Rockspec::parse_lua(content)
     }
 
     /// Download a source package
-    pub async fn download_source(&self, url: &str) -> LpmResult<PathBuf> {
+    pub async fn download_source(&self, url: &str) -> DepotResult<PathBuf> {
         // Check cache first
         let cache_path = self.cache.source_path(url);
 
@@ -100,13 +110,18 @@ impl LuaRocksClient {
 
         // Download source
         println!("Downloading source package: {}", url);
-        let response = self.client.get(url).send().await.map_err(LpmError::Http)?;
+        let response = self
+            .client
+            .get(url)
+            .send()
+            .await
+            .map_err(DepotError::Http)?;
 
         if !response.status().is_success() {
-            return Err(LpmError::Http(response.error_for_status().unwrap_err()));
+            return Err(DepotError::Http(response.error_for_status().unwrap_err()));
         }
 
-        let bytes = response.bytes().await.map_err(LpmError::Http)?;
+        let bytes = response.bytes().await.map_err(DepotError::Http)?;
 
         // Cache it
         self.cache.write(&cache_path, &bytes)?;
@@ -118,19 +133,19 @@ impl LuaRocksClient {
 // Implement PackageClient trait
 #[async_trait]
 impl PackageClient for LuaRocksClient {
-    async fn fetch_manifest(&self) -> LpmResult<Manifest> {
+    async fn fetch_manifest(&self) -> DepotResult<Manifest> {
         self.fetch_manifest().await
     }
 
-    async fn download_rockspec(&self, url: &str) -> LpmResult<String> {
+    async fn download_rockspec(&self, url: &str) -> DepotResult<String> {
         self.download_rockspec(url).await
     }
 
-    fn parse_rockspec(&self, content: &str) -> LpmResult<Rockspec> {
+    fn parse_rockspec(&self, content: &str) -> DepotResult<Rockspec> {
         self.parse_rockspec(content)
     }
 
-    async fn download_source(&self, url: &str) -> LpmResult<PathBuf> {
+    async fn download_source(&self, url: &str) -> DepotResult<PathBuf> {
         self.download_source(url).await
     }
 }

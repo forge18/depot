@@ -1,4 +1,4 @@
-use crate::core::{LpmError, LpmResult};
+use crate::core::{DepotError, DepotResult};
 
 /// Supported cross-compilation targets
 pub const SUPPORTED_TARGETS: &[&str] = &[
@@ -17,9 +17,9 @@ pub struct Target {
 }
 
 impl Target {
-    pub fn new(triple: &str) -> LpmResult<Self> {
+    pub fn new(triple: &str) -> DepotResult<Self> {
         if !SUPPORTED_TARGETS.contains(&triple) {
-            return Err(LpmError::Package(format!(
+            return Err(DepotError::Package(format!(
                 "Unsupported target '{}'. Supported targets: {}",
                 triple,
                 SUPPORTED_TARGETS.join(", ")

@@ -1,6 +1,6 @@
-use ::predicates::prelude::*;
 use assert_cmd::Command;
 use assert_fs::{prelude::*, TempDir};
+use predicates::prelude::*;
 use std::path::PathBuf;
 use std::process::Command as StdCommand;
 
@@ -23,7 +23,7 @@ pub mod workflow;
 /// Test context that provides isolated environment for each test
 pub struct TestContext {
     pub temp: TempDir,
-    pub lpm_home: PathBuf,
+    pub depot_home: PathBuf,
 }
 
 impl Default for TestContext {
@@ -42,20 +42,20 @@ impl TestContext {
         std::fs::create_dir_all(&config_dir).unwrap();
         std::fs::create_dir_all(&cache_dir).unwrap();
 
-        let lpm_home = config_dir.join("lpm");
-        std::fs::create_dir_all(&lpm_home).unwrap();
+        let depot_home = config_dir.join("depot");
+        std::fs::create_dir_all(&depot_home).unwrap();
 
-        Self { temp, lpm_home }
+        Self { temp, depot_home }
     }
 
-    /// Create a Command for running lpm with proper environment
-    pub fn lpm(&self) -> Command {
+    /// Create a Command for running depot with proper environment
+    pub fn depot(&self) -> Command {
         #[allow(deprecated)]
-        let mut cmd = Command::cargo_bin("lpm").unwrap();
+        let mut cmd = Command::cargo_bin("depot").unwrap();
         cmd.current_dir(&self.temp);
 
         // Set platform-specific env vars that dirs crate uses
-        // This isolates LPM's config/cache directories to the test temp dir
+        // This isolates Depot's config/cache directories to the test temp dir
         let config_dir = self.temp.child("config").to_path_buf();
         let cache_dir = self.temp.child("cache").to_path_buf();
 
@@ -226,13 +226,13 @@ impl TestContext {
     /// - CI handles overall job timeouts
     ///
     /// For very long operations, use `#[ignore = "reason"]` attribute and run separately.
-    pub fn lpm_with_progress(&self) -> Command {
+    pub fn depot_with_progress(&self) -> Command {
         // Just return the command - let the test framework and CI handle timeouts
         // Individual test timeouts are removed in favor of:
         // 1. CI-level job timeouts (more reliable)
         // 2. #[ignore = "reason"] attribute for slow tests (Rust best practice)
         // 3. Test categorization (fast vs slow)
-        self.lpm()
+        self.depot()
     }
 }
 
@@ -246,7 +246,7 @@ impl Drop for TestContext {
 pub mod constants {
     // File names
     pub const PACKAGE_YAML: &str = "package.yaml";
-    pub const PACKAGE_LOCK: &str = "lpm.lock";
+    pub const PACKAGE_LOCK: &str = "depot.lock";
     pub const WORKSPACE_YAML: &str = "workspace.yaml";
     pub const TEST_LUA: &str = "test.lua";
 
@@ -287,7 +287,7 @@ pub mod constants {
 /// Predicate helpers for common test assertions
 pub mod test_predicates {
     use super::constants;
-    use ::predicates::prelude::*;
+    use predicates::prelude::*;
 
     pub fn contains_success_message() -> impl Predicate<str> {
         predicate::str::contains("✓")
@@ -295,9 +295,9 @@ pub mod test_predicates {
             .or(predicate::str::contains(constants::MSG_INSTALLED))
     }
 
-    /// Check for specific error message patterns based on LPM's actual error format
+    /// Check for specific error message patterns based on Depot's actual error format
     ///
-    /// LPM uses specific error messages like:
+    /// Depot uses specific error messages like:
     /// - "package.yaml not found"
     /// - "not found in manifest"
     /// - "Version conflict"
@@ -334,6 +334,6 @@ mod tests {
     fn test_context_creates_temp_dir() {
         let ctx = TestContext::new();
         assert!(ctx.temp.path().exists());
-        assert!(ctx.lpm_home.exists());
+        assert!(ctx.depot_home.exists());
     }
 }

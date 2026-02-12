@@ -25,7 +25,7 @@ What actually happened.
 
 ## Environment
 
-- **LPM Version**: `lpm --version`
+- **Depot Version**: `depot --version`
 - **OS**: [e.g., macOS 14.0, Ubuntu 22.04, Windows 11]
 - **Lua Version**: `lua -v` (if applicable)
 - **Rust Version**: `rustc --version` (if building from source)

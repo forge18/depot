@@ -8,7 +8,7 @@ fn test_audit_no_vulnerabilities() {
     let ctx = TestContext::new();
 
     // Install a clean package
-    ctx.lpm()
+    ctx.depot()
         .arg("install")
         .arg(format!(
             "{}@{}",
@@ -19,7 +19,7 @@ fn test_audit_no_vulnerabilities() {
         .success();
 
     // Run audit
-    ctx.lpm().arg("audit").assert().success();
+    ctx.depot().arg("audit").assert().success();
 
     // Should not contain vulnerability warnings for clean packages
     // (exact output depends on implementation)
@@ -35,7 +35,7 @@ fn test_audit_with_vulnerabilities() {
     // For now, we'll just verify the command runs
     // In the future, if a vulnerable package is identified, install it here
 
-    ctx.lpm().arg("audit").assert().success();
+    ctx.depot().arg("audit").assert().success();
 
     // If vulnerabilities are found, they should be reported
     // This is a placeholder test that can be enhanced when vulnerable packages are identified
