@@ -232,6 +232,38 @@ build_linux() {
     done
 }
 
+generate_checksums() {
+    local RELEASE_DIR="$1"
+    local VERSION="$2"
+
+    echo ""
+    echo "Generating SHA256 checksums..."
+
+    cd "$RELEASE_DIR"
+
+    # Generate SHA256SUMS file in BSD format
+    > SHA256SUMS  # Create/truncate file
+
+    # Match both lpm-v and depot-v patterns for backward compatibility
+    for file in *-v${VERSION}-*.{tar.gz,pkg,zip}; do
+        if [ -f "$file" ]; then
+            # Use shasum (available on macOS/Linux) with BSD format
+            shasum -a 256 "$file" | awk '{print "SHA256 (" $2 ") = " $1}' >> SHA256SUMS
+        fi
+    done
+
+    cd - > /dev/null
+
+    if [ -s "$RELEASE_DIR/SHA256SUMS" ]; then
+        echo "✓ Created $RELEASE_DIR/SHA256SUMS"
+        echo ""
+        echo "Checksums:"
+        cat "$RELEASE_DIR/SHA256SUMS"
+    else
+        echo "⚠ Warning: No files found for checksum generation"
+    fi
+}
+
 case "$PLATFORM" in
     macos)
         build_macos
@@ -247,6 +279,10 @@ case "$PLATFORM" in
         build_macos || echo "⚠ macOS build failed"
         build_linux || echo "⚠ Linux build failed"
         build_windows || echo "⚠ Windows build failed"
+
+        # Generate checksums after all builds
+        generate_checksums "$RELEASE_DIR" "$VERSION"
+
         echo ""
         echo ""
         echo "Build process completed. Check ${RELEASE_DIR}/ for generated installers."

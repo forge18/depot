@@ -2,11 +2,11 @@ use crate::core::{DepotError, DepotResult};
 use std::env;
 use std::path::PathBuf;
 
-/// Check if lpm is in PATH and provide setup instructions if not
+/// Check if depot is in PATH and provide setup instructions if not
 pub fn check_path_setup() -> DepotResult<()> {
     // Get the current executable path
     // nosemgrep: rust.lang.security.current-exe.current-exe
-    // Justification: Used only to check if lpm is in PATH and provide setup instructions.
+    // Justification: Used only to check if depot is in PATH and provide setup instructions.
     // No security risk as the path is not used for privilege escalation.
     let current_exe = env::current_exe()
         .map_err(|e| DepotError::Path(format!("Failed to get current executable: {}", e)))?;
@@ -16,8 +16,8 @@ pub fn check_path_setup() -> DepotResult<()> {
         .parent()
         .ok_or_else(|| DepotError::Path("Could not get executable directory".to_string()))?;
 
-    // Get cargo bin directory
-    let cargo_bin = get_cargo_bin_dir()?;
+    // Get DEPOT_HOME bin directory
+    let depot_bin = get_depot_bin_dir();
 
     // Check if we can find 'lpm' in PATH by checking PATH environment variable
     // instead of running a subprocess (which would cause infinite recursion)
@@ -35,7 +35,7 @@ pub fn check_path_setup() -> DepotResult<()> {
     };
 
     let exe_dir_normalized = normalize_path(exe_dir);
-    let cargo_bin_normalized = normalize_path(&cargo_bin);
+    let depot_bin_normalized = depot_bin.as_ref().map(|p| normalize_path(p));
 
     // Check if the executable's directory matches any PATH entry
     // PATH uses ':' as separator on Unix, ';' on Windows
@@ -44,7 +44,7 @@ pub fn check_path_setup() -> DepotResult<()> {
     } else {
         ':'
     };
-    let lpm_in_path = path_env
+    let depot_in_path = path_env
         .split(path_separator)
         .filter(|dir| !dir.is_empty()) // Skip empty PATH entries
         .any(|dir| {
@@ -54,62 +54,63 @@ pub fn check_path_setup() -> DepotResult<()> {
             let path_entry_normalized = normalize_path(&path_entry);
 
             // Compare normalized paths
-            path_entry_normalized == exe_dir_normalized
-                || path_entry_normalized == cargo_bin_normalized
+            if path_entry_normalized == exe_dir_normalized {
+                return true;
+            }
+
+            // Also check against DEPOT_HOME/bin if it exists
+            if let Some(ref depot_norm) = depot_bin_normalized {
+                if path_entry_normalized == *depot_norm {
+                    return true;
+                }
+            }
+
+            false
         });
 
-    if lpm_in_path {
+    if depot_in_path {
         return Ok(()); // Already in PATH
     }
 
-    // Check if we're in a common cargo bin location
-    if exe_dir_normalized == cargo_bin_normalized || current_exe.starts_with(&cargo_bin) {
-        // We're installed via cargo, but not in PATH
-        eprintln!("\n⚠️  Depot is not in your PATH");
-        eprintln!("\nTo add Depot to your PATH:");
-
-        if cfg!(target_os = "windows") {
-            eprintln!("  1. Open System Properties > Environment Variables");
-            eprintln!("  2. Add {} to your PATH", cargo_bin.display());
-            eprintln!("\nOr run this in PowerShell (as Administrator):");
-            eprintln!(
-                "  [Environment]::SetEnvironmentVariable(\"Path\", $env:Path + \";{}\", \"User\")",
-                cargo_bin.display()
-            );
-        } else {
-            // Unix-like systems
-            let shell = detect_shell();
-            let profile_file = get_shell_profile(&shell);
-
-            eprintln!("  Add this line to your {}:", profile_file);
-            eprintln!("  export PATH=\"$HOME/.cargo/bin:$PATH\"");
-            eprintln!("\nOr run this command:");
-            eprintln!(
-                "  echo 'export PATH=\"$HOME/.cargo/bin:$PATH\"' >> {}",
-                profile_file
-            );
-            eprintln!("\nThen reload your shell:");
-            eprintln!("  source {}", profile_file);
-        }
-
-        eprintln!("\nCurrent Depot location: {}", current_exe.display());
-    }
+    // Not in PATH - show setup instructions
+    eprintln!("\n⚠️  Depot is not in your PATH");
+    eprintln!("\nTo set up Depot, run:");
+    eprintln!("  depot setup");
+    eprintln!("\nThis will:");
+    eprintln!("  • Install depot to DEPOT_HOME");
+    eprintln!("  • Add DEPOT_HOME/bin to your PATH");
+    eprintln!("  • Configure your shell automatically");
+    eprintln!("\nCurrent Depot location: {}", current_exe.display());
 
     Ok(())
 }
 
-/// Get the cargo bin directory
-fn get_cargo_bin_dir() -> DepotResult<PathBuf> {
-    if cfg!(target_os = "windows") {
-        // Windows: %USERPROFILE%\.cargo\bin
-        let userprofile = env::var("USERPROFILE")
-            .map_err(|_| DepotError::Path("USERPROFILE not set".to_string()))?;
-        Ok(PathBuf::from(userprofile).join(".cargo").join("bin"))
-    } else {
-        // Unix: ~/.cargo/bin
-        let home = env::var("HOME").map_err(|_| DepotError::Path("HOME not set".to_string()))?;
-        Ok(PathBuf::from(home).join(".cargo").join("bin"))
+/// Get the DEPOT_HOME bin directory (returns None if DEPOT_HOME doesn't exist yet)
+fn get_depot_bin_dir() -> Option<PathBuf> {
+    // Check DEPOT_HOME environment variable first
+    if let Ok(depot_home) = env::var("DEPOT_HOME") {
+        return Some(PathBuf::from(depot_home).join("bin"));
     }
+
+    // Check default locations
+    let depot_home = if cfg!(target_os = "windows") {
+        env::var("LOCALAPPDATA")
+            .ok()
+            .map(|p| PathBuf::from(p).join("depot"))
+    } else if cfg!(target_os = "macos") {
+        env::var("HOME").ok().map(|h| {
+            PathBuf::from(h)
+                .join("Library")
+                .join("Application Support")
+                .join("depot")
+        })
+    } else {
+        env::var("HOME")
+            .ok()
+            .map(|h| PathBuf::from(h).join(".local").join("share").join("depot"))
+    };
+
+    depot_home.map(|p| p.join("bin"))
 }
 
 /// Expand path variables like $HOME, ~, etc.
@@ -132,7 +133,7 @@ fn expand_path_vars(path: &str) -> String {
 }
 
 /// Detect the current shell
-fn detect_shell() -> String {
+pub fn detect_shell() -> String {
     env::var("SHELL")
         .unwrap_or_else(|_| "/bin/sh".to_string())
         .rsplit('/')
@@ -142,7 +143,7 @@ fn detect_shell() -> String {
 }
 
 /// Get the shell profile file path
-fn get_shell_profile(shell: &str) -> String {
+pub fn get_shell_profile(shell: &str) -> String {
     match shell {
         "zsh" => "~/.zshrc".to_string(),
         "bash" => "~/.bashrc".to_string(),
@@ -151,62 +152,17 @@ fn get_shell_profile(shell: &str) -> String {
     }
 }
 
-/// Attempt to automatically add cargo bin to PATH (Unix only)
-///
-/// This modifies the user's shell profile file. Use with caution.
-pub fn setup_path_auto() -> DepotResult<()> {
-    if cfg!(target_os = "windows") {
-        return Err(DepotError::Package(
-            "Automatic PATH setup not supported on Windows. Please add manually.".to_string(),
-        ));
-    }
-
-    // Verify cargo bin directory exists (for error checking)
-    get_cargo_bin_dir()?;
-    let shell = detect_shell();
-    let profile_file = get_shell_profile(&shell);
-
-    // Expand ~ to home directory
-    let home = env::var("HOME").map_err(|_| DepotError::Path("HOME not set".to_string()))?;
-    let profile_path = profile_file.replace("~", &home);
-
-    // Check if PATH is already set
-    use std::fs;
-    let profile_content = fs::read_to_string(&profile_path).unwrap_or_else(|_| String::new());
-
-    if profile_content.contains("$HOME/.cargo/bin") || profile_content.contains(".cargo/bin") {
-        println!("✓ PATH already configured in {}", profile_file);
-        return Ok(());
-    }
-
-    // Add PATH export
-    let path_line = "\nexport PATH=\"$HOME/.cargo/bin:$PATH\"\n";
-
-    use std::io::Write;
-    let mut file = fs::OpenOptions::new()
-        .append(true)
-        .create(true)
-        .open(&profile_path)
-        .map_err(|e| DepotError::Path(format!("Failed to open {}: {}", profile_file, e)))?;
-
-    file.write_all(path_line.as_bytes())
-        .map_err(|e| DepotError::Path(format!("Failed to write to {}: {}", profile_file, e)))?;
-
-    println!("✓ Added Depot to PATH in {}", profile_file);
-    println!("  Run 'source {}' to apply changes", profile_file);
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_get_cargo_bin_dir() {
-        let cargo_bin = get_cargo_bin_dir().unwrap();
-        assert!(cargo_bin.to_string_lossy().contains(".cargo"));
-        assert!(cargo_bin.to_string_lossy().contains("bin"));
+    fn test_get_depot_bin_dir() {
+        let depot_bin = get_depot_bin_dir();
+        // May be None if not set up yet, which is fine
+        if let Some(bin_dir) = depot_bin {
+            assert!(bin_dir.to_string_lossy().contains("bin"));
+        }
     }
 
     #[test]
@@ -260,11 +216,13 @@ mod tests {
     }
 
     #[test]
-    fn test_get_cargo_bin_dir_windows() {
-        // This test will work on both platforms, just checks the structure
-        let cargo_bin = get_cargo_bin_dir().unwrap();
-        assert!(cargo_bin.to_string_lossy().contains("cargo"));
-        assert!(cargo_bin.to_string_lossy().contains("bin"));
+    fn test_get_depot_bin_dir_structure() {
+        let depot_bin = get_depot_bin_dir();
+        // May be None if environment variables aren't set
+        if let Some(bin_dir) = depot_bin {
+            assert!(bin_dir.to_string_lossy().contains("depot"));
+            assert!(bin_dir.to_string_lossy().contains("bin"));
+        }
     }
 
     #[test]
@@ -307,25 +265,6 @@ mod tests {
         let shell = detect_shell();
         // Shell should be a valid shell name (not a path)
         assert!(!shell.contains('/'));
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn test_setup_path_auto() {
-        // This test just verifies the function can be called
-        // It may fail or succeed depending on environment
-        let result = setup_path_auto();
-        // Either works or fails gracefully
-        let _ = result;
-    }
-
-    #[test]
-    #[cfg(windows)]
-    fn test_setup_path_auto_windows() {
-        // On Windows, should return an error
-        let result = setup_path_auto();
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Windows"));
     }
 
     #[test]

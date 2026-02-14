@@ -39,4 +39,14 @@ pub enum DepotError {
 
     #[error("WalkDir error: {0}")]
     WalkDir(#[from] walkdir::Error),
+
+    /// A subprocess exited with a non-zero status code.
+    /// The exit code should be propagated to the shell.
+    #[error("Command exited with code {0}")]
+    SubprocessExit(i32),
+
+    /// Security audit found critical or high severity vulnerabilities.
+    /// Should exit with code 1.
+    #[error("Security audit failed: {0}")]
+    AuditFailed(String),
 }

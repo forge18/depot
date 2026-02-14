@@ -37,4 +37,4 @@ pub mod traits;
 
 // Re-export key types
 pub use container::ServiceContainer;
-pub use traits::{CacheProvider, ConfigProvider, PackageClient, SearchProvider};
+pub use traits::{CacheProvider, ConfigProvider, GitHubProvider};

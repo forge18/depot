@@ -1,8 +1,6 @@
 //! Trait definitions for dependency injection
 
 use crate::core::DepotResult;
-use crate::luarocks::manifest::Manifest;
-use crate::luarocks::rockspec::Rockspec;
 use async_trait::async_trait;
 use std::path::{Path, PathBuf};
 
@@ -11,9 +9,6 @@ use std::path::{Path, PathBuf};
 /// Provides read-only access to application configuration.
 /// Implementations should be thread-safe (Send + Sync).
 pub trait ConfigProvider: Send + Sync {
-    /// Get the LuaRocks manifest URL
-    fn luarocks_manifest_url(&self) -> &str;
-
     /// Get the cache directory path
     fn cache_dir(&self) -> DepotResult<PathBuf>;
 
@@ -37,6 +32,18 @@ pub trait ConfigProvider: Send + Sync {
 
     /// Get the list of supported Lua versions (optional)
     fn supported_lua_versions(&self) -> Option<&Vec<String>>;
+
+    /// Get the GitHub API URL
+    fn github_api_url(&self) -> &str;
+
+    /// Get the GitHub token (checks environment variable first, then config)
+    fn github_token(&self) -> Option<String>;
+
+    /// Get the GitHub fallback chain for version resolution
+    fn github_fallback_chain(&self) -> &[String];
+
+    /// Check if strict native code warnings are enabled
+    fn strict_native_code(&self) -> bool;
 }
 
 /// Trait for cache operations
@@ -98,38 +105,51 @@ pub trait CacheProvider: Send + Sync {
     ) -> Option<PathBuf>;
 }
 
-/// Trait for LuaRocks package client operations
+/// Trait for GitHub API operations
 ///
-/// Provides async methods for interacting with the LuaRocks repository,
-/// including downloading rockspecs and source packages.
+/// Provides async methods for interacting with GitHub to fetch releases,
+/// tags, branches, and download source tarballs.
 #[async_trait]
-pub trait PackageClient: Send + Sync {
-    /// Fetch the LuaRocks manifest
-    async fn fetch_manifest(&self) -> DepotResult<Manifest>;
+pub trait GitHubProvider: Send + Sync {
+    /// Get all releases for a repository
+    async fn get_releases(
+        &self,
+        owner: &str,
+        repo: &str,
+    ) -> DepotResult<Vec<crate::github::GitHubRelease>>;
 
-    /// Download a rockspec file from a URL
-    async fn download_rockspec(&self, url: &str) -> DepotResult<String>;
+    /// Get the latest release for a repository
+    async fn get_latest_release(
+        &self,
+        owner: &str,
+        repo: &str,
+    ) -> DepotResult<crate::github::GitHubRelease>;
 
-    /// Parse a rockspec from its Lua content
-    fn parse_rockspec(&self, content: &str) -> DepotResult<Rockspec>;
+    /// Get all tags for a repository
+    async fn get_tags(&self, owner: &str, repo: &str)
+        -> DepotResult<Vec<crate::github::GitHubTag>>;
 
-    /// Download a source package from a URL
-    async fn download_source(&self, url: &str) -> DepotResult<PathBuf>;
-}
+    /// Get the default branch for a repository
+    async fn get_default_branch(&self, owner: &str, repo: &str) -> DepotResult<String>;
 
-/// Trait for package search and discovery
-///
-/// Provides methods for searching packages and constructing
-/// rockspec URLs.
-#[async_trait]
-pub trait SearchProvider: Send + Sync {
-    /// Get the latest version of a package
-    async fn get_latest_version(&self, package_name: &str) -> DepotResult<String>;
+    /// Get file content from a repository at a specific ref
+    async fn get_file_content(
+        &self,
+        owner: &str,
+        repo: &str,
+        path: &str,
+        ref_: &str,
+    ) -> DepotResult<String>;
 
-    /// Construct a rockspec URL for a package
-    fn get_rockspec_url(&self, package_name: &str, version: &str, manifest: Option<&str>)
-        -> String;
+    /// Download a tarball for a specific ref
+    async fn download_tarball(&self, owner: &str, repo: &str, ref_: &str) -> DepotResult<PathBuf>;
 
-    /// Verify that a rockspec URL is accessible
-    async fn verify_rockspec_url(&self, url: &str) -> DepotResult<()>;
+    /// Resolve a version using the fallback chain
+    async fn resolve_version(
+        &self,
+        owner: &str,
+        repo: &str,
+        version_spec: Option<&str>,
+        fallback_chain: &[String],
+    ) -> DepotResult<crate::github::ResolvedVersion>;
 }

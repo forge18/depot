@@ -23,9 +23,17 @@ pub async fn run_in_dir(dir: &Path) -> DepotResult<()> {
     let output = format_report(&report);
     print!("{}", output);
 
-    // Exit with error code if critical/high vulnerabilities found
+    // Return error if critical/high vulnerabilities found
     if report.has_critical() || report.has_high() {
-        std::process::exit(1);
+        let severity = if report.has_critical() {
+            "critical"
+        } else {
+            "high"
+        };
+        return Err(DepotError::AuditFailed(format!(
+            "Found {} severity vulnerabilities",
+            severity
+        )));
     }
 
     Ok(())

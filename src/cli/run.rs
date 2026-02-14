@@ -46,7 +46,10 @@ pub fn run(script_name: String, filter: Vec<String>) -> DepotResult<()> {
 
     // Execute the command with proper path setup
     let exit_code = LuaRunner::exec_command(script_command, RunOptions::default())?;
-    std::process::exit(exit_code);
+    if exit_code != 0 {
+        return Err(DepotError::SubprocessExit(exit_code));
+    }
+    Ok(())
 }
 
 fn run_workspace_filtered(

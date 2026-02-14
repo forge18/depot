@@ -391,7 +391,14 @@ mod tests {
             Err(DepotError::Package(msg)) => {
                 assert!(msg.contains("not supported") || msg.contains("rust"));
             }
-            _ => panic!("Expected Package error"),
+            Ok(builder) => panic!(
+                "Expected Package error for wrong build type 'make', but RustBuilder created: {:?}",
+                builder.build_config
+            ),
+            Err(e) => panic!(
+                "Expected Package error for wrong build type 'make', but got: {:?}",
+                e
+            ),
         }
     }
 

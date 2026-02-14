@@ -120,13 +120,17 @@ mod tests {
 
         let package = LockedPackage {
             version: "1.0.0".to_string(),
-            source: "luarocks".to_string(),
-            rockspec_url: Some("https://example.com/test.rockspec".to_string()),
-            source_url: Some("https://example.com/test.tar.gz".to_string()),
+            repository: "owner/test-package".to_string(),
+            ref_type: "release".to_string(),
+            ref_value: "v1.0.0".to_string(),
+            commit_sha: "abc123".to_string(),
+            tarball_url: "https://api.github.com/repos/owner/test-package/tarball/v1.0.0"
+                .to_string(),
             checksum: "blake3:abc123".to_string(),
-            size: Some(1000),
+            size: 1000,
             dependencies: deps,
             build: None,
+            native_code: None,
         };
         lockfile.add_package("test-pkg".to_string(), package);
 
@@ -141,13 +145,17 @@ mod tests {
         let mut lockfile = Lockfile::new();
         let package = LockedPackage {
             version: "1.0.0".to_string(),
-            source: "luarocks".to_string(),
-            rockspec_url: None,
-            source_url: None,
+            repository: "owner/test-package".to_string(),
+            ref_type: "release".to_string(),
+            ref_value: "v1.0.0".to_string(),
+            commit_sha: "abc123".to_string(),
+            tarball_url: "https://api.github.com/repos/owner/test-package/tarball/v1.0.0"
+                .to_string(),
             checksum: "abc123".to_string(),
-            size: None,
+            size: 1024,
             dependencies: HashMap::new(),
             build: None,
+            native_code: None,
         };
         lockfile.add_package("test-package".to_string(), package);
         assert!(!lockfile.packages.is_empty());
@@ -191,13 +199,17 @@ mod tests {
 
         let package = LockedPackage {
             version: "2.0.0".to_string(),
-            source: "luarocks".to_string(),
-            rockspec_url: Some("https://example.com/pkg.rockspec".to_string()),
-            source_url: Some("https://example.com/pkg.tar.gz".to_string()),
+            repository: "owner/test-package".to_string(),
+            ref_type: "release".to_string(),
+            ref_value: "v2.0.0".to_string(),
+            commit_sha: "abc123".to_string(),
+            tarball_url: "https://api.github.com/repos/owner/test-package/tarball/v2.0.0"
+                .to_string(),
             checksum: "sha256:abc123def456".to_string(),
-            size: Some(12345),
+            size: 12345,
             dependencies: deps,
             build: None,
+            native_code: None,
         };
         lockfile.add_package("parent-pkg".to_string(), package);
 
@@ -303,13 +315,17 @@ mod tests {
         let mut lockfile = Lockfile::new();
         let package = LockedPackage {
             version: "1.0.0".to_string(),
-            source: "luarocks".to_string(),
-            rockspec_url: Some("https://example.com/pkg.rockspec".to_string()),
-            source_url: Some("https://example.com/pkg.tar.gz".to_string()),
+            repository: "owner/test-package".to_string(),
+            ref_type: "release".to_string(),
+            ref_value: "v1.0.0".to_string(),
+            commit_sha: "abc123".to_string(),
+            tarball_url: "https://api.github.com/repos/owner/test-package/tarball/v1.0.0"
+                .to_string(),
             checksum: "blake3:abc123".to_string(),
-            size: Some(1234),
+            size: 1234,
             dependencies: HashMap::new(),
             build: None,
+            native_code: None,
         };
         lockfile.add_package("test-pkg".to_string(), package);
 
@@ -363,13 +379,17 @@ mod tests {
         let mut lockfile = Lockfile::new();
         let package = LockedPackage {
             version: "1.0.0".to_string(),
-            source: "luarocks".to_string(),
-            rockspec_url: Some("https://example.com/pkg.rockspec".to_string()),
-            source_url: Some("https://example.com/pkg.tar.gz".to_string()),
+            repository: "owner/test-package".to_string(),
+            ref_type: "release".to_string(),
+            ref_value: "v1.0.0".to_string(),
+            commit_sha: "abc123".to_string(),
+            tarball_url: "https://api.github.com/repos/owner/test-package/tarball/v1.0.0"
+                .to_string(),
             checksum: "blake3:abc123".to_string(),
-            size: Some(1234),
+            size: 1234,
             dependencies: HashMap::new(),
             build: None,
+            native_code: None,
         };
         lockfile.add_package("test-pkg".to_string(), package);
         lockfile.save(temp.path()).unwrap();

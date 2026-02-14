@@ -324,13 +324,17 @@ mod tests {
         let mut lockfile = Lockfile::new();
         let package = LockedPackage {
             version: "1.0.0".to_string(),
-            source: "luarocks".to_string(),
-            rockspec_url: None,
-            source_url: None,
+            repository: "owner/test-package".to_string(),
+            ref_type: "release".to_string(),
+            ref_value: "v1.0.0".to_string(),
+            commit_sha: "abc123".to_string(),
+            tarball_url: "https://api.github.com/repos/owner/test-package/tarball/v1.0.0"
+                .to_string(),
             checksum: "abc123".to_string(),
-            size: None,
+            size: 1024,
             dependencies: HashMap::new(),
             build: None,
+            native_code: None,
         };
         lockfile.add_package("test-package".to_string(), package);
         lockfile
@@ -354,7 +358,10 @@ mod tests {
                 assert_eq!(name, "new-package");
                 assert_eq!(version, &Version::new(1, 0, 0));
             }
-            _ => panic!("Expected Added change"),
+            other => panic!(
+                "Expected Added change for 'new-package' with no lockfile, but got: {:?}",
+                other
+            ),
         }
     }
 
@@ -370,7 +377,10 @@ mod tests {
                 assert_eq!(name, "test-package");
                 assert_eq!(version, &Version::new(1, 0, 0));
             }
-            _ => panic!("Expected UpToDate change"),
+            other => panic!(
+                "Expected UpToDate change for 'test-package@1.0.0', but got: {:?}",
+                other
+            ),
         }
     }
 
@@ -392,7 +402,10 @@ mod tests {
                 assert_eq!(current_version, &Version::new(1, 0, 0));
                 assert_eq!(new_version, &Version::new(2, 0, 0));
             }
-            _ => panic!("Expected Updated change"),
+            other => panic!(
+                "Expected Updated change for 'test-package' (1.0.0 -> 2.0.0), but got: {:?}",
+                other
+            ),
         }
     }
 
@@ -408,7 +421,10 @@ mod tests {
                 assert_eq!(name, "test-package");
                 assert_eq!(version, &Version::new(1, 0, 0));
             }
-            _ => panic!("Expected Removed change"),
+            other => panic!(
+                "Expected Removed change for 'test-package@1.0.0', but got: {:?}",
+                other
+            ),
         }
     }
 
@@ -446,13 +462,17 @@ mod tests {
         let mut lockfile = Lockfile::new();
         let dev_package = LockedPackage {
             version: "1.0.0".to_string(),
-            source: "luarocks".to_string(),
-            rockspec_url: None,
-            source_url: None,
+            repository: "owner/test-package".to_string(),
+            ref_type: "release".to_string(),
+            ref_value: "v1.0.0".to_string(),
+            commit_sha: "abc123".to_string(),
+            tarball_url: "https://api.github.com/repos/owner/test-package/tarball/v1.0.0"
+                .to_string(),
             checksum: "abc123".to_string(),
-            size: None,
+            size: 1024,
             dependencies: HashMap::new(),
             build: None,
+            native_code: None,
         };
         lockfile.add_package("dev-package".to_string(), dev_package);
 
@@ -471,7 +491,9 @@ mod tests {
                 assert_eq!(current_version, &Version::new(1, 0, 0));
                 assert_eq!(new_version, &Version::new(2, 0, 0));
             }
-            _ => panic!("Expected Updated change for dev dependency"),
+            other => panic!(
+                "Expected Updated change for dev dependency 'dev-package' (1.0.0 -> 2.0.0), but got: {:?}", other
+            ),
         }
     }
 
@@ -608,13 +630,17 @@ mod tests {
         let mut lockfile = Lockfile::new();
         let package = LockedPackage {
             version: "invalid".to_string(),
-            source: "luarocks".to_string(),
-            rockspec_url: None,
-            source_url: None,
+            repository: "owner/test-package".to_string(),
+            ref_type: "release".to_string(),
+            ref_value: "v1.0.0".to_string(),
+            commit_sha: "abc123".to_string(),
+            tarball_url: "https://api.github.com/repos/owner/test-package/tarball/v1.0.0"
+                .to_string(),
             checksum: "abc123".to_string(),
-            size: None,
+            size: 1024,
             dependencies: HashMap::new(),
             build: None,
+            native_code: None,
         };
         lockfile.add_package("test-package".to_string(), package);
         let resolved = HashMap::from([("test-package".to_string(), Version::new(2, 0, 0))]);
@@ -630,7 +656,9 @@ mod tests {
                 assert_eq!(current_version, &Version::new(0, 0, 0));
                 assert_eq!(new_version, &Version::new(2, 0, 0));
             }
-            _ => panic!("Expected Updated change"),
+            other => panic!(
+                "Expected Updated change for 'test-package' with invalid version (0.0.0 -> 2.0.0), but got: {:?}", other
+            ),
         }
     }
 
@@ -684,13 +712,17 @@ mod tests {
         let mut lockfile = Lockfile::new();
         let package = LockedPackage {
             version: "1.0.0".to_string(),
-            source: "luarocks".to_string(),
-            rockspec_url: None,
-            source_url: None,
+            repository: "owner/test-package".to_string(),
+            ref_type: "release".to_string(),
+            ref_value: "v1.0.0".to_string(),
+            commit_sha: "abc123".to_string(),
+            tarball_url: "https://api.github.com/repos/owner/test-package/tarball/v1.0.0"
+                .to_string(),
             checksum: "abc123".to_string(),
-            size: None,
+            size: 1024,
             dependencies: HashMap::new(),
             build: None,
+            native_code: None,
         };
         lockfile.add_package("dev-pkg".to_string(), package);
         let resolved = HashMap::new();

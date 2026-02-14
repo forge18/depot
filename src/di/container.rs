@@ -1,11 +1,10 @@
 //! Service container for dependency injection
 
-use super::traits::{CacheProvider, ConfigProvider, PackageClient, SearchProvider};
+use super::traits::{CacheProvider, ConfigProvider, GitHubProvider};
 use crate::cache::Cache;
 use crate::config::Config;
 use crate::core::DepotResult;
-use crate::luarocks::client::LuaRocksClient;
-use crate::luarocks::search_api::SearchAPI;
+use crate::github::GitHubClient;
 use std::sync::Arc;
 
 /// Service container for dependency injection
@@ -27,7 +26,7 @@ use std::sync::Arc;
 /// # fn example() -> depot::core::DepotResult<()> {
 /// let container = ServiceContainer::new()?;
 /// let config = container.config();
-/// println!("Manifest URL: {}", config.luarocks_manifest_url());
+/// println!("GitHub API URL: {}", config.github_api_url());
 /// # Ok(())
 /// # }
 /// ```
@@ -41,18 +40,16 @@ use std::sync::Arc;
 /// # fn example() {
 /// let config = Arc::new(MockConfigProvider::default());
 /// let cache = Arc::new(MockCacheProvider::new());
-/// let client = Arc::new(MockPackageClient::new());
-/// let search = Arc::new(MockSearchProvider::new());
+/// let github = Arc::new(MockGitHubProvider::new());
 ///
-/// let container = ServiceContainer::with_providers(config, cache, client, search);
+/// let container = ServiceContainer::with_providers(config, cache, github);
 /// # }
 /// ```
 #[derive(Clone)]
 pub struct ServiceContainer {
     pub config: Arc<dyn ConfigProvider>,
     pub cache: Arc<dyn CacheProvider>,
-    pub package_client: Arc<dyn PackageClient>,
-    pub search_provider: Arc<dyn SearchProvider>,
+    pub github: Arc<dyn GitHubProvider>,
 }
 
 impl ServiceContainer {
@@ -61,22 +58,23 @@ impl ServiceContainer {
     /// This creates instances of all core services using the real implementations:
     /// - Loads config from disk
     /// - Creates cache in the configured directory
-    /// - Initializes HTTP clients for LuaRocks
+    /// - Initializes GitHub API client
     ///
     /// # Errors
     ///
     /// Returns an error if:
     /// - Config file cannot be loaded or created
     /// - Cache directory cannot be created
+    /// - GitHub client cannot be initialized
     pub fn new() -> DepotResult<Self> {
         let config = Config::load()?;
         let cache = Cache::new(config.get_cache_dir()?)?;
+        let cache_arc = Arc::new(cache.clone());
 
         Ok(Self {
             config: Arc::new(config.clone()),
-            cache: Arc::new(cache.clone()),
-            package_client: Arc::new(LuaRocksClient::new(&config, cache.clone())),
-            search_provider: Arc::new(SearchAPI::new()),
+            cache: cache_arc.clone(),
+            github: Arc::new(GitHubClient::new(&config, cache_arc)?),
         })
     }
 
@@ -94,28 +92,24 @@ impl ServiceContainer {
     /// # fn example() {
     /// let config = Arc::new(MockConfigProvider::default());
     /// let cache = Arc::new(MockCacheProvider::new());
-    /// let client = Arc::new(MockPackageClient::new());
-    /// let search = Arc::new(MockSearchProvider::new());
+    /// let github = Arc::new(MockGitHubProvider::new());
     ///
     /// let container = ServiceContainer::with_providers(
     ///     config,
     ///     cache,
-    ///     client,
-    ///     search,
+    ///     github,
     /// );
     /// # }
     /// ```
     pub fn with_providers(
         config: Arc<dyn ConfigProvider>,
         cache: Arc<dyn CacheProvider>,
-        package_client: Arc<dyn PackageClient>,
-        search_provider: Arc<dyn SearchProvider>,
+        github: Arc<dyn GitHubProvider>,
     ) -> Self {
         Self {
             config,
             cache,
-            package_client,
-            search_provider,
+            github,
         }
     }
 
@@ -129,14 +123,9 @@ impl ServiceContainer {
         self.cache.as_ref()
     }
 
-    /// Get the package client
-    pub fn package_client(&self) -> &dyn PackageClient {
-        self.package_client.as_ref()
-    }
-
-    /// Get the search provider
-    pub fn search_provider(&self) -> &dyn SearchProvider {
-        self.search_provider.as_ref()
+    /// Get the GitHub provider
+    pub fn github(&self) -> &dyn GitHubProvider {
+        self.github.as_ref()
     }
 }
 
@@ -149,20 +138,15 @@ mod tests {
     fn test_container_with_providers() {
         let config = Arc::new(MockConfigProvider::default());
         let cache = Arc::new(MockCacheProvider::new());
-        let client = Arc::new(MockPackageClient::new());
-        let search = Arc::new(MockSearchProvider::new());
+        let github = Arc::new(MockGitHubProvider::new());
 
-        let container = ServiceContainer::with_providers(
-            config.clone(),
-            cache.clone(),
-            client.clone(),
-            search.clone(),
-        );
+        let container =
+            ServiceContainer::with_providers(config.clone(), cache.clone(), github.clone());
 
         // Verify providers are accessible
         assert_eq!(
-            container.config().luarocks_manifest_url(),
-            "https://luarocks.org/manifests/luarocks/manifest"
+            container.config().github_api_url(),
+            "https://api.github.com"
         );
     }
 
@@ -170,40 +154,30 @@ mod tests {
     fn test_container_accessor_methods() {
         let config = Arc::new(MockConfigProvider::default());
         let cache = Arc::new(MockCacheProvider::new());
-        let client = Arc::new(MockPackageClient::new());
-        let search = Arc::new(MockSearchProvider::new());
+        let github = Arc::new(MockGitHubProvider::new());
 
-        let container = ServiceContainer::with_providers(
-            config.clone(),
-            cache.clone(),
-            client.clone(),
-            search.clone(),
-        );
+        let container =
+            ServiceContainer::with_providers(config.clone(), cache.clone(), github.clone());
 
         // Test all accessor methods return valid trait objects
         let _ = container.config();
         let _ = container.cache();
-        let _ = container.package_client();
-        let _ = container.search_provider();
+        let _ = container.github();
     }
 
     #[test]
     fn test_container_config_provider() {
-        let config = MockConfigProvider {
-            manifest_url: "https://custom.manifest.org".to_string(),
-            ..Default::default()
-        };
+        let config = MockConfigProvider::default();
 
         let container = ServiceContainer::with_providers(
             Arc::new(config),
             Arc::new(MockCacheProvider::new()),
-            Arc::new(MockPackageClient::new()),
-            Arc::new(MockSearchProvider::new()),
+            Arc::new(MockGitHubProvider::new()),
         );
 
         assert_eq!(
-            container.config().luarocks_manifest_url(),
-            "https://custom.manifest.org"
+            container.config().github_api_url(),
+            "https://api.github.com"
         );
     }
 
@@ -211,22 +185,17 @@ mod tests {
     fn test_container_clone() {
         let config = Arc::new(MockConfigProvider::default());
         let cache = Arc::new(MockCacheProvider::new());
-        let client = Arc::new(MockPackageClient::new());
-        let search = Arc::new(MockSearchProvider::new());
+        let github = Arc::new(MockGitHubProvider::new());
 
-        let container = ServiceContainer::with_providers(
-            config.clone(),
-            cache.clone(),
-            client.clone(),
-            search.clone(),
-        );
+        let container =
+            ServiceContainer::with_providers(config.clone(), cache.clone(), github.clone());
 
         let cloned = container.clone();
 
         // Both should have access to the same providers
         assert_eq!(
-            container.config().luarocks_manifest_url(),
-            cloned.config().luarocks_manifest_url()
+            container.config().github_api_url(),
+            cloned.config().github_api_url()
         );
     }
 
@@ -236,8 +205,7 @@ mod tests {
         let container = ServiceContainer::with_providers(
             Arc::new(MockConfigProvider::default()),
             Arc::new(cache),
-            Arc::new(MockPackageClient::new()),
-            Arc::new(MockSearchProvider::new()),
+            Arc::new(MockGitHubProvider::new()),
         );
 
         let provider = container.cache();
@@ -245,35 +213,15 @@ mod tests {
     }
 
     #[test]
-    fn test_container_package_client() {
-        let client = MockPackageClient::new();
-        client.add_rockspec(
-            "https://example.com/test-pkg-1.0.0.rockspec".to_string(),
-            "-- test rockspec".to_string(),
-        );
+    fn test_container_github_provider() {
+        let github = MockGitHubProvider::new();
 
         let container = ServiceContainer::with_providers(
             Arc::new(MockConfigProvider::default()),
             Arc::new(MockCacheProvider::new()),
-            Arc::new(client),
-            Arc::new(MockSearchProvider::new()),
+            Arc::new(github),
         );
 
-        let _ = container.package_client();
-    }
-
-    #[test]
-    fn test_container_search_provider() {
-        let search = MockSearchProvider::new();
-        search.add_latest_version("test-pkg".to_string(), "2.0.0".to_string());
-
-        let container = ServiceContainer::with_providers(
-            Arc::new(MockConfigProvider::default()),
-            Arc::new(MockCacheProvider::new()),
-            Arc::new(MockPackageClient::new()),
-            Arc::new(search),
-        );
-
-        let _ = container.search_provider();
+        let _ = container.github();
     }
 }

@@ -248,6 +248,10 @@ fn exec(depot_home: &Path, version: &str, command: Vec<String>) -> DepotResult<(
     }
 
     let status = Command::new(&lua_bin).args(&command).status()?;
+    let exit_code = status.code().unwrap_or(1);
 
-    std::process::exit(status.code().unwrap_or(1));
+    if exit_code != 0 {
+        return Err(DepotError::SubprocessExit(exit_code));
+    }
+    Ok(())
 }

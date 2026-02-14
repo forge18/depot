@@ -56,7 +56,7 @@ print("Package works!")
         .current_dir(&ctx.temp)
         .arg("test.lua")
         .output()
-        .expect("Failed to run lua");
+        .unwrap_or_else(|e| panic!("Failed to run lua for complete workflow test: {}", e));
 
     assert!(output.status.success());
 

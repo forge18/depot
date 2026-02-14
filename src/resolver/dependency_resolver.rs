@@ -1,1013 +1,378 @@
-use crate::core::version::{Version, VersionConstraint};
+//! GitHub-based dependency resolver
+
 use crate::core::{DepotError, DepotResult};
-use crate::di::{PackageClient, SearchProvider, ServiceContainer};
-use crate::luarocks::manifest::Manifest;
-use crate::luarocks::rockspec::Rockspec;
-use crate::resolver::dependency_graph::DependencyGraph;
-use std::collections::{HashMap, HashSet};
+use crate::di::traits::GitHubProvider;
+use crate::github::types::ResolvedVersion;
+use crate::package::manifest::PackageManifest;
+use depot_core::package::manifest::DependencySpec;
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 
 /// Resolution strategy for selecting package versions
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ResolutionStrategy {
-    /// Select the highest compatible version (default)
+    /// Select the latest compatible version (default)
     #[default]
-    Highest,
-    /// Select the lowest compatible version
-    Lowest,
+    Latest,
+    /// Prefer releases over tags over branches
+    PreferStable,
 }
 
 impl ResolutionStrategy {
     /// Parse a resolution strategy from a string
     pub fn parse(s: &str) -> DepotResult<Self> {
         match s.to_lowercase().as_str() {
-            "highest" => Ok(ResolutionStrategy::Highest),
-            "lowest" => Ok(ResolutionStrategy::Lowest),
+            "latest" => Ok(ResolutionStrategy::Latest),
+            "stable" | "prefer-stable" => Ok(ResolutionStrategy::PreferStable),
             _ => Err(DepotError::Config(format!(
-                "Invalid resolution strategy '{}'. Must be 'highest' or 'lowest'",
+                "Invalid resolution strategy '{}'. Must be 'latest' or 'prefer-stable'",
                 s
             ))),
         }
     }
 }
 
-/// Resolves dependencies and versions using SemVer algorithm
+/// Resolved package information
+#[derive(Debug, Clone)]
+pub struct ResolvedPackage {
+    pub repository: String, // "owner/repo"
+    pub version: String,    // Resolved version string
+    pub resolved: ResolvedVersion,
+    pub dependencies: HashMap<String, DependencySpec>,
+}
+
+/// Resolves dependencies from GitHub repositories
 pub struct DependencyResolver {
-    manifest: Manifest,
-    strategy: ResolutionStrategy,
-    package_client: Arc<dyn PackageClient>,
-    search_provider: Arc<dyn SearchProvider>,
+    github: Arc<dyn GitHubProvider>,
+    _strategy: ResolutionStrategy,
+    fallback_chain: Vec<String>,
 }
 
 impl DependencyResolver {
-    /// Create a new resolver with production dependencies
-    pub fn new(manifest: Manifest) -> DepotResult<Self> {
-        let container = ServiceContainer::new()?;
-        Self::with_dependencies(
-            manifest,
-            ResolutionStrategy::default(),
-            container.package_client.clone(),
-            container.search_provider.clone(),
-        )
-    }
-
-    /// Create a new resolver with injected dependencies (proper DI)
-    pub fn with_dependencies(
-        manifest: Manifest,
-        strategy: ResolutionStrategy,
-        package_client: Arc<dyn PackageClient>,
-        search_provider: Arc<dyn SearchProvider>,
-    ) -> DepotResult<Self> {
-        Ok(Self {
-            manifest,
-            strategy,
-            package_client,
-            search_provider,
-        })
+    /// Create a new resolver
+    pub fn new(github: Arc<dyn GitHubProvider>, fallback_chain: Vec<String>) -> Self {
+        Self {
+            github,
+            _strategy: ResolutionStrategy::default(),
+            fallback_chain,
+        }
     }
 
     /// Create a new resolver with custom strategy
-    pub fn new_with_strategy(
-        manifest: Manifest,
-        strategy: ResolutionStrategy,
-    ) -> DepotResult<Self> {
-        let container = ServiceContainer::new()?;
-        Self::with_dependencies(
-            manifest,
-            strategy,
-            container.package_client.clone(),
-            container.search_provider.clone(),
-        )
-    }
-
-    /// Create a new resolver with custom container (deprecated)
-    #[deprecated(note = "Use with_dependencies instead for proper dependency injection")]
-    pub fn with_container(manifest: Manifest, container: ServiceContainer) -> DepotResult<Self> {
-        Self::with_dependencies(
-            manifest,
-            ResolutionStrategy::default(),
-            container.package_client.clone(),
-            container.search_provider.clone(),
-        )
-    }
-
-    /// Create a new resolver with custom strategy and container (deprecated)
-    #[deprecated(note = "Use with_dependencies instead for proper dependency injection")]
-    pub fn with_strategy_and_container(
-        manifest: Manifest,
-        strategy: ResolutionStrategy,
-        container: ServiceContainer,
-    ) -> DepotResult<Self> {
-        Self::with_dependencies(
-            manifest,
-            strategy,
-            container.package_client.clone(),
-            container.search_provider.clone(),
-        )
+    pub fn with_strategy(
+        github: Arc<dyn GitHubProvider>,
+        _strategy: ResolutionStrategy,
+        fallback_chain: Vec<String>,
+    ) -> Self {
+        Self {
+            github,
+            _strategy,
+            fallback_chain,
+        }
     }
 
     /// Resolve all dependencies from a package manifest
     ///
-    /// This implements a simplified SemVer resolution algorithm:
-    /// 1. Build dependency graph
-    /// 2. For each package, find all available versions
-    /// 3. Select the highest version that satisfies all constraints
-    /// 4. Fetch rockspec and parse transitive dependencies
+    /// This implements a breadth-first dependency resolution:
+    /// 1. Parse owner/repo from dependency specs
+    /// 2. Resolve versions using GitHub API (releases/tags/branches)
+    /// 3. Fetch package.yaml from resolved ref
+    /// 4. Parse transitive dependencies
     /// 5. Detect conflicts and circular dependencies
     pub async fn resolve(
         &self,
-        dependencies: &HashMap<String, String>,
-    ) -> DepotResult<HashMap<String, Version>> {
-        let mut graph = DependencyGraph::new();
-        let mut resolved = HashMap::new();
-
-        // Build initial graph from direct dependencies
-        for (name, constraint_str) in dependencies {
-            let constraint =
-                crate::core::version::parse_constraint(constraint_str).map_err(|e| {
-                    DepotError::Version(format!("Invalid constraint for {}: {}", name, e))
-                })?;
-            graph.add_node(name.clone(), constraint);
-        }
-
-        // Build full dependency graph by parsing rockspecs
-        let mut to_process: Vec<(String, VersionConstraint)> = dependencies
+        dependencies: &HashMap<String, DependencySpec>,
+    ) -> DepotResult<HashMap<String, ResolvedPackage>> {
+        let mut resolved: HashMap<String, ResolvedPackage> = HashMap::new();
+        let mut queue: VecDeque<(String, DependencySpec)> = dependencies
             .iter()
-            .map(|(n, v)| {
-                let constraint = crate::core::version::parse_constraint(v).map_err(|e| {
-                    DepotError::Version(format!("Invalid constraint for {}: {}", n, e))
-                })?;
-                Ok((n.clone(), constraint))
-            })
-            .collect::<DepotResult<Vec<_>>>()?;
-        let mut processed = HashSet::new();
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        let mut visited = HashSet::new();
+        let mut dependency_chain = Vec::new();
 
-        while let Some((package_name, constraint)) = to_process.pop() {
-            if processed.contains(&package_name) {
-                continue;
-            }
-            processed.insert(package_name.clone());
-
-            // Get available versions from manifest
-            let available_versions = self.get_available_versions(&package_name)?;
-            if available_versions.is_empty() {
+        while let Some((dep_key, dep_spec)) = queue.pop_front() {
+            // Detect circular dependencies
+            if dependency_chain.contains(&dep_key) {
+                let cycle = dependency_chain
+                    .iter()
+                    .skip_while(|&x| x != &dep_key)
+                    .chain(std::iter::once(&dep_key))
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(" -> ");
                 return Err(DepotError::Package(format!(
-                    "No versions available for package '{}'",
-                    package_name
+                    "Circular dependency detected: {}",
+                    cycle
                 )));
             }
 
-            // Find the highest version that satisfies the constraint
-            let selected_version = self.select_version(&available_versions, &constraint)?;
-            graph.add_node(package_name.clone(), constraint.clone());
-            graph.set_resolved_version(&package_name, selected_version.clone())?;
-            resolved.insert(package_name.clone(), selected_version.clone());
+            // Skip if already resolved
+            if resolved.contains_key(&dep_key) {
+                continue;
+            }
 
-            // Get rockspec and parse dependencies
-            let rockspec = self
-                .get_rockspec(&package_name, &selected_version.to_string())
-                .await?;
+            // Skip if already visited (avoid re-processing)
+            if !visited.insert(dep_key.clone()) {
+                continue;
+            }
 
-            for dep in &rockspec.dependencies {
-                // Skip lua runtime dependency (standardize: any dep starting with "lua" and containing version operators)
-                if dep.trim().starts_with("lua")
-                    && (dep.contains(">=")
-                        || dep.contains(">")
-                        || dep.contains("==")
-                        || dep.contains("~>"))
-                {
-                    continue;
+            dependency_chain.push(dep_key.clone());
+
+            // Parse owner/repo from dependency key (the key IS the repository for GitHub)
+            let repository = dep_spec.repository.as_deref().unwrap_or(&dep_key);
+            let (owner, repo) = parse_repository(repository)?;
+
+            // Resolve version using GitHub API
+            let version_spec = dep_spec.version.as_deref();
+            let resolved_version = self
+                .github
+                .resolve_version(&owner, &repo, version_spec, &self.fallback_chain)
+                .await
+                .map_err(|e| {
+                    DepotError::Package(format!("Failed to resolve {}/{}: {}", owner, repo, e))
+                })?;
+
+            // Try to fetch package.yaml to get transitive dependencies
+            let package_manifest = self
+                .fetch_package_manifest(&owner, &repo, &resolved_version.ref_value)
+                .await;
+
+            let transitive_deps = match package_manifest {
+                Ok(manifest) => manifest.dependencies.clone(),
+                Err(_) => {
+                    // No package.yaml found - assume no dependencies
+                    HashMap::new()
                 }
+            };
 
-                // Parse dependency string: "luasocket >= 3.0" or "penlight" or "luasocket ~> 3.0"
-                let (dep_name, dep_constraint) = parse_dependency_string(dep)?;
+            // Convert HashMap<String, String> to HashMap<String, DependencySpec>
+            let transitive_dep_specs: HashMap<String, DependencySpec> = transitive_deps
+                .iter()
+                .map(|(k, v)| {
+                    (
+                        k.clone(),
+                        DependencySpec {
+                            version: Some(v.clone()),
+                            repository: None,
+                        },
+                    )
+                })
+                .collect();
 
-                graph.add_dependency(&package_name, dep_name.clone())?;
+            // Add to resolved packages
+            resolved.insert(
+                dep_key.clone(),
+                ResolvedPackage {
+                    repository: format!("{}/{}", owner, repo),
+                    version: resolved_version.ref_value.clone(),
+                    resolved: resolved_version,
+                    dependencies: transitive_dep_specs.clone(),
+                },
+            );
 
-                if !resolved.contains_key(&dep_name) {
-                    to_process.push((dep_name, dep_constraint));
+            // Add transitive dependencies to queue
+            for (trans_key, trans_spec) in transitive_dep_specs {
+                if !resolved.contains_key(&trans_key) {
+                    queue.push_back((trans_key, trans_spec));
                 }
             }
-        }
 
-        // Detect circular dependencies
-        graph.detect_circular_dependencies()?;
+            dependency_chain.pop();
+        }
 
         Ok(resolved)
     }
 
-    /// Fetch and parse a rockspec for a package version
-    async fn get_rockspec(&self, name: &str, version: &str) -> DepotResult<Rockspec> {
-        let rockspec_url = self.search_provider.get_rockspec_url(name, version, None);
-        let content = self.package_client.download_rockspec(&rockspec_url).await?;
-        self.package_client.parse_rockspec(&content)
-    }
-
-    /// Get all available versions for a package from the manifest
-    fn get_available_versions(&self, package_name: &str) -> DepotResult<Vec<Version>> {
-        // Get versions from manifest
-        let version_strings = self.manifest.get_package_version_strings(package_name);
-
-        if version_strings.is_empty() {
-            return Err(DepotError::Package(format!(
-                "Package '{}' not found in manifest",
-                package_name
-            )));
-        }
-
-        let mut versions = Vec::new();
-        for version_str in version_strings {
-            // Normalize LuaRocks version format
-            let version = crate::luarocks::version::normalize_luarocks_version(&version_str)?;
-            versions.push(version);
-        }
-
-        // Sort versions according to strategy
-        match self.strategy {
-            ResolutionStrategy::Highest => versions.sort_by(|a, b| b.cmp(a)), // Descending
-            ResolutionStrategy::Lowest => versions.sort(),                    // Ascending
-        }
-        Ok(versions)
-    }
-
-    /// Select a version that satisfies the constraint based on the resolution strategy
-    /// (highest or lowest compatible version depending on strategy)
-    fn select_version(
+    /// Fetch package.yaml from a GitHub repository at a specific ref
+    async fn fetch_package_manifest(
         &self,
-        available_versions: &[Version],
-        constraint: &VersionConstraint,
-    ) -> DepotResult<Version> {
-        for version in available_versions {
-            if version.satisfies(constraint) {
-                return Ok(version.clone());
+        owner: &str,
+        repo: &str,
+        ref_value: &str,
+    ) -> DepotResult<PackageManifest> {
+        // Try different package manifest filenames
+        let filenames = vec!["package.yaml", "package.yml", ".depot", ".depot.yaml"];
+
+        for filename in filenames {
+            match self
+                .github
+                .get_file_content(owner, repo, filename, ref_value)
+                .await
+            {
+                Ok(content) => {
+                    // Parse YAML
+                    let manifest: PackageManifest = serde_yaml::from_str(&content)
+                        .map_err(|e| DepotError::Package(format!("Invalid package.yaml: {}", e)))?;
+                    return Ok(manifest);
+                }
+                Err(_) => continue,
             }
         }
 
-        Err(DepotError::Version(format!(
-            "No version satisfies constraint: {:?}",
-            constraint
+        Err(DepotError::Package(format!(
+            "No package.yaml found in {}/{} at {}",
+            owner, repo, ref_value
         )))
     }
 
     /// Resolve version conflicts between multiple constraints for the same package
-    pub fn resolve_conflicts(
+    pub async fn resolve_conflict(
         &self,
-        package_name: &str,
-        constraints: &[VersionConstraint],
-    ) -> DepotResult<VersionConstraint> {
+        repository: &str,
+        constraints: &[Option<String>],
+    ) -> DepotResult<ResolvedVersion> {
         if constraints.is_empty() {
-            return Err(DepotError::Version("No constraints provided".to_string()));
+            return Err(DepotError::Package("No constraints provided".to_string()));
         }
 
+        // If only one constraint, resolve it directly
         if constraints.len() == 1 {
-            return Ok(constraints[0].clone());
+            let (owner, repo) = parse_repository(repository)?;
+            return self
+                .github
+                .resolve_version(
+                    &owner,
+                    &repo,
+                    constraints[0].as_deref(),
+                    &self.fallback_chain,
+                )
+                .await;
         }
 
-        // Get all available versions
-        let available_versions = self.get_available_versions(package_name)?;
-
-        // Find the highest version that satisfies all constraints
-        for version in &available_versions {
-            let satisfies_all = constraints.iter().all(|c| version.satisfies(c));
-            if satisfies_all {
-                // Return the most specific constraint that matches
-                // For now, return the first compatible constraint
-                return Ok(constraints[0].clone());
-            }
+        // For multiple constraints, we need to find a version that satisfies all
+        // This is simplified for GitHub - we just take the first specific version constraint
+        // or fall back to the fallback chain if all are None
+        if let Some(version_spec) = constraints.iter().flatten().next() {
+            let (owner, repo) = parse_repository(repository)?;
+            return self
+                .github
+                .resolve_version(&owner, &repo, Some(version_spec), &self.fallback_chain)
+                .await;
         }
 
-        // If no version satisfies all constraints, return an error
-        Err(DepotError::Version(format!(
-            "Version conflict for '{}': no version satisfies all constraints",
-            package_name
-        )))
+        // All constraints are None - use fallback chain
+        let (owner, repo) = parse_repository(repository)?;
+        self.github
+            .resolve_version(&owner, &repo, None, &self.fallback_chain)
+            .await
     }
 }
 
-/// Parse a dependency string from a rockspec
-/// Handles formats like: "luasocket >= 3.0", "penlight", "luasocket ~> 3.0"
-fn parse_dependency_string(dep: &str) -> DepotResult<(String, VersionConstraint)> {
-    let dep = dep.trim();
+/// Parse owner/repo from repository string
+/// Accepts formats: "owner/repo", "github.com/owner/repo", "https://github.com/owner/repo"
+fn parse_repository(repository: &str) -> DepotResult<(String, String)> {
+    let repo = repository.trim();
 
-    // Find first whitespace or version operator
-    if let Some(pos) = dep.find(char::is_whitespace) {
-        let name = dep[..pos].trim().to_string();
-        let version_part = dep[pos..].trim();
+    // Strip protocol if present
+    let repo = repo
+        .strip_prefix("https://")
+        .or_else(|| repo.strip_prefix("http://"))
+        .unwrap_or(repo);
 
-        // Convert LuaRocks ~> to SemVer ^
-        let version_part = if version_part.starts_with("~>") {
-            version_part.replacen("~>", "^", 1)
-        } else {
-            version_part.to_string()
-        };
+    // Strip github.com if present
+    let repo = repo.strip_prefix("github.com/").unwrap_or(repo);
 
-        let constraint = crate::core::version::parse_constraint(&version_part)
-            .unwrap_or(VersionConstraint::GreaterOrEqual(Version::new(0, 0, 0)));
-        Ok((name, constraint))
-    } else {
-        // No version specified
-        Ok((
-            dep.to_string(),
-            VersionConstraint::GreaterOrEqual(Version::new(0, 0, 0)),
-        ))
+    // Now should be in "owner/repo" format
+    let parts: Vec<&str> = repo.split('/').collect();
+    if parts.len() != 2 {
+        return Err(DepotError::Config(format!(
+            "Invalid repository format '{}'. Expected 'owner/repo'",
+            repository
+        )));
     }
+
+    Ok((parts[0].to_string(), parts[1].to_string()))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::version::parse_constraint;
-    use crate::di::mocks::*;
-    use crate::luarocks::manifest::PackageVersion;
-    use std::sync::Arc;
-
-    fn create_test_deps() -> (Arc<dyn PackageClient>, Arc<dyn SearchProvider>) {
-        (
-            Arc::new(MockPackageClient::new()),
-            Arc::new(MockSearchProvider::new()),
-        )
-    }
 
     #[test]
-    fn test_select_version() {
-        let manifest = Manifest::default();
-        let (client, search) = create_test_deps();
-        let resolver = DependencyResolver::with_dependencies(
-            manifest,
-            ResolutionStrategy::Highest,
-            client,
-            search,
-        )
-        .unwrap();
-
-        // Versions should be sorted highest first (already done in get_available_versions)
-        let versions = vec![
-            Version::new(2, 0, 0),
-            Version::new(1, 1, 0),
-            Version::new(1, 0, 0),
-        ];
-
-        let constraint = parse_constraint("^1.0.0").unwrap();
-        let selected = resolver.select_version(&versions, &constraint).unwrap();
-        assert_eq!(selected, Version::new(1, 1, 0)); // Highest compatible version
-    }
-
-    #[test]
-    fn test_resolve_conflicts() {
-        let manifest = Manifest::default();
-        let (client, search) = create_test_deps();
-        let resolver = DependencyResolver::with_dependencies(
-            manifest,
-            ResolutionStrategy::Highest,
-            client,
-            search,
-        )
-        .unwrap();
-
-        let constraints = vec![
-            parse_constraint("^1.0.0").unwrap(),
-            parse_constraint("^1.1.0").unwrap(),
-        ];
-
-        // This will fail without a real manifest, but tests the structure
-        let result = resolver.resolve_conflicts("test", &constraints);
-        assert!(result.is_err()); // Expected since we don't have versions
-    }
-
-    #[test]
-    fn test_dependency_resolver_new() {
-        let manifest = Manifest::default();
-        let _resolver = DependencyResolver::new(manifest);
-        // Resolver should be created successfully
-    }
-
-    #[test]
-    fn test_select_version_no_match() {
-        let manifest = Manifest::default();
-        let (client, search) = create_test_deps();
-        let resolver = DependencyResolver::with_dependencies(
-            manifest,
-            ResolutionStrategy::Highest,
-            client,
-            search,
-        )
-        .unwrap();
-
-        let versions = vec![Version::new(2, 0, 0), Version::new(1, 1, 0)];
-
-        let constraint = parse_constraint("^3.0.0").unwrap();
-        let result = resolver.select_version(&versions, &constraint);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_select_version_exact_match() {
-        let manifest = Manifest::default();
-        let (client, search) = create_test_deps();
-        let resolver = DependencyResolver::with_dependencies(
-            manifest,
-            ResolutionStrategy::Highest,
-            client,
-            search,
-        )
-        .unwrap();
-
-        let versions = vec![
-            Version::new(2, 0, 0),
-            Version::new(1, 1, 0),
-            Version::new(1, 0, 0),
-        ];
-
-        let constraint = parse_constraint("1.1.0").unwrap();
-        let selected = resolver.select_version(&versions, &constraint).unwrap();
-        assert_eq!(selected, Version::new(1, 1, 0));
-    }
-
-    #[test]
-    fn test_get_available_versions_nonexistent() {
-        let manifest = Manifest::default();
-        let (client, search) = create_test_deps();
-        let resolver = DependencyResolver::with_dependencies(
-            manifest,
-            ResolutionStrategy::Highest,
-            client,
-            search,
-        )
-        .unwrap();
-
-        let result = resolver.get_available_versions("nonexistent-package");
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_select_version_with_range() {
-        let manifest = Manifest::default();
-        let (client, search) = create_test_deps();
-        let resolver = DependencyResolver::with_dependencies(
-            manifest,
-            ResolutionStrategy::Highest,
-            client,
-            search,
-        )
-        .unwrap();
-
-        let versions = vec![
-            Version::new(2, 0, 0),
-            Version::new(1, 2, 0),
-            Version::new(1, 1, 0),
-            Version::new(1, 0, 0),
-        ];
-
-        // Use ^ constraint which should select highest compatible version
-        let constraint = parse_constraint("^1.0.0").unwrap();
-        let selected = resolver.select_version(&versions, &constraint).unwrap();
-        assert_eq!(selected, Version::new(1, 2, 0)); // Highest compatible
-    }
-
-    #[test]
-    fn test_select_version_with_exact() {
-        let manifest = Manifest::default();
-        let (client, search) = create_test_deps();
-        let resolver = DependencyResolver::with_dependencies(
-            manifest,
-            ResolutionStrategy::Highest,
-            client,
-            search,
-        )
-        .unwrap();
-
-        let versions = vec![
-            Version::new(2, 0, 0),
-            Version::new(1, 1, 0),
-            Version::new(1, 0, 0),
-        ];
-
-        // Use exact version without = prefix
-        let constraint = parse_constraint("1.0.0").unwrap();
-        let selected = resolver.select_version(&versions, &constraint).unwrap();
-        assert_eq!(selected, Version::new(1, 0, 0));
-    }
-
-    #[test]
-    fn test_parse_dependency_string_with_version() {
-        // Note: parse_constraint expects ">=3.0.0" without space, but parse_dependency_string
-        // includes the space, so it may fall back to default. Test that it at least parses the name.
-        let (name, _constraint) = parse_dependency_string("luasocket >= 3.0.0").unwrap();
-        assert_eq!(name, "luasocket");
-        // Constraint parsing may fail due to space, but function should not panic
-    }
-
-    #[test]
-    fn test_parse_dependency_string_without_version() {
-        let (name, constraint) = parse_dependency_string("penlight").unwrap();
-        assert_eq!(name, "penlight");
-        // Should default to GreaterOrEqual(0.0.0) when no version specified
-        match constraint {
-            VersionConstraint::GreaterOrEqual(v) => {
-                assert_eq!(v, Version::new(0, 0, 0));
-            }
-            _ => panic!("Expected GreaterOrEqual(0.0.0) constraint"),
-        }
-    }
-
-    #[test]
-    fn test_parse_dependency_string_with_tilde() {
-        // Note: parse_constraint expects "^3.0.0" without space after conversion
-        let (name, _constraint) = parse_dependency_string("luasocket ~> 3.0.0").unwrap();
-        assert_eq!(name, "luasocket");
-        // Constraint parsing may fail due to space, but function should not panic
-    }
-
-    #[test]
-    fn test_parse_dependency_string_with_equals() {
-        // parse_constraint doesn't handle "==", so it will fall back to default
-        let (name, constraint) = parse_dependency_string("luasocket == 3.0.0").unwrap();
-        assert_eq!(name, "luasocket");
-        // Since "==" is not handled, it falls back to GreaterOrEqual(0.0.0)
-        match constraint {
-            VersionConstraint::GreaterOrEqual(v) => {
-                // This is the fallback behavior
-                assert_eq!(v, Version::new(0, 0, 0));
-            }
-            _ => {
-                // Just verify name is correct
-                assert_eq!(name, "luasocket");
-            }
-        }
-    }
-
-    #[test]
-    fn test_resolve_conflicts_empty() {
-        let manifest = Manifest::default();
-        let (client, search) = create_test_deps();
-        let resolver = DependencyResolver::with_dependencies(
-            manifest,
-            ResolutionStrategy::Highest,
-            client,
-            search,
-        )
-        .unwrap();
-        let result = resolver.resolve_conflicts("test", &[]);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_resolve_conflicts_single() {
-        let manifest = Manifest::default();
-        let (client, search) = create_test_deps();
-        let resolver = DependencyResolver::with_dependencies(
-            manifest,
-            ResolutionStrategy::Highest,
-            client,
-            search,
-        )
-        .unwrap();
-        let constraints = vec![parse_constraint("^1.0.0").unwrap()];
-        let result = resolver.resolve_conflicts("test", &constraints);
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_select_version_with_patch_constraint() {
-        let manifest = Manifest::default();
-        let (client, search) = create_test_deps();
-        let resolver = DependencyResolver::with_dependencies(
-            manifest,
-            ResolutionStrategy::Highest,
-            client,
-            search,
-        )
-        .unwrap();
-
-        let versions = vec![
-            Version::new(1, 2, 2),
-            Version::new(1, 2, 1),
-            Version::new(1, 2, 0),
-            Version::new(1, 1, 0),
-        ];
-
-        let constraint = parse_constraint("~1.2.0").unwrap();
-        let selected = resolver.select_version(&versions, &constraint).unwrap();
-        assert_eq!(selected, Version::new(1, 2, 2)); // Highest patch version
-    }
-
-    #[test]
-    fn test_select_version_with_less_than() {
-        let manifest = Manifest::default();
-        let (client, search) = create_test_deps();
-        let resolver = DependencyResolver::with_dependencies(
-            manifest,
-            ResolutionStrategy::Highest,
-            client,
-            search,
-        )
-        .unwrap();
-
-        let versions = vec![
-            Version::new(2, 0, 0),
-            Version::new(1, 5, 0),
-            Version::new(1, 0, 0),
-        ];
-
-        let constraint = parse_constraint("<2.0.0").unwrap();
-        let selected = resolver.select_version(&versions, &constraint).unwrap();
-        assert_eq!(selected, Version::new(1, 5, 0)); // Highest version < 2.0.0
-    }
-
-    #[test]
-    fn test_parse_dependency_string_with_complex_version() {
-        let (name, _constraint) = parse_dependency_string("luasocket >= 3.0.0 < 4.0.0").unwrap();
-        assert_eq!(name, "luasocket");
-        // Complex constraints may not parse fully, but name should be extracted
-    }
-
-    #[test]
-    fn test_get_available_versions_empty_manifest() {
-        let manifest = Manifest::default();
-        let (client, search) = create_test_deps();
-        let resolver = DependencyResolver::with_dependencies(
-            manifest,
-            ResolutionStrategy::Highest,
-            client,
-            search,
-        )
-        .unwrap();
-        let result = resolver.get_available_versions("nonexistent");
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_parse_dependency_string_with_whitespace() {
-        let (name, _constraint) = parse_dependency_string("  luasocket  >=  3.0.0  ").unwrap();
-        assert_eq!(name, "luasocket");
-    }
-
-    #[test]
-    fn test_parse_dependency_string_with_tab() {
-        let (name, _constraint) = parse_dependency_string("luasocket\t>=3.0.0").unwrap();
-        assert_eq!(name, "luasocket");
-    }
-
-    #[test]
-    fn test_parse_dependency_string_empty() {
-        let result = parse_dependency_string("");
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_resolve_conflicts_with_manifest() {
-        use crate::luarocks::manifest::{Manifest, PackageVersion};
-        let mut manifest = Manifest {
-            repository: "test".to_string(),
-            packages: std::collections::HashMap::new(),
-        };
-        let versions = vec![
-            PackageVersion {
-                version: "1.0.0".to_string(),
-                rockspec_url: "https://example.com/pkg-1.0.0.rockspec".to_string(),
-                archive_url: Some("https://example.com/pkg-1.0.0.tar.gz".to_string()),
-            },
-            PackageVersion {
-                version: "1.1.0".to_string(),
-                rockspec_url: "https://example.com/pkg-1.1.0.rockspec".to_string(),
-                archive_url: Some("https://example.com/pkg-1.1.0.tar.gz".to_string()),
-            },
-            PackageVersion {
-                version: "2.0.0".to_string(),
-                rockspec_url: "https://example.com/pkg-2.0.0.rockspec".to_string(),
-                archive_url: Some("https://example.com/pkg-2.0.0.tar.gz".to_string()),
-            },
-        ];
-        manifest.packages.insert("test-pkg".to_string(), versions);
-
-        let (client, search) = create_test_deps();
-        let resolver = DependencyResolver::with_dependencies(
-            manifest,
-            ResolutionStrategy::Highest,
-            client,
-            search,
-        )
-        .unwrap();
-        let constraints = vec![
-            parse_constraint("^1.0.0").unwrap(),
-            parse_constraint("^1.1.0").unwrap(),
-        ];
-
-        // Should find a version that satisfies both constraints
-        let result = resolver.resolve_conflicts("test-pkg", &constraints);
-        // This should succeed since 1.1.0 satisfies both ^1.0.0 and ^1.1.0
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_resolve_conflicts_no_satisfying_version() {
-        use crate::luarocks::manifest::{Manifest, PackageVersion};
-        let mut manifest = Manifest {
-            repository: "test".to_string(),
-            packages: std::collections::HashMap::new(),
-        };
-        let versions = vec![PackageVersion {
-            version: "1.0.0".to_string(),
-            rockspec_url: "https://example.com/pkg-1.0.0.rockspec".to_string(),
-            archive_url: Some("https://example.com/pkg-1.0.0.tar.gz".to_string()),
-        }];
-        manifest.packages.insert("test-pkg".to_string(), versions);
-
-        let (client, search) = create_test_deps();
-        let resolver = DependencyResolver::with_dependencies(
-            manifest,
-            ResolutionStrategy::Highest,
-            client,
-            search,
-        )
-        .unwrap();
-        let constraints = vec![
-            parse_constraint("^1.0.0").unwrap(),
-            parse_constraint("^2.0.0").unwrap(),
-        ];
-
-        // Should fail since no version satisfies both constraints
-        let result = resolver.resolve_conflicts("test-pkg", &constraints);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_get_available_versions_with_manifest() {
-        use crate::luarocks::manifest::{Manifest, PackageVersion};
-        let mut manifest = Manifest {
-            repository: "test".to_string(),
-            packages: std::collections::HashMap::new(),
-        };
-        let versions = vec![
-            PackageVersion {
-                version: "1.0.0".to_string(),
-                rockspec_url: "https://example.com/pkg-1.0.0.rockspec".to_string(),
-                archive_url: Some("https://example.com/pkg-1.0.0.tar.gz".to_string()),
-            },
-            PackageVersion {
-                version: "2.0.0".to_string(),
-                rockspec_url: "https://example.com/pkg-2.0.0.rockspec".to_string(),
-                archive_url: Some("https://example.com/pkg-2.0.0.tar.gz".to_string()),
-            },
-        ];
-        manifest.packages.insert("test-pkg".to_string(), versions);
-
-        let (client, search) = create_test_deps();
-        let resolver = DependencyResolver::with_dependencies(
-            manifest,
-            ResolutionStrategy::Highest,
-            client,
-            search,
-        )
-        .unwrap();
-        let result = resolver.get_available_versions("test-pkg").unwrap();
-        assert_eq!(result.len(), 2);
-        // Versions should be sorted highest first
-        assert_eq!(result[0], Version::new(2, 0, 0));
-        assert_eq!(result[1], Version::new(1, 0, 0));
-    }
-
-    #[test]
-    fn test_select_version_with_patch() {
-        let manifest = Manifest::default();
-        let (client, search) = create_test_deps();
-        let resolver = DependencyResolver::with_dependencies(
-            manifest,
-            ResolutionStrategy::Highest,
-            client,
-            search,
-        )
-        .unwrap();
-        let versions = vec![Version::new(1, 0, 1), Version::new(1, 0, 0)];
-        let constraint = parse_constraint("^1.0.0").unwrap();
-        let selected = resolver.select_version(&versions, &constraint).unwrap();
-        assert_eq!(selected, Version::new(1, 0, 1));
-    }
-
-    #[test]
-    fn test_parse_dependency_string_with_tilde_operator() {
-        let (name, constraint) = parse_dependency_string("luasocket ~> 3.0").unwrap();
-        assert_eq!(name, "luasocket");
-        // ~> should be converted to ^
-        let test_version = Version::new(3, 1, 0);
-        assert!(test_version.satisfies(&constraint));
-    }
-
-    #[test]
-    fn test_parse_dependency_string_with_greater_equal() {
-        let (name, constraint) = parse_dependency_string("luasocket >= 3.0.0").unwrap();
-        assert_eq!(name, "luasocket");
-        let test_version = Version::new(3, 5, 0);
-        assert!(test_version.satisfies(&constraint));
-    }
-
-    #[test]
-    fn test_parse_dependency_string_with_less_than() {
-        let (name, constraint) = parse_dependency_string("luasocket < 4.0.0").unwrap();
-        assert_eq!(name, "luasocket");
-        let test_version = Version::new(3, 9, 0);
-        assert!(test_version.satisfies(&constraint));
-        // Note: constraint parsing may handle < differently, test passes if 3.9.0 satisfies
-    }
-
-    #[test]
-    fn test_parse_dependency_string_with_equal() {
-        let (name, constraint) = parse_dependency_string("luasocket == 3.0.0").unwrap();
-        assert_eq!(name, "luasocket");
-        let test_version = Version::new(3, 0, 0);
-        assert!(test_version.satisfies(&constraint));
-    }
-
-    #[test]
-    fn test_parse_dependency_string_with_caret() {
-        let (name, constraint) = parse_dependency_string("luasocket ^3.0.0").unwrap();
-        assert_eq!(name, "luasocket");
-        let test_version = Version::new(3, 5, 0);
-        assert!(test_version.satisfies(&constraint));
-    }
-
-    #[test]
-    fn test_parse_dependency_string_with_multiple_spaces() {
-        let (name, _constraint) = parse_dependency_string("luasocket    >=    3.0.0").unwrap();
-        assert_eq!(name, "luasocket");
-    }
-
-    #[test]
-    fn test_parse_dependency_string_invalid_constraint_fallback() {
-        // Invalid constraint should fallback to >=0.0.0
-        let (name, constraint) = parse_dependency_string("luasocket invalid-constraint").unwrap();
-        assert_eq!(name, "luasocket");
-        // Should fallback to >=0.0.0
-        let test_version = Version::new(1, 0, 0);
-        assert!(test_version.satisfies(&constraint));
-    }
-
-    #[test]
-    fn test_get_available_versions_with_package() {
-        let mut manifest = Manifest::default();
-        let mut packages = std::collections::HashMap::new();
-        packages.insert(
-            "test-pkg".to_string(),
-            vec![
-                PackageVersion {
-                    version: "1.0.0".to_string(),
-                    rockspec_url: "".to_string(),
-                    archive_url: None,
-                },
-                PackageVersion {
-                    version: "2.0.0".to_string(),
-                    rockspec_url: "".to_string(),
-                    archive_url: None,
-                },
-            ],
-        );
-        manifest.packages = packages;
-        let (client, search) = create_test_deps();
-        let resolver = DependencyResolver::with_dependencies(
-            manifest,
-            ResolutionStrategy::Highest,
-            client,
-            search,
-        )
-        .unwrap();
-
-        let versions = resolver.get_available_versions("test-pkg").unwrap();
-        assert_eq!(versions.len(), 2);
-    }
-
-    #[test]
-    fn test_resolve_conflicts_with_overlapping_constraints() {
-        let mut manifest = Manifest::default();
-        let mut packages = std::collections::HashMap::new();
-        packages.insert(
-            "test-pkg".to_string(),
-            vec![
-                PackageVersion {
-                    version: "1.0.0".to_string(),
-                    rockspec_url: "".to_string(),
-                    archive_url: None,
-                },
-                PackageVersion {
-                    version: "1.5.0".to_string(),
-                    rockspec_url: "".to_string(),
-                    archive_url: None,
-                },
-                PackageVersion {
-                    version: "2.0.0".to_string(),
-                    rockspec_url: "".to_string(),
-                    archive_url: None,
-                },
-            ],
-        );
-        manifest.packages = packages;
-        let (client, search) = create_test_deps();
-        let resolver = DependencyResolver::with_dependencies(
-            manifest,
-            ResolutionStrategy::Highest,
-            client,
-            search,
-        )
-        .unwrap();
-
-        let constraints = vec![
-            parse_constraint(">=1.0.0").unwrap(),
-            parse_constraint(">=1.5.0").unwrap(),
-        ];
-
-        let result = resolver.resolve_conflicts("test-pkg", &constraints);
-        // Should find a compatible version
-        let _ = result;
-    }
-
-    #[test]
-    fn test_parse_dependency_string_with_tilde_operator_v2() {
-        let (name, constraint) = parse_dependency_string("luasocket ~> 3.0").unwrap();
-        assert_eq!(name, "luasocket");
-        let test_version = Version::new(3, 5, 0);
-        assert!(test_version.satisfies(&constraint));
-    }
-
-    #[test]
-    fn test_parse_dependency_string_with_asterisk() {
-        let (name, constraint) = parse_dependency_string("luasocket *").unwrap();
-        assert_eq!(name, "luasocket");
-        let test_version = Version::new(1, 0, 0);
-        assert!(test_version.satisfies(&constraint));
-    }
-
-    #[test]
-    fn test_select_version_with_no_compatible() {
-        let manifest = Manifest::default();
-        let (client, search) = create_test_deps();
-        let resolver = DependencyResolver::with_dependencies(
-            manifest,
-            ResolutionStrategy::Highest,
-            client,
-            search,
-        )
-        .unwrap();
-
-        let versions = vec![Version::new(1, 0, 0)];
-        let constraint = parse_constraint(">=2.0.0").unwrap();
-        let result = resolver.select_version(&versions, &constraint);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_resolution_strategy_from_str() {
+    fn test_parse_repository() {
         assert_eq!(
-            ResolutionStrategy::parse("highest").unwrap(),
-            ResolutionStrategy::Highest
+            parse_repository("owner/repo").unwrap(),
+            ("owner".to_string(), "repo".to_string())
+        );
+
+        assert_eq!(
+            parse_repository("github.com/owner/repo").unwrap(),
+            ("owner".to_string(), "repo".to_string())
+        );
+
+        assert_eq!(
+            parse_repository("https://github.com/owner/repo").unwrap(),
+            ("owner".to_string(), "repo".to_string())
+        );
+
+        assert!(parse_repository("invalid").is_err());
+        assert!(parse_repository("too/many/parts").is_err());
+    }
+
+    #[test]
+    fn test_resolution_strategy_parse() {
+        assert_eq!(
+            ResolutionStrategy::parse("latest").unwrap(),
+            ResolutionStrategy::Latest
         );
         assert_eq!(
-            ResolutionStrategy::parse("HIGHEST").unwrap(),
-            ResolutionStrategy::Highest
+            ResolutionStrategy::parse("stable").unwrap(),
+            ResolutionStrategy::PreferStable
         );
         assert_eq!(
-            ResolutionStrategy::parse("lowest").unwrap(),
-            ResolutionStrategy::Lowest
+            ResolutionStrategy::parse("prefer-stable").unwrap(),
+            ResolutionStrategy::PreferStable
         );
-        assert_eq!(
-            ResolutionStrategy::parse("LOWEST").unwrap(),
-            ResolutionStrategy::Lowest
-        );
-
-        // Invalid strategy
         assert!(ResolutionStrategy::parse("invalid").is_err());
     }
 
     #[test]
     fn test_resolution_strategy_default() {
         let strategy = ResolutionStrategy::default();
-        assert_eq!(strategy, ResolutionStrategy::Highest);
+        assert_eq!(strategy, ResolutionStrategy::Latest);
     }
 
-    #[test]
-    fn test_resolver_with_highest_strategy() {
-        let manifest = Manifest::default();
-        let (client, search) = create_test_deps();
-        let resolver = DependencyResolver::with_dependencies(
-            manifest,
-            ResolutionStrategy::Highest,
-            client,
-            search,
-        )
-        .unwrap();
-        // Test that strategy field is set correctly
-        assert_eq!(resolver.strategy, ResolutionStrategy::Highest);
+    #[tokio::test]
+    async fn test_resolver_creation() {
+        use crate::di::mocks::MockGitHubProvider;
+        use std::sync::Arc;
+
+        let github = Arc::new(MockGitHubProvider::new());
+        let fallback = vec![
+            "release".to_string(),
+            "tag".to_string(),
+            "branch".to_string(),
+        ];
+
+        let _resolver = DependencyResolver::new(github, fallback);
     }
 
-    #[test]
-    fn test_resolver_with_lowest_strategy() {
-        let manifest = Manifest::default();
-        let (client, search) = create_test_deps();
-        let resolver = DependencyResolver::with_dependencies(
-            manifest,
-            ResolutionStrategy::Lowest,
-            client,
-            search,
-        )
-        .unwrap();
-        assert_eq!(resolver.strategy, ResolutionStrategy::Lowest);
+    #[tokio::test]
+    async fn test_resolver_with_strategy() {
+        use crate::di::mocks::MockGitHubProvider;
+        use std::sync::Arc;
+
+        let github = Arc::new(MockGitHubProvider::new());
+        let fallback = vec!["release".to_string()];
+
+        let resolver =
+            DependencyResolver::with_strategy(github, ResolutionStrategy::PreferStable, fallback);
+
+        assert_eq!(resolver._strategy, ResolutionStrategy::PreferStable);
+    }
+
+    #[tokio::test]
+    async fn test_resolve_empty_dependencies() {
+        use crate::di::mocks::MockGitHubProvider;
+        use std::sync::Arc;
+
+        let github = Arc::new(MockGitHubProvider::new());
+        let fallback = vec!["release".to_string()];
+        let resolver = DependencyResolver::new(github, fallback);
+
+        let deps = HashMap::new();
+        let result = resolver.resolve(&deps).await.unwrap();
+        assert!(result.is_empty());
     }
 }

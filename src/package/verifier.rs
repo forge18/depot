@@ -49,15 +49,8 @@ impl PackageVerifier {
             )));
         }
 
-        // Get the source file path from cache
-        let source_path = if let Some(source_url) = &package.source_url {
-            self.cache.source_path(source_url)
-        } else {
-            return Err(DepotError::Package(format!(
-                "No source_url for package '{}' in lockfile",
-                package_name
-            )));
-        };
+        // Get the source file path from cache using tarball_url
+        let source_path = self.cache.source_path(&package.tarball_url);
 
         // Check if source file exists
         if !source_path.exists() {
@@ -196,7 +189,13 @@ mod tests {
             Err(DepotError::Package(msg)) => {
                 assert!(msg.contains("Invalid checksum format"));
             }
-            _ => panic!("Expected Package error"),
+            Ok(_) => panic!(
+                "Expected Package error for invalid checksum format, but verification succeeded"
+            ),
+            Err(e) => panic!(
+                "Expected Package error for invalid checksum format, but got: {:?}",
+                e
+            ),
         }
     }
 
@@ -214,7 +213,14 @@ mod tests {
             Err(DepotError::Package(msg)) => {
                 assert!(msg.contains("File not found") || msg.contains("nonexistent"));
             }
-            _ => panic!("Expected Package error"),
+            Ok(_) => panic!(
+                "Expected Package error for missing file at {:?}, but verification succeeded",
+                missing_file
+            ),
+            Err(e) => panic!(
+                "Expected Package error for missing file at {:?}, but got: {:?}",
+                missing_file, e
+            ),
         }
     }
 
@@ -287,13 +293,16 @@ mod tests {
         let checksum = Cache::checksum(&source_path).unwrap();
         let package = LockedPackage {
             version: "1.0.0".to_string(),
-            source: "luarocks".to_string(),
-            rockspec_url: None,
-            source_url: Some(source_url.to_string()),
+            repository: "owner/test-package".to_string(),
+            ref_type: "release".to_string(),
+            ref_value: "v1.0.0".to_string(),
+            commit_sha: "abc123".to_string(),
+            tarball_url: source_url.to_string(),
             checksum,
-            size: None,
+            size: 1024,
             dependencies: std::collections::HashMap::new(),
             build: None,
+            native_code: None,
         };
 
         let result = verifier.verify_package("test-package", &package, temp.path());
@@ -308,13 +317,17 @@ mod tests {
 
         let package = LockedPackage {
             version: "1.0.0".to_string(),
-            source: "luarocks".to_string(),
-            rockspec_url: None,
-            source_url: Some("https://example.com/test.tar.gz".to_string()),
+            repository: "owner/test-package".to_string(),
+            ref_type: "release".to_string(),
+            ref_value: "v1.0.0".to_string(),
+            commit_sha: "abc123".to_string(),
+            tarball_url: "https://api.github.com/repos/owner/test-package/tarball/v1.0.0"
+                .to_string(),
             checksum: "invalid-format".to_string(),
-            size: None,
+            size: 1024,
             dependencies: std::collections::HashMap::new(),
             build: None,
+            native_code: None,
         };
 
         let result = verifier.verify_package("test-package", &package, temp.path());
@@ -323,7 +336,12 @@ mod tests {
             Err(DepotError::Package(msg)) => {
                 assert!(msg.contains("Invalid checksum format"));
             }
-            _ => panic!("Expected Package error"),
+            Ok(_) => panic!(
+                "Expected Package error for invalid checksum 'invalid-format', but verification succeeded"
+            ),
+            Err(e) => panic!(
+                "Expected Package error for invalid checksum 'invalid-format', but got: {:?}", e
+            ),
         }
     }
 
@@ -335,22 +353,33 @@ mod tests {
 
         let package = LockedPackage {
             version: "1.0.0".to_string(),
-            source: "luarocks".to_string(),
-            rockspec_url: None,
-            source_url: None,
+            repository: "owner/test-package".to_string(),
+            ref_type: "release".to_string(),
+            ref_value: "v1.0.0".to_string(),
+            commit_sha: "abc123".to_string(),
+            tarball_url: "https://api.github.com/repos/owner/test-package/tarball/v1.0.0"
+                .to_string(),
             checksum: "sha256:abc123".to_string(),
-            size: None,
+            size: 1024,
             dependencies: std::collections::HashMap::new(),
             build: None,
+            native_code: None,
         };
 
+        // For GitHub packages, the error is "Source file not found" (tarball not downloaded)
         let result = verifier.verify_package("test-package", &package, temp.path());
         assert!(result.is_err());
         match result {
             Err(DepotError::Package(msg)) => {
-                assert!(msg.contains("No source_url"));
+                assert!(msg.contains("Source file not found"));
             }
-            _ => panic!("Expected Package error"),
+            Ok(_) => {
+                panic!("Expected Package error for missing source file, but verification succeeded")
+            }
+            Err(e) => panic!(
+                "Expected Package error for missing source file, but got: {:?}",
+                e
+            ),
         }
     }
 
@@ -374,13 +403,17 @@ mod tests {
 
         let package = LockedPackage {
             version: "1.0.0".to_string(),
-            source: "luarocks".to_string(),
-            rockspec_url: None,
-            source_url: Some("https://example.com/nonexistent.tar.gz".to_string()),
+            repository: "owner/test-package".to_string(),
+            ref_type: "release".to_string(),
+            ref_value: "v1.0.0".to_string(),
+            commit_sha: "abc123".to_string(),
+            tarball_url: "https://api.github.com/repos/owner/test-package/tarball/v1.0.0"
+                .to_string(),
             checksum: "sha256:abc123".to_string(),
-            size: None,
+            size: 1024,
             dependencies: std::collections::HashMap::new(),
             build: None,
+            native_code: None,
         };
 
         let result = verifier.verify_package("test-package", &package, temp.path());
@@ -397,23 +430,29 @@ mod tests {
         let mut lockfile = Lockfile::new();
         let package1 = LockedPackage {
             version: "1.0.0".to_string(),
-            source: "luarocks".to_string(),
-            rockspec_url: None,
-            source_url: None, // Will fail
+            repository: "owner/package1".to_string(),
+            ref_type: "release".to_string(),
+            ref_value: "v1.0.0".to_string(),
+            commit_sha: "abc123".to_string(),
+            tarball_url: "https://api.github.com/repos/owner/package1/tarball/v1.0.0".to_string(),
             checksum: "sha256:abc123".to_string(),
-            size: None,
+            size: 1024,
             dependencies: std::collections::HashMap::new(),
             build: None,
+            native_code: None,
         };
         let package2 = LockedPackage {
             version: "2.0.0".to_string(),
-            source: "luarocks".to_string(),
-            rockspec_url: None,
-            source_url: None, // Will fail
+            repository: "owner/package2".to_string(),
+            ref_type: "release".to_string(),
+            ref_value: "v2.0.0".to_string(),
+            commit_sha: "def456".to_string(),
+            tarball_url: "https://api.github.com/repos/owner/package2/tarball/v2.0.0".to_string(),
             checksum: "sha256:def456".to_string(),
-            size: None,
+            size: 2048,
             dependencies: std::collections::HashMap::new(),
             build: None,
+            native_code: None,
         };
 
         lockfile.add_package("pkg1".to_string(), package1);

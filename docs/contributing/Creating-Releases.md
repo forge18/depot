@@ -127,19 +127,32 @@ git push origin v0.1.0
 
 After the workflow completes:
 
-1. **Check the release:**
+1. **Check the release page:**
    - Go to your repository
    - Click **Releases** (right sidebar)
-   - Find your new release
+   - Find your new release (e.g., v0.1.0)
 
-2. **Verify files:**
-   - Scroll down to "Assets"
-   - You should see all platform binaries listed
+2. **Verify files are present:**
+   - Scroll down to "Assets" section
+   - Confirm all platform binaries are listed
+   - Confirm `SHA256SUMS` file is present
    - Each file should be downloadable
 
-3. **Check release notes:**
-   - The release description should match your CHANGELOG entry
-   - If no changelog entry exists, it will show a default message
+3. **Test checksum verification:**
+
+   ```bash
+   # Download a binary and checksums file
+   wget https://github.com/USER/REPO/releases/download/v0.1.0/lpm-v0.1.0-linux-x86_64.tar.gz
+   wget https://github.com/USER/REPO/releases/download/v0.1.0/SHA256SUMS
+
+   # Verify integrity
+   shasum -c SHA256SUMS
+   # Expected: lpm-v0.1.0-linux-x86_64.tar.gz: OK
+   ```
+
+4. **Verify release notes:**
+   - Check that changelog was extracted correctly
+   - Ensure all relevant changes are documented
 
 ## Troubleshooting
 

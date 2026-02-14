@@ -8,7 +8,7 @@ use std::process::Command as StdCommand;
 pub mod audit;
 pub mod global;
 pub mod init;
-pub mod install;
+// pub mod install; // Removed - LuaRocks specific
 pub mod interactive;
 pub mod list;
 pub mod lua_version;

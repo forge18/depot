@@ -21,24 +21,35 @@ pub struct Lockfile {
 }
 
 fn default_lockfile_version() -> u32 {
-    1
+    2
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LockedPackage {
     pub version: String,
-    pub source: String,
-    #[serde(default)]
-    pub rockspec_url: Option<String>,
-    #[serde(default)]
-    pub source_url: Option<String>,
+
+    // GitHub source (required - no other sources)
+    pub repository: String,  // "owner/repo"
+    pub ref_type: String,    // "release", "tag", "branch", "commit"
+    pub ref_value: String,   // tag name, branch name, or commit SHA
+    pub commit_sha: String,  // Always track exact commit SHA
+    pub tarball_url: String, // GitHub archive URL
+
+    // Integrity
     pub checksum: String,
-    #[serde(default)]
-    pub size: Option<u64>,
+    pub size: u64,
+
+    // Dependencies
     #[serde(default)]
     pub dependencies: HashMap<String, String>,
+
+    // Build info
     #[serde(default)]
     pub build: Option<LockedBuild>,
+
+    // Native code tracking
+    #[serde(default)]
+    pub native_code: Option<NativeCodeInfo>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,6 +60,13 @@ pub struct LockedBuild {
     pub built_at: DateTime<Utc>,
     #[serde(default)]
     pub installed_files: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NativeCodeInfo {
+    pub types: Vec<String>, // ["c", "rust", "cmake"]
+    pub build_required: bool,
+    pub prebuilt_used: bool,
 }
 
 impl Lockfile {
@@ -105,7 +123,7 @@ impl Lockfile {
     /// Create a new empty lockfile
     pub fn new() -> Self {
         Self {
-            version: 1,
+            version: 2,
             generated_at: Utc::now(),
             packages: HashMap::new(),
         }
@@ -141,7 +159,7 @@ mod tests {
     #[test]
     fn test_lockfile_new() {
         let lockfile = Lockfile::new();
-        assert_eq!(lockfile.version, 1);
+        assert_eq!(lockfile.version, 2);
         assert!(lockfile.packages.is_empty());
     }
 
@@ -150,13 +168,16 @@ mod tests {
         let mut lockfile = Lockfile::new();
         let package = LockedPackage {
             version: "1.0.0".to_string(),
-            source: "luarocks".to_string(),
-            rockspec_url: Some("https://example.com/test-1.0.0.rockspec".to_string()),
-            source_url: Some("https://example.com/test-1.0.0.tar.gz".to_string()),
-            checksum: "abc123".to_string(),
-            size: Some(1024),
+            repository: "owner/repo".to_string(),
+            ref_type: "release".to_string(),
+            ref_value: "v1.0.0".to_string(),
+            commit_sha: "abc123def456".to_string(),
+            tarball_url: "https://api.github.com/repos/owner/repo/tarball/v1.0.0".to_string(),
+            checksum: "blake3:abc123".to_string(),
+            size: 1024,
             dependencies: std::collections::HashMap::new(),
             build: None,
+            native_code: None,
         };
 
         lockfile.add_package("test-package".to_string(), package);
@@ -168,13 +189,16 @@ mod tests {
         let mut lockfile = Lockfile::new();
         let package = LockedPackage {
             version: "1.0.0".to_string(),
-            source: "luarocks".to_string(),
-            rockspec_url: None,
-            source_url: None,
-            checksum: "abc123".to_string(),
-            size: None,
+            repository: "owner/repo".to_string(),
+            ref_type: "tag".to_string(),
+            ref_value: "v1.0.0".to_string(),
+            commit_sha: "abc123".to_string(),
+            tarball_url: "https://api.github.com/repos/owner/repo/tarball/v1.0.0".to_string(),
+            checksum: "blake3:abc123".to_string(),
+            size: 2048,
             dependencies: std::collections::HashMap::new(),
             build: None,
+            native_code: None,
         };
 
         lockfile.add_package("test-package".to_string(), package.clone());
@@ -188,13 +212,16 @@ mod tests {
         let mut lockfile = Lockfile::new();
         let package = LockedPackage {
             version: "1.0.0".to_string(),
-            source: "luarocks".to_string(),
-            rockspec_url: None,
-            source_url: None,
-            checksum: "abc123".to_string(),
-            size: None,
+            repository: "owner/repo".to_string(),
+            ref_type: "branch".to_string(),
+            ref_value: "main".to_string(),
+            commit_sha: "def456".to_string(),
+            tarball_url: "https://api.github.com/repos/owner/repo/tarball/main".to_string(),
+            checksum: "blake3:def456".to_string(),
+            size: 4096,
             dependencies: std::collections::HashMap::new(),
             build: None,
+            native_code: None,
         };
 
         assert!(!lockfile.has_package("test-package"));
@@ -208,24 +235,28 @@ mod tests {
         let mut lockfile = Lockfile::new();
         let package = LockedPackage {
             version: "1.0.0".to_string(),
-            source: "luarocks".to_string(),
-            rockspec_url: Some("https://example.com/test-1.0.0.rockspec".to_string()),
-            source_url: Some("https://example.com/test-1.0.0.tar.gz".to_string()),
-            checksum: "abc123".to_string(),
-            size: Some(1024),
+            repository: "owner/repo".to_string(),
+            ref_type: "release".to_string(),
+            ref_value: "v1.0.0".to_string(),
+            commit_sha: "abc123".to_string(),
+            tarball_url: "https://api.github.com/repos/owner/repo/tarball/v1.0.0".to_string(),
+            checksum: "blake3:abc123".to_string(),
+            size: 1024,
             dependencies: std::collections::HashMap::new(),
             build: None,
+            native_code: None,
         };
 
         lockfile.add_package("test-package".to_string(), package);
         lockfile.save(temp.path()).unwrap();
 
         let loaded = Lockfile::load(temp.path()).unwrap().unwrap();
-        assert_eq!(loaded.version, 1);
+        assert_eq!(loaded.version, 2);
         assert!(loaded.has_package("test-package"));
         let loaded_pkg = loaded.get_package("test-package").unwrap();
         assert_eq!(loaded_pkg.version, "1.0.0");
-        assert_eq!(loaded_pkg.checksum, "abc123");
+        assert_eq!(loaded_pkg.checksum, "blake3:abc123");
+        assert_eq!(loaded_pkg.repository, "owner/repo");
     }
 
     #[test]
@@ -238,22 +269,28 @@ mod tests {
     #[test]
     fn test_locked_package_with_dependencies() {
         let mut dependencies = std::collections::HashMap::new();
-        dependencies.insert("dep1".to_string(), "1.0.0".to_string());
-        dependencies.insert("dep2".to_string(), "2.0.0".to_string());
+        dependencies.insert("owner1/dep1".to_string(), "1.0.0".to_string());
+        dependencies.insert("owner2/dep2".to_string(), "2.0.0".to_string());
 
         let package = LockedPackage {
             version: "1.0.0".to_string(),
-            source: "luarocks".to_string(),
-            rockspec_url: None,
-            source_url: None,
-            checksum: "abc123".to_string(),
-            size: None,
+            repository: "owner/repo".to_string(),
+            ref_type: "release".to_string(),
+            ref_value: "v1.0.0".to_string(),
+            commit_sha: "abc123".to_string(),
+            tarball_url: "https://api.github.com/repos/owner/repo/tarball/v1.0.0".to_string(),
+            checksum: "blake3:abc123".to_string(),
+            size: 2048,
             dependencies,
             build: None,
+            native_code: None,
         };
 
         assert_eq!(package.dependencies.len(), 2);
-        assert_eq!(package.dependencies.get("dep1"), Some(&"1.0.0".to_string()));
+        assert_eq!(
+            package.dependencies.get("owner1/dep1"),
+            Some(&"1.0.0".to_string())
+        );
     }
 
     #[test]
@@ -265,19 +302,30 @@ mod tests {
             installed_files: vec!["lib.so".to_string()],
         };
 
+        let native_code = NativeCodeInfo {
+            types: vec!["rust".to_string()],
+            build_required: true,
+            prebuilt_used: false,
+        };
+
         let package = LockedPackage {
             version: "1.0.0".to_string(),
-            source: "luarocks".to_string(),
-            rockspec_url: None,
-            source_url: None,
-            checksum: "abc123".to_string(),
-            size: None,
+            repository: "owner/repo".to_string(),
+            ref_type: "release".to_string(),
+            ref_value: "v1.0.0".to_string(),
+            commit_sha: "abc123".to_string(),
+            tarball_url: "https://api.github.com/repos/owner/repo/tarball/v1.0.0".to_string(),
+            checksum: "blake3:abc123".to_string(),
+            size: 4096,
             dependencies: std::collections::HashMap::new(),
             build: Some(build),
+            native_code: Some(native_code),
         };
 
         assert!(package.build.is_some());
         assert_eq!(package.build.as_ref().unwrap().build_type, "rust");
+        assert!(package.native_code.is_some());
+        assert_eq!(package.native_code.as_ref().unwrap().types, vec!["rust"]);
     }
 
     #[test]
@@ -306,7 +354,7 @@ mod tests {
     #[test]
     fn test_lockfile_default() {
         let lockfile = Lockfile::default();
-        assert_eq!(lockfile.version, 1);
+        assert_eq!(lockfile.version, 2);
         assert!(lockfile.packages.is_empty());
     }
 
@@ -326,17 +374,20 @@ mod tests {
     fn test_lockfile_migration_from_old_name() {
         let temp = TempDir::new().unwrap();
 
-        // Create an old-style lockfile
+        // Create an old-style lockfile (with new GitHub format)
         let mut lockfile = Lockfile::new();
         let package = LockedPackage {
             version: "1.0.0".to_string(),
-            source: "luarocks".to_string(),
-            rockspec_url: None,
-            source_url: None,
-            checksum: "abc123".to_string(),
-            size: None,
+            repository: "owner/repo".to_string(),
+            ref_type: "release".to_string(),
+            ref_value: "v1.0.0".to_string(),
+            commit_sha: "abc123".to_string(),
+            tarball_url: "https://api.github.com/repos/owner/repo/tarball/v1.0.0".to_string(),
+            checksum: "blake3:abc123".to_string(),
+            size: 1024,
             dependencies: std::collections::HashMap::new(),
             build: None,
+            native_code: None,
         };
         lockfile.add_package("test-package".to_string(), package);
 
@@ -371,26 +422,32 @@ mod tests {
         let mut old_lockfile = Lockfile::new();
         let old_package = LockedPackage {
             version: "1.0.0".to_string(),
-            source: "luarocks".to_string(),
-            rockspec_url: None,
-            source_url: None,
-            checksum: "old".to_string(),
-            size: None,
+            repository: "owner/old-repo".to_string(),
+            ref_type: "tag".to_string(),
+            ref_value: "v1.0.0".to_string(),
+            commit_sha: "old123".to_string(),
+            tarball_url: "https://api.github.com/repos/owner/old-repo/tarball/v1.0.0".to_string(),
+            checksum: "blake3:old".to_string(),
+            size: 512,
             dependencies: std::collections::HashMap::new(),
             build: None,
+            native_code: None,
         };
         old_lockfile.add_package("old-package".to_string(), old_package);
 
         let mut new_lockfile = Lockfile::new();
         let new_package = LockedPackage {
             version: "2.0.0".to_string(),
-            source: "luarocks".to_string(),
-            rockspec_url: None,
-            source_url: None,
-            checksum: "new".to_string(),
-            size: None,
+            repository: "owner/new-repo".to_string(),
+            ref_type: "release".to_string(),
+            ref_value: "v2.0.0".to_string(),
+            commit_sha: "new456".to_string(),
+            tarball_url: "https://api.github.com/repos/owner/new-repo/tarball/v2.0.0".to_string(),
+            checksum: "blake3:new".to_string(),
+            size: 2048,
             dependencies: std::collections::HashMap::new(),
             build: None,
+            native_code: None,
         };
         new_lockfile.add_package("new-package".to_string(), new_package);
 

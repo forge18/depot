@@ -331,13 +331,17 @@ mod tests {
             "test-pkg".to_string(),
             LockedPackage {
                 version: "1.2.3".to_string(),
-                source: "luarocks".to_string(),
-                rockspec_url: None,
-                source_url: None,
-                checksum: "abc".to_string(),
-                size: None,
+                repository: "owner/test-pkg".to_string(),
+                ref_type: "release".to_string(),
+                ref_value: "v1.2.3".to_string(),
+                commit_sha: "abc123".to_string(),
+                tarball_url: "https://api.github.com/repos/owner/test-pkg/tarball/v1.2.3"
+                    .to_string(),
+                checksum: "sha256:abc".to_string(),
+                size: 1024,
                 dependencies: HashMap::new(),
                 build: None,
+                native_code: None,
             },
         );
 
@@ -379,13 +383,17 @@ mod tests {
             "parent-pkg".to_string(),
             LockedPackage {
                 version: "1.0.0".to_string(),
-                source: "luarocks".to_string(),
-                rockspec_url: None,
-                source_url: None,
-                checksum: "abc".to_string(),
-                size: None,
+                repository: "owner/parent-pkg".to_string(),
+                ref_type: "release".to_string(),
+                ref_value: "v1.0.0".to_string(),
+                commit_sha: "abc123".to_string(),
+                tarball_url: "https://api.github.com/repos/owner/parent-pkg/tarball/v1.0.0"
+                    .to_string(),
+                checksum: "sha256:abc".to_string(),
+                size: 1024,
                 dependencies: deps,
                 build: None,
+                native_code: None,
             },
         );
 

@@ -31,11 +31,8 @@ pub mod cache;
 /// Package management (install, update, remove).
 pub mod package;
 
-/// LuaRocks integration.
-pub mod luarocks;
-
-/// Dependency resolution.
-pub mod resolver;
+/// GitHub integration for package sources.
+pub mod github;
 
 /// Path setup and Lua runner (re-exported from depot-core).
 pub mod path_setup {
@@ -57,8 +54,8 @@ pub mod lua_version;
 /// Lua version manager.
 pub mod lua_manager;
 
-/// Publishing packages.
-pub mod publish;
-
 /// Dependency injection infrastructure.
 pub mod di;
+
+/// Dependency resolution.
+pub mod resolver;

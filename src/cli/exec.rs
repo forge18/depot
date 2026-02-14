@@ -19,7 +19,10 @@ pub fn run(command: Vec<String>) -> DepotResult<()> {
 
     // Execute command with automatic path setup
     let exit_code = LuaRunner::exec_command(&command_str, RunOptions::default())?;
-    std::process::exit(exit_code);
+    if exit_code != 0 {
+        return Err(depot::core::DepotError::SubprocessExit(exit_code));
+    }
+    Ok(())
 }
 
 #[cfg(test)]

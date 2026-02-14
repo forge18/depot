@@ -162,7 +162,14 @@ mod tests {
             Err(DepotError::Package(msg)) => {
                 assert!(msg.contains("Unsupported format") || msg.contains("unknown"));
             }
-            _ => panic!("Expected Package error"),
+            Ok(path) => panic!(
+                "Expected Package error for unsupported format, but extraction succeeded to: {:?}",
+                path
+            ),
+            Err(e) => panic!(
+                "Expected Package error for unsupported format, but got: {:?}",
+                e
+            ),
         }
     }
 
@@ -189,7 +196,12 @@ mod tests {
             Err(DepotError::Package(msg)) => {
                 assert!(msg.contains("Unknown archive format") || msg.contains("format"));
             }
-            _ => panic!("Expected Package error"),
+            Ok(path) => panic!(
+                "Expected Package error for file with no extension, but extraction succeeded to: {:?}", path
+            ),
+            Err(e) => panic!(
+                "Expected Package error for file with no extension, but got: {:?}", e
+            ),
         }
     }
 

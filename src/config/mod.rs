@@ -6,10 +6,6 @@ use std::fs;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    /// LuaRocks manifest URL
-    #[serde(default = "default_luarocks_manifest_url")]
-    pub luarocks_manifest_url: String,
-
     /// Cache directory (defaults to platform-specific cache directory)
     ///
     /// Default locations:
@@ -62,6 +58,49 @@ pub struct Config {
     /// - Phantom dependency warnings
     #[serde(default = "default_true")]
     pub strict_conflicts: bool,
+
+    /// GitHub configuration for package sources
+    #[serde(default)]
+    pub github: GitHubConfig,
+
+    /// Enable strict native code warnings
+    /// When enabled, requires user acknowledgment before building native code
+    /// When disabled, shows warnings but proceeds automatically
+    #[serde(default = "default_true")]
+    pub strict_native_code: bool,
+
+    /// Custom global installation path (overrides system default)
+    /// When set, global packages will be installed to this directory instead of the system default
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub global_install_path: Option<std::path::PathBuf>,
+}
+
+/// GitHub configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitHubConfig {
+    /// GitHub API URL
+    #[serde(default = "default_github_api_url")]
+    pub api_url: String,
+
+    /// GitHub Personal Access Token for increased rate limits
+    /// Can also be set via GITHUB_TOKEN environment variable
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
+
+    /// Fallback chain for version resolution
+    /// Default: ["release", "tag", "branch"]
+    #[serde(default = "default_fallback_chain")]
+    pub fallback_chain: Vec<String>,
+}
+
+impl Default for GitHubConfig {
+    fn default() -> Self {
+        Self {
+            api_url: default_github_api_url(),
+            token: None,
+            fallback_chain: default_fallback_chain(),
+        }
+    }
 }
 
 fn default_checksum_algorithm() -> String {
@@ -72,8 +111,16 @@ fn default_resolution_strategy() -> String {
     "highest".to_string()
 }
 
-fn default_luarocks_manifest_url() -> String {
-    "https://luarocks.org/manifests/luarocks/manifest".to_string()
+fn default_github_api_url() -> String {
+    "https://api.github.com".to_string()
+}
+
+fn default_fallback_chain() -> Vec<String> {
+    vec![
+        "release".to_string(),
+        "tag".to_string(),
+        "branch".to_string(),
+    ]
 }
 
 fn default_true() -> bool {
@@ -83,7 +130,6 @@ fn default_true() -> bool {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            luarocks_manifest_url: default_luarocks_manifest_url(),
             cache_dir: None,
             verify_checksums: true,
             show_diffs_on_update: true,
@@ -93,6 +139,9 @@ impl Default for Config {
             checksum_algorithm: default_checksum_algorithm(),
             supported_lua_versions: None,
             strict_conflicts: true,
+            github: GitHubConfig::default(),
+            strict_native_code: true,
+            global_install_path: None,
         }
     }
 }
@@ -155,10 +204,6 @@ impl Config {
 
 // Implement ConfigProvider trait
 impl ConfigProvider for Config {
-    fn luarocks_manifest_url(&self) -> &str {
-        &self.luarocks_manifest_url
-    }
-
     fn cache_dir(&self) -> DepotResult<std::path::PathBuf> {
         self.get_cache_dir()
     }
@@ -190,6 +235,25 @@ impl ConfigProvider for Config {
     fn supported_lua_versions(&self) -> Option<&Vec<String>> {
         self.supported_lua_versions.as_ref()
     }
+
+    fn github_api_url(&self) -> &str {
+        &self.github.api_url
+    }
+
+    fn github_token(&self) -> Option<String> {
+        // Check environment variable first, then config
+        std::env::var("GITHUB_TOKEN")
+            .ok()
+            .or_else(|| self.github.token.clone())
+    }
+
+    fn github_fallback_chain(&self) -> &[String] {
+        &self.github.fallback_chain
+    }
+
+    fn strict_native_code(&self) -> bool {
+        self.strict_native_code
+    }
 }
 
 #[cfg(test)]
@@ -200,12 +264,14 @@ mod tests {
     #[test]
     fn test_config_default() {
         let config = Config::default();
-        assert_eq!(
-            config.luarocks_manifest_url,
-            "https://luarocks.org/manifests/luarocks/manifest"
-        );
+        assert_eq!(config.github.api_url, "https://api.github.com");
         assert!(config.verify_checksums);
         assert!(config.show_diffs_on_update);
+        assert!(config.strict_native_code);
+        assert_eq!(
+            config.github.fallback_chain,
+            vec!["release", "tag", "branch"]
+        );
     }
 
     #[test]
@@ -222,7 +288,8 @@ mod tests {
         let loaded_content = std::fs::read_to_string(&config_path).unwrap();
         let loaded: Config = serde_yaml::from_str(&loaded_content).unwrap();
 
-        assert_eq!(config.luarocks_manifest_url, loaded.luarocks_manifest_url);
+        assert_eq!(config.github.api_url, loaded.github.api_url);
+        assert_eq!(config.strict_native_code, loaded.strict_native_code);
     }
 
     #[test]
@@ -259,31 +326,34 @@ mod tests {
     #[test]
     fn test_config_deserialization() {
         let yaml = r#"
-luarocks_manifest_url: https://custom.luarocks.org/manifest
 verify_checksums: false
 show_diffs_on_update: true
 cache_dir: /custom/cache
+github:
+  api_url: https://api.github.com
+  token: ghp_test123
+strict_native_code: false
 "#;
         let config: Config = serde_yaml::from_str(yaml).unwrap();
-        assert_eq!(
-            config.luarocks_manifest_url,
-            "https://custom.luarocks.org/manifest"
-        );
         assert!(!config.verify_checksums);
         assert!(config.show_diffs_on_update);
         assert_eq!(config.cache_dir, Some("/custom/cache".to_string()));
+        assert_eq!(config.github.token, Some("ghp_test123".to_string()));
+        assert!(!config.strict_native_code);
     }
 
     #[test]
     fn test_config_deserialization_defaults() {
         let yaml = r#"
-luarocks_manifest_url: https://custom.luarocks.org/manifest
+cache_dir: /test/cache
 "#;
         let config: Config = serde_yaml::from_str(yaml).unwrap();
         // Should use default values for missing fields
         assert!(config.verify_checksums); // default is true
         assert!(config.show_diffs_on_update);
-        assert!(config.cache_dir.is_none());
+        assert!(config.strict_native_code); // default is true
+        assert_eq!(config.github.api_url, "https://api.github.com");
+        assert_eq!(config.cache_dir, Some("/test/cache".to_string()));
     }
 
     #[test]
@@ -316,9 +386,15 @@ luarocks_manifest_url: https://custom.luarocks.org/manifest
     }
 
     #[test]
-    fn test_default_luarocks_manifest_url() {
-        let url = default_luarocks_manifest_url();
-        assert_eq!(url, "https://luarocks.org/manifests/luarocks/manifest");
+    fn test_default_github_api_url() {
+        let url = default_github_api_url();
+        assert_eq!(url, "https://api.github.com");
+    }
+
+    #[test]
+    fn test_default_fallback_chain() {
+        let chain = default_fallback_chain();
+        assert_eq!(chain, vec!["release", "tag", "branch"]);
     }
 
     #[test]
@@ -348,7 +424,6 @@ luarocks_manifest_url: https://custom.luarocks.org/manifest
     #[test]
     fn test_config_deserialization_with_resolution_strategy() {
         let yaml = r#"
-luarocks_manifest_url: https://custom.luarocks.org/manifest
 resolution_strategy: lowest
 "#;
         let config: Config = serde_yaml::from_str(yaml).unwrap();
@@ -432,10 +507,6 @@ strict_conflicts: true
         let config = Config::default();
         let provider: &dyn ConfigProvider = &config;
 
-        assert_eq!(
-            provider.luarocks_manifest_url(),
-            "https://luarocks.org/manifests/luarocks/manifest"
-        );
         assert!(provider.verify_checksums());
         assert!(provider.show_diffs_on_update());
         assert_eq!(provider.resolution_strategy(), "highest");
@@ -443,6 +514,8 @@ strict_conflicts: true
         assert!(provider.strict_conflicts());
         assert_eq!(provider.lua_binary_source_url(), None);
         assert_eq!(provider.supported_lua_versions(), None);
+        assert_eq!(provider.github_api_url(), "https://api.github.com");
+        assert!(provider.strict_native_code());
     }
 
     #[test]
@@ -460,7 +533,6 @@ strict_conflicts: true
     #[test]
     fn test_config_provider_with_custom_values() {
         let config = Config {
-            luarocks_manifest_url: "https://custom.manifest.org".to_string(),
             verify_checksums: false,
             show_diffs_on_update: false,
             resolution_strategy: "lowest".to_string(),
@@ -468,14 +540,11 @@ strict_conflicts: true
             strict_conflicts: false,
             lua_binary_source_url: Some("https://lua.org/binaries".to_string()),
             supported_lua_versions: Some(vec!["5.1".to_string()]),
+            strict_native_code: false,
             ..Default::default()
         };
         let provider: &dyn ConfigProvider = &config;
 
-        assert_eq!(
-            provider.luarocks_manifest_url(),
-            "https://custom.manifest.org"
-        );
         assert!(!provider.verify_checksums());
         assert!(!provider.show_diffs_on_update());
         assert_eq!(provider.resolution_strategy(), "lowest");
@@ -486,6 +555,7 @@ strict_conflicts: true
             Some("https://lua.org/binaries")
         );
         assert_eq!(provider.supported_lua_versions().unwrap().len(), 1);
+        assert!(!provider.strict_native_code());
     }
 
     #[test]
@@ -510,7 +580,6 @@ strict_conflicts: true
     #[test]
     fn test_config_deserialization_with_checksum_algorithm() {
         let yaml = r#"
-luarocks_manifest_url: https://custom.luarocks.org/manifest
 checksum_algorithm: sha256
 "#;
         let config: Config = serde_yaml::from_str(yaml).unwrap();
@@ -528,7 +597,6 @@ checksum_algorithm: sha256
         lua_sources.insert("5.4".to_string(), "https://example.com".to_string());
 
         let config = Config {
-            luarocks_manifest_url: "https://custom.manifest.org".to_string(),
             cache_dir: Some("/cache".to_string()),
             verify_checksums: false,
             show_diffs_on_update: false,
@@ -538,10 +606,11 @@ checksum_algorithm: sha256
             checksum_algorithm: "sha256".to_string(),
             supported_lua_versions: Some(vec!["5.1".to_string(), "5.4".to_string()]),
             strict_conflicts: false,
+            strict_native_code: false,
+            ..Default::default()
         };
 
         let yaml = serde_yaml::to_string(&config).unwrap();
-        assert!(yaml.contains("luarocks_manifest_url: https://custom.manifest.org"));
         assert!(yaml.contains("cache_dir: /cache"));
         assert!(yaml.contains("verify_checksums: false"));
         assert!(yaml.contains("show_diffs_on_update: false"));

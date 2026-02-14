@@ -1,5 +1,6 @@
 use depot::core::path::find_project_root;
 use depot::core::{DepotError, DepotResult};
+use depot::di::ServiceContainer;
 use depot::package::installer::PackageInstaller;
 use depot::package::manifest::PackageManifest;
 use depot::workspace::{Workspace, WorkspaceFilter};
@@ -48,7 +49,13 @@ fn remove_from_project(project_root: &std::path::Path, package: &str) -> DepotRe
     }
 
     // Actually remove package files from lua_modules/
-    let installer = PackageInstaller::new(project_root)?;
+    let container = ServiceContainer::new()?;
+    let installer = PackageInstaller::new(
+        project_root,
+        container.cache.clone(),
+        container.github.clone(),
+        container.config.github_fallback_chain().to_vec(),
+    )?;
     if installer.is_installed(package) {
         installer.remove_package(package)?;
     }
@@ -119,7 +126,13 @@ fn remove_workspace_filtered(
         }
 
         // Actually remove package files from lua_modules/
-        let installer = PackageInstaller::new(&pkg_dir)?;
+        let container = ServiceContainer::new()?;
+        let installer = PackageInstaller::new(
+            &pkg_dir,
+            container.cache.clone(),
+            container.github.clone(),
+            container.config.github_fallback_chain().to_vec(),
+        )?;
         if installer.is_installed(package) {
             installer.remove_package(package)?;
         }

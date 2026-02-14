@@ -33,6 +33,15 @@ fn default_lua_version() -> String {
     "5.4".to_string()
 }
 
+/// Dependency specification for a package
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DependencySpec {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repository: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BuildConfig {
     #[serde(rename = "type")]

@@ -1,4 +1,4 @@
-use crate::core::path::lua_modules_dir;
+use crate::core::path::{global_dir, lua_modules_dir};
 use crate::core::DepotResult;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -11,11 +11,22 @@ impl PathSetup {
     ///
     /// This generates version-aware loader code that works with both
     /// Lua 5.1 (package.loaders) and Lua 5.2+ (package.searchers)
+    ///
+    /// The loader includes both local (project) and global packages:
+    /// - Local packages take precedence (checked first)
+    /// - Global packages are fallback (checked second)
     pub fn generate_loader(project_root: &Path) -> String {
         let lua_modules = lua_modules_dir(project_root);
         let lua_modules_str = lua_modules.to_string_lossy();
 
-        // Generate platform-specific cpath extension
+        // Try to get global lua_modules path (may fail if not configured)
+        let global_lua_modules = global_dir().ok().map(|p| p.join("lua_modules"));
+        let global_lua_modules_str = global_lua_modules
+            .as_ref()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+
+        // Generate platform-specific cpath extension for local
         let cpath_extension = if cfg!(target_os = "windows") {
             format!("{}/?.dll;{}/?/init.dll", lua_modules_str, lua_modules_str)
         } else if cfg!(target_os = "macos") {
@@ -28,21 +39,56 @@ impl PathSetup {
             format!("{}/?.so;{}/?/init.so", lua_modules_str, lua_modules_str)
         };
 
+        // Generate platform-specific cpath extension for global
+        let global_cpath_extension = if !global_lua_modules_str.is_empty() {
+            if cfg!(target_os = "windows") {
+                format!(
+                    ";{}/?.dll;{}/?/init.dll",
+                    global_lua_modules_str, global_lua_modules_str
+                )
+            } else if cfg!(target_os = "macos") {
+                format!(
+                    ";{}/?.dylib;{}/?/init.dylib",
+                    global_lua_modules_str, global_lua_modules_str
+                )
+            } else {
+                format!(
+                    ";{}/?.so;{}/?/init.so",
+                    global_lua_modules_str, global_lua_modules_str
+                )
+            }
+        } else {
+            String::new()
+        };
+
+        // Generate global path patterns (if global path exists)
+        let global_path_patterns = if !global_lua_modules_str.is_empty() {
+            format!(
+                ";{}/?/init.lua;{}/?.lua;{}/?/?.lua",
+                global_lua_modules_str, global_lua_modules_str, global_lua_modules_str
+            )
+        } else {
+            String::new()
+        };
+
         format!(
             r#"-- Depot Loader Module
--- Automatically sets up package.path and package.cpath for local dependencies
+-- Automatically sets up package.path and package.cpath for local and global dependencies
 -- Compatible with Lua 5.1, 5.3, and 5.4
 
 local lua_modules = [[{}]]
+local global_lua_modules = [[{}]]
 
 -- Add lua_modules to package.path
 -- Supports both ?/init.lua and ?.lua patterns
+-- Local packages are checked first, then global packages
 local lpm_path = lua_modules .. [[/?/init.lua;]] ..
                  lua_modules .. [[/?.lua;]] ..
-                 lua_modules .. [[/?/?.lua;]]
+                 lua_modules .. [[/?/?.lua]]{}
 
 -- Add lua_modules to package.cpath for native modules
-local lpm_cpath = [[{}]]
+-- Local packages are checked first, then global packages
+local lpm_cpath = [[{}]]{}
 
 -- Prepend Depot paths to existing paths
 package.path = lpm_path .. package.path
@@ -56,11 +102,16 @@ package.cpath = lpm_cpath .. package.cpath
 -- Return a table with utility functions
 return {{
     lua_modules = lua_modules,
+    global_lua_modules = global_lua_modules,
     path = lpm_path,
     cpath = lpm_cpath,
 }}
 "#,
-            lua_modules_str, cpath_extension
+            lua_modules_str,
+            global_lua_modules_str,
+            global_path_patterns,
+            cpath_extension,
+            global_cpath_extension
         )
     }
 

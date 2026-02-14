@@ -155,6 +155,37 @@ jobs:
         with:
           path: artifacts
 
+      - name: Generate SHA256 checksums
+        run: |
+          echo "Generating SHA256 checksums for plugin binaries..."
+
+          cd artifacts
+
+          # Create SHA256SUMS file
+          > SHA256SUMS
+
+          # Generate checksums for all downloaded artifacts
+          for dir in watch-*; do
+            if [ -d "$dir" ]; then
+              for file in "$dir"/depot-watch-*.{tar.gz,zip}; do
+                if [ -f "$file" ]; then
+                  # Extract just filename for cleaner output
+                  filename=$(basename "$file")
+                  shasum -a 256 "$file" | awk -v fname="$filename" '{print "SHA256 (" fname ") = " $1}' >> SHA256SUMS
+                fi
+              done
+            fi
+          done
+
+          cd ..
+
+          if [ -s artifacts/SHA256SUMS ]; then
+            echo "✓ Checksums generated:"
+            cat artifacts/SHA256SUMS
+          else
+            echo "⚠ Warning: No checksums generated"
+          fi
+
       - name: Determine plugin and version from tag
         id: tag_info
         env:
@@ -191,19 +222,36 @@ jobs:
           name: depot-watch v${{ steps.tag_info.outputs.version }}
           body: |
             ## depot-watch v${{ steps.tag_info.outputs.version }}
-            
+
             Plugin release for depot-watch.
-            
+
             ### Installation
-            
+
             ```bash
             depot install -g depot-watch
             ```
-            
+
+            ### Verify Download Integrity
+
+            Download `SHA256SUMS` and verify your download:
+
+            **macOS/Linux:**
+            ```bash
+            shasum -c SHA256SUMS
+            ```
+
+            **Windows (PowerShell):**
+            ```powershell
+            $hash = (Get-FileHash depot-watch-windows-x86_64.zip -Algorithm SHA256).Hash.ToLower()
+            Select-String -Pattern $hash SHA256SUMS
+            ```
+
             ### Binaries
-            
+
             Pre-built binaries for all platforms are attached to this release.
-          files: artifacts/watch-*/*
+          files: |
+            artifacts/watch-*/*
+            artifacts/SHA256SUMS
           draft: false
           prerelease: false
         env:

@@ -115,7 +115,12 @@ print("Module type: " .. type(result))
         .current_dir(&ctx.temp)
         .arg("test.lua")
         .output()
-        .expect("Failed to run lua");
+        .unwrap_or_else(|e| {
+            panic!(
+                "Failed to run lua for package {}@{} (require name: '{}'): {}",
+                name, version, require_name, e
+            )
+        });
 
     assert!(output.status.success(), "Lua script failed");
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -179,7 +184,7 @@ print("SUCCESS: All penlight functions work correctly!")
         .current_dir(&ctx.temp)
         .arg("test.lua")
         .output()
-        .expect("Failed to run lua");
+        .unwrap_or_else(|e| panic!("Failed to run lua for penlight functionality test: {}", e));
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -242,7 +247,7 @@ print("SUCCESS: All dependencies loaded correctly!")
         .current_dir(&ctx.temp)
         .arg("test.lua")
         .output()
-        .expect("Failed to run lua");
+        .unwrap_or_else(|e| panic!("Failed to run lua for busted dependencies test: {}", e));
 
     assert!(output.status.success());
 }
@@ -295,7 +300,7 @@ print("SUCCESS: luasocket C extension works!")
         .current_dir(&ctx.temp)
         .arg("test.lua")
         .output()
-        .expect("Failed to run lua");
+        .unwrap_or_else(|e| panic!("Failed to run lua for luasocket C extension test: {}", e));
 
     assert!(output.status.success());
 }
