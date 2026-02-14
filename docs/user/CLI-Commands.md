@@ -538,10 +538,6 @@ Once installed, plugins are available as subcommands:
 # depot-watch plugin
 depot watch [options]
 depot watch dev
-
-# depot-bundle plugin
-depot bundle [options]
-depot bundle watch
 ```
 
 See the [Plugins documentation](Plugins.md) for detailed information about available plugins and their usage.

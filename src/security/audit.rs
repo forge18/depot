@@ -1,6 +1,7 @@
 use crate::core::{DepotError, DepotResult};
 use crate::package::lockfile::Lockfile;
 use crate::security::advisory::AdvisoryDatabase;
+use crate::security::osv::OsvApi;
 use crate::security::vulnerability::{Severity, Vulnerability, VulnerabilityReport};
 use std::path::Path;
 
@@ -16,14 +17,24 @@ impl SecurityAuditor {
         Ok(Self { advisory_db })
     }
 
-    /// Create a new security auditor with OSV integration
+    /// Create a new security auditor with OSV integration.
     ///
-    /// This will query OSV for vulnerabilities in the provided packages.
-    pub async fn new_with_osv(packages: &[String]) -> DepotResult<Self> {
+    /// Queries OSV for vulnerabilities in the provided packages (name + version pairs).
+    pub async fn new_with_osv(osv: &OsvApi, packages: &[(String, String)]) -> DepotResult<Self> {
         let mut advisory_db = AdvisoryDatabase::load()?;
 
-        // Load from OSV
-        advisory_db.load_from_osv_batch(packages).await?;
+        for (name, version) in packages {
+            match osv.query_package(name, version).await {
+                Ok(vulns) => {
+                    for vuln in vulns {
+                        advisory_db.add_advisory(vuln);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Warning: Failed to query OSV for {}: {}", name, e);
+                }
+            }
+        }
 
         Ok(Self { advisory_db })
     }
@@ -36,7 +47,6 @@ impl SecurityAuditor {
 
     /// Run a security audit with OSV integration
     pub async fn audit_project_with_osv(project_root: &Path) -> DepotResult<VulnerabilityReport> {
-        // Load lockfile to get package names
         let lockfile =
             crate::package::lockfile::Lockfile::load(project_root)?.ok_or_else(|| {
                 DepotError::Package(format!(
@@ -45,15 +55,19 @@ impl SecurityAuditor {
                 ))
             })?;
 
-        let package_names: Vec<String> = lockfile.packages.keys().cloned().collect();
+        let packages: Vec<(String, String)> = lockfile
+            .packages
+            .iter()
+            .map(|(name, info)| (name.clone(), info.version.clone()))
+            .collect();
 
-        let auditor = Self::new_with_osv(&package_names).await?;
+        let osv = OsvApi::new();
+        let auditor = Self::new_with_osv(&osv, &packages).await?;
         auditor.audit(project_root)
     }
 
     /// Perform security audit
     fn audit(&self, project_root: &Path) -> DepotResult<VulnerabilityReport> {
-        // Load lockfile to get installed packages
         let lockfile = Lockfile::load(project_root)?.ok_or_else(|| {
             DepotError::Package(format!(
                 "No {} found. Run 'depot install' first.",
@@ -64,11 +78,9 @@ impl SecurityAuditor {
         let mut report = VulnerabilityReport::new();
         report.package_count = lockfile.packages.len();
 
-        // Check each package for vulnerabilities
         for (package_name, package_info) in &lockfile.packages {
             report.checked_packages += 1;
 
-            // Check against advisory database
             let vulnerabilities = self
                 .advisory_db
                 .check_package(package_name, &package_info.version);
@@ -99,8 +111,8 @@ pub fn format_report(report: &VulnerabilityReport) -> String {
     let mut output = String::new();
 
     if report.is_empty() {
-        writeln!(output, "✓ No known vulnerabilities found").unwrap();
-        writeln!(output, "  Checked {} package(s)", report.checked_packages).unwrap();
+        let _ = writeln!(output, "✓ No known vulnerabilities found");
+        let _ = writeln!(output, "  Checked {} package(s)", report.checked_packages);
         return output;
     }
 
@@ -111,94 +123,89 @@ pub fn format_report(report: &VulnerabilityReport) -> String {
     // Count by severity
     let counts = report.count_by_severity();
 
-    writeln!(output, "\n🚨 Security Audit Results").unwrap();
-    writeln!(output, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━").unwrap();
-    writeln!(output, "Checked: {} package(s)", report.checked_packages).unwrap();
-    writeln!(
+    let _ = writeln!(output, "\n🚨 Security Audit Results");
+    let _ = writeln!(output, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    let _ = writeln!(output, "Checked: {} package(s)", report.checked_packages);
+    let _ = writeln!(
         output,
         "Found: {} vulnerability(ies)",
         report.vulnerabilities.len()
-    )
-    .unwrap();
-    writeln!(output).unwrap();
+    );
+    let _ = writeln!(output);
 
     // Summary by severity
     if let Some(count) = counts.get(&Severity::Critical) {
-        writeln!(
+        let _ = writeln!(
             output,
             "  {} Critical: {}",
             Severity::Critical.emoji(),
             count
-        )
-        .unwrap();
+        );
     }
     if let Some(count) = counts.get(&Severity::High) {
-        writeln!(output, "  {} High: {}", Severity::High.emoji(), count).unwrap();
+        let _ = writeln!(output, "  {} High: {}", Severity::High.emoji(), count);
     }
     if let Some(count) = counts.get(&Severity::Medium) {
-        writeln!(output, "  {} Medium: {}", Severity::Medium.emoji(), count).unwrap();
+        let _ = writeln!(output, "  {} Medium: {}", Severity::Medium.emoji(), count);
     }
     if let Some(count) = counts.get(&Severity::Low) {
-        writeln!(output, "  {} Low: {}", Severity::Low.emoji(), count).unwrap();
+        let _ = writeln!(output, "  {} Low: {}", Severity::Low.emoji(), count);
     }
 
-    writeln!(output).unwrap();
-    writeln!(output, "Vulnerabilities:").unwrap();
-    writeln!(output).unwrap();
+    let _ = writeln!(output);
+    let _ = writeln!(output, "Vulnerabilities:");
+    let _ = writeln!(output);
 
     // List each vulnerability
     for (i, vuln) in vulns.iter().enumerate() {
-        writeln!(
+        let _ = writeln!(
             output,
             "{}. {} {} {}",
             i + 1,
             vuln.severity.emoji(),
             vuln.severity.as_str(),
             vuln.package
-        )
-        .unwrap();
-        writeln!(
+        );
+        let _ = writeln!(
             output,
             "   Package: {}@{}",
             vuln.package, vuln.affected_versions
-        )
-        .unwrap();
-        writeln!(output, "   Title: {}", vuln.title).unwrap();
+        );
+        let _ = writeln!(output, "   Title: {}", vuln.title);
 
         if let Some(ref cve) = vuln.cve {
-            writeln!(output, "   CVE: {}", cve).unwrap();
+            let _ = writeln!(output, "   CVE: {}", cve);
         }
 
         if let Some(ref fixed_in) = vuln.fixed_in {
-            writeln!(output, "   Fixed in: {}", fixed_in).unwrap();
+            let _ = writeln!(output, "   Fixed in: {}", fixed_in);
         }
 
-        writeln!(output, "   Description: {}", vuln.description).unwrap();
+        let _ = writeln!(output, "   Description: {}", vuln.description);
 
         if !vuln.references.is_empty() {
-            writeln!(output, "   References:").unwrap();
+            let _ = writeln!(output, "   References:");
             for ref_link in &vuln.references {
-                writeln!(output, "     - {}", ref_link).unwrap();
+                let _ = writeln!(output, "     - {}", ref_link);
             }
         }
 
-        writeln!(output).unwrap();
+        let _ = writeln!(output);
     }
 
     // Recommendations
-    writeln!(output, "Recommendations:").unwrap();
+    let _ = writeln!(output, "Recommendations:");
     if report.has_critical() || report.has_high() {
-        writeln!(output, "  • Update vulnerable packages immediately").unwrap();
-        writeln!(output, "  • Review and test updates before deploying").unwrap();
+        let _ = writeln!(output, "  • Update vulnerable packages immediately");
+        let _ = writeln!(output, "  • Review and test updates before deploying");
     } else {
-        writeln!(output, "  • Consider updating packages to latest versions").unwrap();
+        let _ = writeln!(output, "  • Consider updating packages to latest versions");
     }
-    writeln!(output, "  • Run 'depot outdated' to see available updates").unwrap();
-    writeln!(
+    let _ = writeln!(output, "  • Run 'depot outdated' to see available updates");
+    let _ = writeln!(
         output,
         "  • Run 'depot update <package>' to update specific packages"
-    )
-    .unwrap();
+    );
 
     output
 }
@@ -207,6 +214,7 @@ pub fn format_report(report: &VulnerabilityReport) -> String {
 mod tests {
     use super::*;
     use crate::security::advisory::AdvisoryDatabase;
+    use crate::security::osv::OsvApi;
     use crate::security::vulnerability::{Severity, Vulnerability};
 
     #[test]
@@ -459,18 +467,19 @@ mod tests {
 
     #[tokio::test]
     async fn test_new_with_osv_empty_packages() {
-        let result = SecurityAuditor::new_with_osv(&[]).await;
+        let osv = OsvApi::new();
+        let result = SecurityAuditor::new_with_osv(&osv, &[]).await;
         assert!(result.is_ok());
         let auditor = result.unwrap();
-        // Should have empty advisory database
         let advisories = auditor.get_advisories("nonexistent");
         assert!(advisories.is_empty());
     }
 
     #[tokio::test]
     async fn test_new_with_osv_with_packages() {
-        // Test with mock packages (OSV API will be called)
-        let result = SecurityAuditor::new_with_osv(&["test-package".to_string()]).await;
+        let osv = OsvApi::new();
+        let packages = vec![("test-package".to_string(), "1.0.0".to_string())];
+        let result = SecurityAuditor::new_with_osv(&osv, &packages).await;
         // May succeed or fail depending on network, but tests the path
         let _ = result;
     }

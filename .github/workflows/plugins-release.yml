@@ -5,16 +5,14 @@ on:
     tags:
       - 'plugins/v*'
       - 'depot-watch/v*'
-      - 'depot-bundle/v*'
   workflow_dispatch:
     inputs:
       plugin:
-        description: 'Plugin to release (watch, bundle, or all)'
+        description: 'Plugin to release (watch or all)'
         required: true
         type: choice
         options:
           - watch
-          - bundle
           - all
       version:
         description: 'Version tag (e.g., v0.1.0)'
@@ -60,36 +58,6 @@ jobs:
             arch: x86_64
             binary_ext: ".exe"
             plugin: watch
-          - os: ubuntu-latest
-            platform: linux
-            target: x86_64-unknown-linux-gnu
-            arch: x86_64
-            binary_ext: ""
-            plugin: bundle
-          - os: ubuntu-latest
-            platform: linux
-            target: aarch64-unknown-linux-gnu
-            arch: aarch64
-            binary_ext: ""
-            plugin: bundle
-          - os: macos-latest
-            platform: macos
-            target: x86_64-apple-darwin
-            arch: x86_64
-            binary_ext: ""
-            plugin: bundle
-          - os: macos-latest
-            platform: macos
-            target: aarch64-apple-darwin
-            arch: aarch64
-            binary_ext: ""
-            plugin: bundle
-          - os: windows-latest
-            platform: windows
-            target: x86_64-pc-windows-msvc
-            arch: x86_64
-            binary_ext: ".exe"
-            plugin: bundle
 
     steps:
       - uses: actions/checkout@v4
@@ -202,9 +170,6 @@ jobs:
             elif [[ "$TAG" == depot-watch/v* ]]; then
               PLUGIN="watch"
               VERSION="${TAG#depot-watch/v}"
-            elif [[ "$TAG" == depot-bundle/v* ]]; then
-              PLUGIN="bundle"
-              VERSION="${TAG#depot-bundle/v}"
             else
               echo "Unknown tag format: $TAG"
               exit 1
@@ -244,29 +209,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create release for bundle plugin
-        if: steps.tag_info.outputs.plugin == 'bundle' || steps.tag_info.outputs.plugin == 'all'
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: depot-bundle/v${{ steps.tag_info.outputs.version }}
-          name: depot-bundle v${{ steps.tag_info.outputs.version }}
-          body: |
-            ## depot-bundle v${{ steps.tag_info.outputs.version }}
-            
-            Plugin release for depot-bundle.
-            
-            ### Installation
-            
-            ```bash
-            depot install -g depot-bundle
-            ```
-            
-            ### Binaries
-            
-            Pre-built binaries for all platforms are attached to this release.
-          files: artifacts/bundle-*/*
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

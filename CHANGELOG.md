@@ -55,7 +55,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Custom file type handlers (configure actions per extension: restart, reload, ignore)
   - WebSocket support for browser auto-reload
   - Enhanced terminal UI with colored output, timestamps, and status indicators
-- `depot-bundle` plugin for bundling Lua files
 - Interactive project initialization wizard
 - Interactive package installation with fuzzy search
 - Project templates system (built-in and user-defined)

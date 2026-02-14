@@ -17,6 +17,10 @@ pub enum VersionConstraint {
     LessThan(Version),
     /// Any patch version: "1.2.x"
     AnyPatch(Version),
+    /// Range: >= lower AND < upper
+    Range { lower: Version, upper: Version },
+    /// Any of the given constraints (OR semantics)
+    AnyOf(Vec<VersionConstraint>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -142,6 +146,8 @@ impl Version {
             VersionConstraint::GreaterOrEqual(v) => self >= v,
             VersionConstraint::LessThan(v) => self < v,
             VersionConstraint::AnyPatch(v) => self.major == v.major && self.minor == v.minor,
+            VersionConstraint::Range { lower, upper } => self >= lower && self < upper,
+            VersionConstraint::AnyOf(constraints) => constraints.iter().any(|c| self.satisfies(c)),
         }
     }
 }
@@ -247,6 +253,39 @@ pub fn parse_constraint(s: &str) -> DepotResult<VersionConstraint> {
         let version = Version::parse(s)?;
         Ok(VersionConstraint::Exact(version))
     }
+}
+
+/// Parse a compound constraint string with `||` (OR) and `, ` (range) operators.
+///
+/// Examples: `<2.0.0`, `>=0.0.0, <2.0.0`, `>=0.0.0, <2.0.0 || >=2.5.0, <3.0.0`
+pub fn parse_compound_constraint(s: &str) -> DepotResult<VersionConstraint> {
+    let s = s.trim();
+
+    // Split on " || " for AnyOf
+    let or_parts: Vec<&str> = s.split(" || ").collect();
+    if or_parts.len() > 1 {
+        let constraints: Result<Vec<_>, _> = or_parts
+            .iter()
+            .map(|part| parse_compound_constraint(part))
+            .collect();
+        return Ok(VersionConstraint::AnyOf(constraints?));
+    }
+
+    // Split on ", " for Range (>=X, <Y)
+    let and_parts: Vec<&str> = s.split(", ").collect();
+    if and_parts.len() == 2 {
+        if let (Some(ge), Some(lt)) = (
+            and_parts[0].strip_prefix(">="),
+            and_parts[1].strip_prefix("<"),
+        ) {
+            let lower = Version::parse(ge.trim())?;
+            let upper = Version::parse(lt.trim())?;
+            return Ok(VersionConstraint::Range { lower, upper });
+        }
+    }
+
+    // Fall back to single constraint
+    parse_constraint(s)
 }
 
 #[cfg(test)]
@@ -412,5 +451,61 @@ mod tests {
         // Both should satisfy >=1.0.0-alpha
         assert!(v_prerelease.satisfies(&constraint));
         assert!(v_release.satisfies(&constraint));
+    }
+
+    #[test]
+    fn test_version_satisfies_range() {
+        let constraint = VersionConstraint::Range {
+            lower: Version::new(0, 0, 0),
+            upper: Version::new(2, 0, 0),
+        };
+
+        assert!(Version::new(0, 0, 0).satisfies(&constraint));
+        assert!(Version::new(1, 5, 0).satisfies(&constraint));
+        assert!(!Version::new(2, 0, 0).satisfies(&constraint));
+        assert!(!Version::new(3, 0, 0).satisfies(&constraint));
+    }
+
+    #[test]
+    fn test_version_satisfies_any_of() {
+        let constraint = VersionConstraint::AnyOf(vec![
+            VersionConstraint::Range {
+                lower: Version::new(0, 0, 0),
+                upper: Version::new(2, 0, 0),
+            },
+            VersionConstraint::Range {
+                lower: Version::new(2, 5, 0),
+                upper: Version::new(3, 0, 0),
+            },
+        ]);
+
+        assert!(Version::new(1, 0, 0).satisfies(&constraint));
+        assert!(Version::new(2, 7, 0).satisfies(&constraint));
+        assert!(!Version::new(2, 3, 0).satisfies(&constraint));
+        assert!(!Version::new(3, 0, 0).satisfies(&constraint));
+    }
+
+    #[test]
+    fn test_parse_compound_constraint_simple() {
+        let c = parse_compound_constraint("<2.0.0").unwrap();
+        assert!(matches!(c, VersionConstraint::LessThan(_)));
+    }
+
+    #[test]
+    fn test_parse_compound_constraint_range() {
+        let c = parse_compound_constraint(">=1.0.0, <2.0.0").unwrap();
+        assert!(matches!(c, VersionConstraint::Range { .. }));
+        assert!(Version::new(1, 5, 0).satisfies(&c));
+        assert!(!Version::new(0, 9, 0).satisfies(&c));
+        assert!(!Version::new(2, 0, 0).satisfies(&c));
+    }
+
+    #[test]
+    fn test_parse_compound_constraint_any_of() {
+        let c = parse_compound_constraint(">=0.0.0, <2.0.0 || >=2.5.0, <3.0.0").unwrap();
+        assert!(Version::new(1, 0, 0).satisfies(&c));
+        assert!(Version::new(2, 7, 0).satisfies(&c));
+        assert!(!Version::new(2, 3, 0).satisfies(&c));
+        assert!(!Version::new(3, 0, 0).satisfies(&c));
     }
 }

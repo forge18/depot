@@ -229,12 +229,11 @@ impl ParallelDownloader {
 
         // Create progress bar
         let pb = ProgressBar::new(total as u64);
-        pb.set_style(
-            ProgressStyle::default_bar()
-                .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos}/{len} packages")
-                .unwrap()
-                .progress_chars("#>-"),
-        );
+        if let Ok(style) = ProgressStyle::default_bar()
+            .template("[{elapsed_precise}] {bar:40.cyan/blue} {pos}/{len} packages")
+        {
+            pb.set_style(style.progress_chars("#>-"));
+        }
 
         // Download packages
         let results = self.download_packages(tasks, installed_lua).await;

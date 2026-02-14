@@ -104,7 +104,6 @@ depot install -g depot-watch
 Depot supports plugins that extend functionality:
 
 - **`depot-watch`** - Auto-reload dev server with file watching
-- **`depot-bundle`** - Bundle Lua files into a single file (experimental)
 
 Install plugins globally: `depot install -g depot-watch`
 

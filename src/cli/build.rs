@@ -47,7 +47,8 @@ pub fn run_in_dir(dir: &Path, target: Option<String>, all_targets: bool) -> Depo
         // build_all_targets is not async, but calls build which is async
         // We need to handle this differently
         let mut results = Vec::new();
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new()
+            .map_err(|e| DepotError::Package(format!("Failed to create async runtime: {}", e)))?;
 
         for target_triple in depot::build::targets::SUPPORTED_TARGETS {
             let target = Target::new(target_triple)?;
@@ -88,7 +89,8 @@ pub fn run_in_dir(dir: &Path, target: Option<String>, all_targets: bool) -> Depo
             .unwrap_or("default");
         eprintln!("Building for target: {}", target_display);
 
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new()
+            .map_err(|e| DepotError::Package(format!("Failed to create async runtime: {}", e)))?;
         let output_path = rt.block_on(builder.build(build_target.as_ref()))?;
         eprintln!("✓ Build complete: {}", output_path.display());
     }
@@ -153,7 +155,8 @@ fn build_workspace_filtered(
         };
 
         // Create runtime for async builds
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new()
+            .map_err(|e| DepotError::Package(format!("Failed to create async runtime: {}", e)))?;
 
         if all_targets {
             // Build for all supported targets

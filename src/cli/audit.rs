@@ -1,9 +1,6 @@
 use depot::core::path::find_project_root;
 use depot::core::{DepotError, DepotResult};
-use depot::package::lockfile::Lockfile;
-use depot::security::audit::format_report;
-use depot::security::osv::OsvApi;
-use depot::security::vulnerability::VulnerabilityReport;
+use depot::security::audit::{format_report, SecurityAuditor};
 use std::env;
 use std::path::Path;
 
@@ -16,27 +13,11 @@ pub async fn run() -> DepotResult<()> {
 pub async fn run_in_dir(dir: &Path) -> DepotResult<()> {
     let project_root = find_project_root(dir)?;
 
-    // Load lockfile
-    let lockfile = Lockfile::load(&project_root)?
-        .ok_or_else(|| DepotError::Package("No lockfile. Run 'depot install' first".to_string()))?;
-
     println!("Running security audit...");
     println!("  Querying OSV (Open Source Vulnerabilities) database...");
     println!();
 
-    // Query OSV for each package
-    let osv = OsvApi::new();
-    let mut report = VulnerabilityReport::new();
-    report.package_count = lockfile.packages.len();
-
-    for (name, locked_pkg) in &lockfile.packages {
-        println!("Checking {}@{}", name, locked_pkg.version);
-        let vulns = osv.query_package(name, &locked_pkg.version).await?;
-        for vuln in vulns {
-            report.add(vuln);
-        }
-        report.checked_packages += 1;
-    }
+    let report = SecurityAuditor::audit_project_with_osv(&project_root).await?;
 
     // Display results
     let output = format_report(&report);
@@ -53,84 +34,12 @@ pub async fn run_in_dir(dir: &Path) -> DepotResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use depot::package::lockfile::{LockedPackage, Lockfile};
-    use depot::security::vulnerability::VulnerabilityReport;
-    use std::collections::HashMap;
+    use depot::package::lockfile::Lockfile;
     use tempfile::TempDir;
-
-    #[test]
-    fn test_audit_with_empty_lockfile() {
-        // Test that audit handles empty lockfile
-        let lockfile = Lockfile::new();
-        assert!(lockfile.packages.is_empty());
-    }
-
-    #[test]
-    fn test_vulnerability_report_creation() {
-        // Test VulnerabilityReport structure
-        let mut report = VulnerabilityReport::new();
-        report.package_count = 5;
-        report.checked_packages = 3;
-        assert_eq!(report.package_count, 5);
-        assert_eq!(report.checked_packages, 3);
-    }
-
-    #[test]
-    fn test_osv_api_new() {
-        // Test that OsvApi can be created
-        let osv = OsvApi::new();
-        // Just verify it was created
-        let _ = osv;
-    }
-
-    #[tokio::test]
-    #[ignore] // Requires network access
-    async fn test_audit_run_with_mock_lockfile() {
-        let temp = TempDir::new().unwrap();
-
-        // Create package.yaml to make it a valid project
-        std::fs::write(
-            temp.path().join("package.yaml"),
-            "name: test\nversion: 1.0.0\n",
-        )
-        .unwrap();
-
-        let mut lockfile = Lockfile::new();
-        let locked_pkg = LockedPackage {
-            version: "1.0.0".to_string(),
-            source: "luarocks".to_string(),
-            rockspec_url: None,
-            source_url: None,
-            checksum: "abc123".to_string(),
-            size: Some(1000),
-            dependencies: HashMap::new(),
-            build: None,
-        };
-        lockfile.add_package("test-pkg".to_string(), locked_pkg);
-        lockfile.save(temp.path()).unwrap();
-
-        // This will fail without network, but tests the structure
-        let _ = run_in_dir(temp.path()).await;
-    }
-
-    #[test]
-    fn test_vulnerability_report_has_critical() {
-        let report = VulnerabilityReport::new();
-        assert!(!report.has_critical());
-        // Add critical vuln would require creating Vulnerability struct
-    }
-
-    #[test]
-    fn test_vulnerability_report_has_high() {
-        let report = VulnerabilityReport::new();
-        assert!(!report.has_high());
-    }
 
     #[tokio::test]
     async fn test_run_error_no_lockfile() {
-        // Test error path when lockfile doesn't exist
         let temp = TempDir::new().unwrap();
-        // Create package.yaml to make it a project, but no lockfile
         std::fs::write(
             temp.path().join("package.yaml"),
             "name: test\nversion: 1.0.0\n",
@@ -138,36 +47,35 @@ mod tests {
         .unwrap();
 
         let result = run_in_dir(temp.path()).await;
-
-        // Should fail with "No lockfile" error
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("No lockfile"));
+        assert!(result.unwrap_err().to_string().contains("No depot.lock"));
     }
 
     #[tokio::test]
     async fn test_run_error_no_project_root() {
-        // Test error path when not in a project
-        // Create a temp dir that's not a project
         let temp = TempDir::new().unwrap();
         let subdir = temp.path().join("subdir");
         std::fs::create_dir_all(&subdir).unwrap();
 
         let result = run_in_dir(&subdir).await;
-
-        // Should fail - no project root found
         assert!(result.is_err());
     }
 
-    #[test]
-    fn test_vulnerability_report_add_and_count() {
-        // Test report.add() and counting logic (line 32, 34)
-        let mut report = VulnerabilityReport::new();
-        report.package_count = 2;
+    #[tokio::test]
+    async fn test_run_with_empty_lockfile() {
+        let temp = TempDir::new().unwrap();
+        std::fs::write(
+            temp.path().join("package.yaml"),
+            "name: test\nversion: 1.0.0\n",
+        )
+        .unwrap();
 
-        // Add some vulnerabilities (would need actual Vulnerability struct)
-        // For now, just test the structure
-        assert_eq!(report.package_count, 2);
-        assert_eq!(report.checked_packages, 0);
+        let lockfile = Lockfile::new();
+        lockfile.save(temp.path()).unwrap();
+
+        let result = run_in_dir(temp.path()).await;
+        // Should succeed with empty lockfile (no packages to check)
+        assert!(result.is_ok());
     }
 
     #[tokio::test]
@@ -181,108 +89,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_run_function_signature() {
-        let _func: fn() -> _ = run;
-    }
-
-    #[test]
-    fn test_lockfile_packages_iteration() {
-        // Test the loop structure in lines 32-39
-        let mut lockfile = Lockfile::new();
-        let locked_pkg = LockedPackage {
-            version: "1.0.0".to_string(),
-            source: "luarocks".to_string(),
-            rockspec_url: None,
-            source_url: None,
-            checksum: "abc123".to_string(),
-            size: Some(1000),
-            dependencies: HashMap::new(),
-            build: None,
-        };
-        lockfile.add_package("test-pkg".to_string(), locked_pkg);
-
-        let count = lockfile.packages.len();
-        assert_eq!(count, 1);
-
-        for (name, pkg) in &lockfile.packages {
-            assert_eq!(name, "test-pkg");
-            assert_eq!(pkg.version, "1.0.0");
-        }
-    }
-
-    #[test]
-    fn test_format_report_function() {
-        // Test format_report is callable
-        let report = VulnerabilityReport::new();
-        let output = format_report(&report);
-        assert!(!output.is_empty());
-    }
-
-    #[test]
-    fn test_vulnerability_report_checked_packages_increment() {
-        let mut report = VulnerabilityReport::new();
-        report.checked_packages = 0;
-        report.checked_packages += 1;
-        assert_eq!(report.checked_packages, 1);
-        report.checked_packages += 1;
-        assert_eq!(report.checked_packages, 2);
-    }
-
-    #[test]
-    fn test_osv_api_creation() {
-        // Test OsvApi::new() line 28
-        let _osv = OsvApi::new();
-    }
-
-    #[test]
-    fn test_lockfile_new() {
-        let lockfile = Lockfile::new();
-        assert_eq!(lockfile.packages.len(), 0);
-    }
-
-    #[tokio::test]
-    async fn test_run_uses_current_dir() {
-        use std::env;
-
-        let temp = TempDir::new().unwrap();
-        let original_dir = env::current_dir().ok();
-
-        // Create package.yaml to make it a valid project
-        std::fs::write(
-            temp.path().join("package.yaml"),
-            "name: test\nversion: 1.0.0\n",
-        )
-        .unwrap();
-
-        // Create lockfile with no packages (will succeed with "no packages" message)
-        let lockfile = Lockfile::new();
-        lockfile.save(temp.path()).unwrap();
-
-        // Change to temp directory
-        env::set_current_dir(temp.path()).unwrap();
-
-        // Run audit - should fail because there are packages but OSV query will fail
-        // Or succeed if no packages
-        let result = run().await;
-
-        // Restore original directory
-        if let Some(dir) = original_dir {
-            let _ = env::set_current_dir(dir);
-        }
-
-        // Will succeed since lockfile has no packages
-        let _ = result;
-    }
-
-    #[tokio::test]
     async fn test_run_in_dir_no_project() {
         let temp = TempDir::new().unwrap();
         let subdir = temp.path().join("not-a-project");
         std::fs::create_dir_all(&subdir).unwrap();
 
         let result = run_in_dir(&subdir).await;
-
-        // Should error - no package.yaml found
         assert!(result.is_err());
     }
 }

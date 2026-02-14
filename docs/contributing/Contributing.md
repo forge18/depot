@@ -96,9 +96,7 @@ lpm/
 │   │   │   ├── package/# Package manifest
 │   │   │   └── path_setup/# Lua path setup and runner
 │   │   └── Cargo.toml
-│   ├── depot-watch/     # Watch mode plugin
-│   │   └── src/
-│   └── depot-bundle/    # Bundle plugin (experimental)
+│   └── depot-watch/     # Watch mode plugin
 │       └── src/
 ├── src/
 │   ├── cli/           # CLI command implementations

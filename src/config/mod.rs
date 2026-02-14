@@ -129,7 +129,9 @@ impl Config {
     /// - macOS: ~/Library/Application Support/depot/config.yaml
     pub fn save(&self) -> DepotResult<()> {
         let config_path = config_file()?;
-        let config_dir = config_path.parent().unwrap();
+        let config_dir = config_path
+            .parent()
+            .ok_or_else(|| DepotError::Path("Invalid config path".to_string()))?;
 
         // Ensure config directory exists
         ensure_dir(config_dir)?;

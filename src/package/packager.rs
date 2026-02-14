@@ -27,7 +27,8 @@ impl BinaryPackager {
     pub fn package_target(&self, target: &Target) -> DepotResult<PathBuf> {
         // Build the extension for the target
         let builder = RustBuilder::new(&self.project_root, &self.manifest)?;
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new()
+            .map_err(|e| DepotError::Package(format!("Failed to create async runtime: {}", e)))?;
         let binary_path = rt.block_on(builder.build(Some(target)))?;
 
         // Create package directory
@@ -76,7 +77,10 @@ generated_at: "{}"
             self.manifest.name,
             self.manifest.version,
             target.triple,
-            binary_path.file_name().unwrap().to_string_lossy(),
+            binary_path
+                .file_name()
+                .ok_or_else(|| DepotError::Path("Invalid binary path".to_string()))?
+                .to_string_lossy(),
             chrono::Utc::now().to_rfc3339(),
         );
 
@@ -88,7 +92,9 @@ generated_at: "{}"
 
     /// Create an archive (tar.gz on Unix, zip on Windows)
     fn create_archive(&self, package_dir: &Path, package_name: &str) -> DepotResult<PathBuf> {
-        let dist_dir = package_dir.parent().unwrap();
+        let dist_dir = package_dir
+            .parent()
+            .ok_or_else(|| DepotError::Path("Invalid package directory path".to_string()))?;
         let archive_name = format!(
             "{}.{}",
             package_name,

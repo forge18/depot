@@ -102,25 +102,23 @@ impl Publisher {
             .await
             .map_err(|e| DepotError::Package(format!("Failed to read archive: {}", e)))?;
 
+        let rockspec_filename = rockspec_path
+            .file_name()
+            .ok_or_else(|| DepotError::Path("Invalid rockspec path".to_string()))?
+            .to_string_lossy()
+            .to_string();
         let rockspec_part = multipart::Part::bytes(rockspec_bytes)
-            .file_name(
-                rockspec_path
-                    .file_name()
-                    .unwrap()
-                    .to_string_lossy()
-                    .to_string(),
-            )
+            .file_name(rockspec_filename)
             .mime_str("text/x-lua")
             .map_err(|e| DepotError::Package(format!("Failed to create multipart part: {}", e)))?;
 
+        let archive_filename = archive_path
+            .file_name()
+            .ok_or_else(|| DepotError::Path("Invalid archive path".to_string()))?
+            .to_string_lossy()
+            .to_string();
         let archive_part = multipart::Part::bytes(archive_bytes)
-            .file_name(
-                archive_path
-                    .file_name()
-                    .unwrap()
-                    .to_string_lossy()
-                    .to_string(),
-            )
+            .file_name(archive_filename)
             .mime_str("application/gzip")
             .map_err(|e| DepotError::Package(format!("Failed to create multipart part: {}", e)))?;
 

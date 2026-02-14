@@ -130,6 +130,14 @@ impl RockspecGenerator {
                 let luarocks_ver = to_luarocks_version(&v);
                 Ok(format!("{} ~> {}", name, luarocks_ver))
             }
+            VersionConstraint::Range { lower, .. } => {
+                let luarocks_ver = to_luarocks_version(&lower);
+                Ok(format!("{} >= {}", name, luarocks_ver))
+            }
+            VersionConstraint::AnyOf(_) => {
+                // LuaRocks doesn't support compound constraints; use >= lower bound
+                Ok(format!("{} >= 0", name))
+            }
         }
     }
 }

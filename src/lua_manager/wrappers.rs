@@ -75,18 +75,36 @@ impl WrapperGenerator {
         .unwrap_or_else(|_| {{
             #[cfg(unix)]
             {{
-                let home = env::var("HOME").expect("HOME environment variable not set");
+                let home = env::var("HOME")
+                    .or_else(|_| env::var("USERPROFILE"))
+                    .unwrap_or_else(|_| {{
+                        eprintln!("Error: Could not determine home directory");
+                        eprintln!("Neither HOME nor USERPROFILE environment variables are set");
+                        std::process::exit(1);
+                    }});
                 format!("{{}}/.depot", home)
             }}
             #[cfg(windows)]
             {{
-                let home = env::var("APPDATA").expect("APPDATA environment variable not set");
+                let home = env::var("APPDATA")
+                    .or_else(|_| env::var("USERPROFILE").map(|p| format!("{{}}\\\\AppData\\\\Roaming", p)))
+                    .unwrap_or_else(|_| {{
+                        eprintln!("Error: Could not determine application data directory");
+                        eprintln!("Neither APPDATA nor USERPROFILE environment variables are set");
+                        std::process::exit(1);
+                    }});
                 format!("{{}}\\\\lpm", home)
             }}
         }});
     
     // Check for .lua-version file
-    let mut dir = env::current_dir().unwrap();
+    let mut dir = match env::current_dir() {{
+        Ok(d) => d,
+        Err(e) => {{
+            eprintln!("Error: Failed to get current directory: {{}}", e);
+            std::process::exit(1);
+        }}
+    }};
     let mut version = None;
     
     loop {{
@@ -140,11 +158,16 @@ impl WrapperGenerator {
     
     // Execute the binary with all arguments
     let args: Vec<String> = env::args().skip(1).collect();
-    let status = Command::new(&bin_path)
+    let status = match Command::new(&bin_path)
         .args(&args)
-        .status()
-        .expect("Failed to execute Lua binary");
-    
+        .status() {{
+        Ok(s) => s,
+        Err(e) => {{
+            eprintln!("Error: Failed to execute Lua binary: {{}}", e);
+            std::process::exit(1);
+        }}
+    }};
+
     std::process::exit(status.code().unwrap_or(1));
 }}
 "#,

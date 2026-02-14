@@ -113,8 +113,11 @@ pub async fn run(options: InstallOptions) -> DepotResult<()> {
             ));
         }
         let container = depot::di::ServiceContainer::new()?;
+        let pkg = package.ok_or_else(|| {
+            DepotError::Package("Package name required for global install".to_string())
+        })?;
         return install_global(
-            package.unwrap(),
+            pkg,
             container.package_client.clone(),
             container.search_provider.clone(),
         )
@@ -908,16 +911,16 @@ pub async fn run_interactive_with_input(
         let package_name = &package_names[idx];
 
         // Get available versions
-        let versions = luarocks_manifest.get_package_versions(package_name);
-        if versions.is_none() || versions.unwrap().is_empty() {
-            eprintln!(
-                "⚠️  Warning: Could not find versions for {}, skipping",
-                package_name
-            );
-            continue;
-        }
-
-        let versions = versions.unwrap();
+        let versions = match luarocks_manifest.get_package_versions(package_name) {
+            Some(v) if !v.is_empty() => v,
+            _ => {
+                eprintln!(
+                    "⚠️  Warning: Could not find versions for {}, skipping",
+                    package_name
+                );
+                continue;
+            }
+        };
         let version_strings: Vec<String> = versions.iter().map(|pv| pv.version.clone()).collect();
 
         // Sort versions (latest first) - simple string sort should work for most cases

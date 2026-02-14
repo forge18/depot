@@ -43,7 +43,9 @@ fn list_templates(search_query: Option<String>) -> DepotResult<()> {
 
     if templates.is_empty() {
         if has_search {
-            println!("No templates found matching '{}'.", search_text.unwrap());
+            if let Some(text) = search_text {
+                println!("No templates found matching '{}'.", text);
+            }
         } else {
             println!("No templates found.");
         }

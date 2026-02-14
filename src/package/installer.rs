@@ -398,8 +398,11 @@ impl PackageInstaller {
         fs::create_dir_all(&dest)?;
 
         // Attempt cmake install first.
+        let dest_str = dest
+            .to_str()
+            .ok_or_else(|| DepotError::Path("Invalid UTF-8 in destination path".to_string()))?;
         let mut install_cmd = Command::new("cmake");
-        install_cmd.args(["--install", ".", "--prefix", dest.to_str().unwrap()]);
+        install_cmd.args(["--install", ".", "--prefix", dest_str]);
         install_cmd.current_dir(&build_dir);
 
         if install_cmd.status().is_ok() {

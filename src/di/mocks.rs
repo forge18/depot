@@ -122,12 +122,15 @@ impl MockCacheProvider {
 
     /// Add a file to the mock cache
     pub fn add_file(&self, path: PathBuf, content: Vec<u8>) {
-        self.files.lock().unwrap().insert(path, content);
+        self.files
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(path, content);
     }
 
     /// Get all files in the mock cache
     pub fn get_files(&self) -> HashMap<PathBuf, Vec<u8>> {
-        self.files.lock().unwrap().clone()
+        self.files.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 }
 
@@ -159,13 +162,16 @@ impl CacheProvider for MockCacheProvider {
     }
 
     fn exists(&self, path: &Path) -> bool {
-        self.files.lock().unwrap().contains_key(path)
+        self.files
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .contains_key(path)
     }
 
     fn read(&self, path: &Path) -> DepotResult<Vec<u8>> {
         self.files
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .get(path)
             .cloned()
             .ok_or_else(|| DepotError::Cache(format!("File not found: {}", path.display())))
@@ -174,7 +180,7 @@ impl CacheProvider for MockCacheProvider {
     fn write(&self, path: &Path, data: &[u8]) -> DepotResult<()> {
         self.files
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .insert(path.to_path_buf(), data.to_vec());
         Ok(())
     }
@@ -279,17 +285,26 @@ impl MockPackageClient {
 
     /// Add a rockspec to the mock client
     pub fn add_rockspec(&self, url: String, content: String) {
-        self.rockspecs.lock().unwrap().insert(url, content);
+        self.rockspecs
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(url, content);
     }
 
     /// Add a source package to the mock client
     pub fn add_source(&self, url: String, path: PathBuf) {
-        self.sources.lock().unwrap().insert(url, path);
+        self.sources
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(url, path);
     }
 
     /// Add a manifest to the mock client
     pub fn add_manifest(&self, url: String, manifest: Manifest) {
-        self.manifests.lock().unwrap().insert(url, manifest);
+        self.manifests
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(url, manifest);
     }
 }
 
@@ -309,7 +324,7 @@ impl PackageClient for MockPackageClient {
     async fn download_rockspec(&self, url: &str) -> DepotResult<String> {
         self.rockspecs
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .get(url)
             .cloned()
             .ok_or_else(|| DepotError::Package(format!("Rockspec not found: {}", url)))
@@ -322,7 +337,7 @@ impl PackageClient for MockPackageClient {
     async fn download_source(&self, url: &str) -> DepotResult<PathBuf> {
         self.sources
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .get(url)
             .cloned()
             .ok_or_else(|| DepotError::Package(format!("Source not found: {}", url)))
@@ -360,13 +375,16 @@ impl MockSearchProvider {
     pub fn add_latest_version(&self, package: String, version: String) {
         self.latest_versions
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .insert(package, version);
     }
 
     /// Add a valid rockspec URL
     pub fn add_valid_url(&self, url: String) {
-        self.valid_urls.lock().unwrap().push(url);
+        self.valid_urls
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(url);
     }
 }
 
@@ -381,7 +399,7 @@ impl SearchProvider for MockSearchProvider {
     async fn get_latest_version(&self, package_name: &str) -> DepotResult<String> {
         self.latest_versions
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .get(package_name)
             .cloned()
             .ok_or_else(|| DepotError::Package(format!("Package not found: {}", package_name)))
@@ -400,7 +418,12 @@ impl SearchProvider for MockSearchProvider {
     }
 
     async fn verify_rockspec_url(&self, url: &str) -> DepotResult<()> {
-        if self.valid_urls.lock().unwrap().contains(&url.to_string()) {
+        if self
+            .valid_urls
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .contains(&url.to_string())
+        {
             Ok(())
         } else {
             // By default, accept all URLs in tests
@@ -663,7 +686,11 @@ mod tests {
     fn test_mock_package_client_new() {
         let client = MockPackageClient::new();
         // Just verify it can be created
-        assert!(client.rockspecs.lock().unwrap().is_empty());
+        assert!(client
+            .rockspecs
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_empty());
     }
 
     #[test]
@@ -674,7 +701,7 @@ mod tests {
             "package = 'test'".to_string(),
         );
 
-        let rockspecs = client.rockspecs.lock().unwrap();
+        let rockspecs = client.rockspecs.lock().unwrap_or_else(|e| e.into_inner());
         assert_eq!(
             rockspecs.get("https://example.com/test.rockspec"),
             Some(&"package = 'test'".to_string())
@@ -689,7 +716,7 @@ mod tests {
             PathBuf::from("/tmp/source.tar.gz"),
         );
 
-        let sources = client.sources.lock().unwrap();
+        let sources = client.sources.lock().unwrap_or_else(|e| e.into_inner());
         assert_eq!(
             sources.get("https://example.com/source.tar.gz"),
             Some(&PathBuf::from("/tmp/source.tar.gz"))
@@ -702,7 +729,7 @@ mod tests {
         let manifest = Manifest::default();
         client.add_manifest("https://example.com/manifest".to_string(), manifest.clone());
 
-        let manifests = client.manifests.lock().unwrap();
+        let manifests = client.manifests.lock().unwrap_or_else(|e| e.into_inner());
         assert!(manifests.contains_key("https://example.com/manifest"));
     }
 
@@ -788,14 +815,26 @@ dependencies = {
     #[test]
     fn test_mock_package_client_default() {
         let client = MockPackageClient::default();
-        assert!(client.rockspecs.lock().unwrap().is_empty());
+        assert!(client
+            .rockspecs
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_empty());
     }
 
     #[test]
     fn test_mock_search_provider_new() {
         let search = MockSearchProvider::new();
-        assert!(search.latest_versions.lock().unwrap().is_empty());
-        assert!(search.valid_urls.lock().unwrap().is_empty());
+        assert!(search
+            .latest_versions
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_empty());
+        assert!(search
+            .valid_urls
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_empty());
     }
 
     #[test]
@@ -803,7 +842,10 @@ dependencies = {
         let search = MockSearchProvider::new();
         search.add_latest_version("test".to_string(), "1.0.0".to_string());
 
-        let versions = search.latest_versions.lock().unwrap();
+        let versions = search
+            .latest_versions
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         assert_eq!(versions.get("test"), Some(&"1.0.0".to_string()));
     }
 
@@ -812,7 +854,7 @@ dependencies = {
         let search = MockSearchProvider::new();
         search.add_valid_url("https://example.com/test.rockspec".to_string());
 
-        let urls = search.valid_urls.lock().unwrap();
+        let urls = search.valid_urls.lock().unwrap_or_else(|e| e.into_inner());
         assert!(urls.contains(&"https://example.com/test.rockspec".to_string()));
     }
 
@@ -884,6 +926,10 @@ dependencies = {
     #[test]
     fn test_mock_search_provider_default() {
         let search = MockSearchProvider::default();
-        assert!(search.latest_versions.lock().unwrap().is_empty());
+        assert!(search
+            .latest_versions
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_empty());
     }
 }

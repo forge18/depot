@@ -76,7 +76,10 @@ impl PublishPackager {
                 .map_err(|e| DepotError::Path(format!("Failed to read directory entry: {}", e)))?;
             let path = entry.path();
             if path.is_file() && path.extension().map(|e| e == "lua").unwrap_or(false) {
-                let dest = package_dir.join(path.file_name().unwrap());
+                let file_name = path
+                    .file_name()
+                    .ok_or_else(|| DepotError::Path("Invalid file path".to_string()))?;
+                let dest = package_dir.join(file_name);
                 fs::copy(&path, &dest)?;
             }
         }
@@ -161,7 +164,9 @@ impl PublishPackager {
 
     /// Create distribution archive (tar.gz or zip)
     fn create_archive(&self, package_dir: &Path, package_name: &str) -> DepotResult<PathBuf> {
-        let dist_dir = package_dir.parent().unwrap();
+        let dist_dir = package_dir
+            .parent()
+            .ok_or_else(|| DepotError::Path("Invalid package directory path".to_string()))?;
         let archive_name = format!(
             "{}.{}",
             package_name,

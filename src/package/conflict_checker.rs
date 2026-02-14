@@ -65,19 +65,17 @@ impl ConflictChecker {
         new_version: &str,
     ) -> DepotResult<()> {
         // Check if already exists
-        if manifest.dependencies.contains_key(new_name) {
+        if let Some(version) = manifest.dependencies.get(new_name) {
             return Err(DepotError::Package(format!(
                 "Package '{}' is already in dependencies with version '{}'",
-                new_name,
-                manifest.dependencies.get(new_name).unwrap()
+                new_name, version
             )));
         }
 
-        if manifest.dev_dependencies.contains_key(new_name) {
+        if let Some(version) = manifest.dev_dependencies.get(new_name) {
             return Err(DepotError::Package(format!(
                 "Package '{}' is already in dev_dependencies with version '{}'",
-                new_name,
-                manifest.dev_dependencies.get(new_name).unwrap()
+                new_name, version
             )));
         }
 
@@ -268,6 +266,8 @@ impl ConflictChecker {
             (GreaterOrEqual(_), _) | (_, GreaterOrEqual(_)) => true, // Conservative: might be compatible
             (LessThan(_), _) | (_, LessThan(_)) => true, // Conservative: might be compatible
             (AnyPatch(_), _) | (_, AnyPatch(_)) => true, // Conservative: might be compatible
+            (Range { .. }, _) | (_, Range { .. }) => true, // Conservative: might be compatible
+            (AnyOf(_), _) | (_, AnyOf(_)) => true,       // Conservative: might be compatible
         }
     }
 
@@ -281,6 +281,12 @@ impl ConflictChecker {
             GreaterOrEqual(v) => format!(">={}", v),
             LessThan(v) => format!("<{}", v),
             AnyPatch(v) => format!("{}.{}.x", v.major, v.minor),
+            Range { lower, upper } => format!(">={}, <{}", lower, upper),
+            AnyOf(cs) => cs
+                .iter()
+                .map(Self::constraint_to_string)
+                .collect::<Vec<_>>()
+                .join(" || "),
         }
     }
 }

@@ -147,68 +147,6 @@ Options:
       --websocket-port <PORT>  WebSocket port for browser reload (0 = disabled)
 ```
 
-### `depot-bundle` - Package Bundling (Experimental)
-
-Bundle multiple Lua files into a single file for distribution or embedding.
-
-#### Installation
-
-```bash
-depot install -g depot-bundle
-```
-
-#### Usage
-
-```bash
-# Bundle src/main.lua to dist/bundle.lua
-depot bundle bundle
-
-# Custom entry point
-depot bundle bundle -e src/init.lua
-
-# Custom output
-depot bundle bundle -o dist/app.lua
-
-# Minify output
-depot bundle bundle --minify
-
-# Generate source map
-depot bundle bundle --source-map
-
-# Strip comments (without minifying)
-depot bundle bundle --no-comments
-
-# Enable tree-shaking
-depot bundle bundle --tree-shake
-
-# Track dynamic requires
-depot bundle bundle --dynamic-requires
-
-# Incremental bundling (only rebuild changed modules)
-depot bundle bundle --incremental
-
-# Watch mode (auto-rebundle on changes)
-depot bundle watch
-```
-
-#### Features
-
-- Static dependency analysis using Lua parser (full_moon)
-- Circular dependency detection
-- Basic tree-shaking (remove unused code) - basic implementation
-- Basic minification (whitespace and comment removal)
-- Source map generation
-- Standalone bundle with custom require runtime
-- Watch mode for automatic re-bundling
-- Incremental bundling support (checks file modification times)
-- Dynamic requires tracking (warns about dynamic require() calls)
-
-#### Limitations
-
-- Dynamic requires (`require(variable)`) are not detected (warnings shown)
-- C modules cannot be bundled (warnings shown)
-- Marked as experimental
-
 ## Installing Plugins
 
 Plugins are installed globally and become available as `depot <plugin-name>`:
@@ -216,11 +154,9 @@ Plugins are installed globally and become available as `depot <plugin-name>`:
 ```bash
 # Install a plugin
 depot install -g depot-watch
-depot install -g depot-bundle
 
 # Plugins are automatically discovered
 depot watch --help
-depot bundle --help
 ```
 
 ## Plugin Locations

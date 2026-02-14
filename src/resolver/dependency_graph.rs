@@ -120,9 +120,11 @@ impl DependencyGraph {
                     self.dfs_detect_cycles(dep, visited, rec_stack, path, cycles)?;
                 } else if rec_stack.contains(dep) {
                     // Found a cycle - extract the cycle path
-                    let cycle_start = path.iter().position(|n| n == dep).unwrap();
-                    let cycle: Vec<String> = path[cycle_start..].to_vec();
-                    cycles.push(cycle);
+                    if let Some(cycle_start) = path.iter().position(|n| n == dep) {
+                        let cycle: Vec<String> = path[cycle_start..].to_vec();
+                        cycles.push(cycle);
+                    }
+                    // If position() returns None, skip this cycle (should never happen)
                 }
             }
         }

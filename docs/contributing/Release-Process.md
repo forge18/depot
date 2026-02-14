@@ -148,7 +148,7 @@ For critical bugs:
 
 ## Plugin Releases
 
-Plugins (`depot-watch`, `depot-bundle`) are released separately from the main Depot binary.
+Plugins (`depot-watch`) are released separately from the main Depot binary.
 
 ### Creating a Plugin Release
 

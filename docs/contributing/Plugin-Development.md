@@ -340,7 +340,7 @@ See `depot-watch` for a complete plugin implementation:
 
 ## Questions?
 
-- Check existing plugins for examples (`depot-watch`, `depot-bundle`)
+- Check existing plugins for examples (`depot-watch`)
 - Review `depot-core` API documentation
 - Open an issue for questions or suggestions
 

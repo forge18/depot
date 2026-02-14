@@ -58,7 +58,7 @@ git push origin v0.1.0
 **Purpose:** Build and publish plugin binaries separately from main release
 
 **Triggers:**
-- Push tag matching `depot-watch/v*`, `depot-bundle/v*`, or `plugins/v*`
+- Push tag matching `depot-watch/v*` or `plugins/v*`
 - Manual trigger via `workflow_dispatch`
 
 **What it does:**

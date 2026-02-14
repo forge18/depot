@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/depot-core", "crates/depot-watch", "crates/depot-bundle"]
+members = ["crates/depot-core", "crates/depot-watch"]
 resolver = "2"
 
 [package]
