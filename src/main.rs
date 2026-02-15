@@ -136,6 +136,15 @@ enum Commands {
     },
     /// Security audit
     Audit,
+    /// Check Lua version compatibility
+    Compat {
+        /// Only show incompatibilities
+        #[arg(short, long)]
+        quiet: bool,
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
     /// Setup Depot environment (install to DEPOT_HOME and configure PATH)
     Setup,
     /// Configure global settings
@@ -530,6 +539,7 @@ async fn main() -> ExitCode {
         } => cli::build::run(target, all_targets, filter),
         Commands::Package { target } => cli::package::run(target),
         Commands::Audit => cli::audit::run().await,
+        Commands::Compat { quiet, json } => cli::compat::run(quiet, json),
         Commands::Setup => depot_setup(),
         Commands::Config(cmd) => match cmd {
             ConfigCommands::SetGlobalPath { path } => set_global_path(path),

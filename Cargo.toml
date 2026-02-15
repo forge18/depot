@@ -81,7 +81,8 @@ fuzzy-matcher = "0.3"
 # Async trait support for dependency injection
 async-trait = "0.1"
 
-# Rockspec parsing (regex-based, no Lua interpreter needed)
+# Lua source code parsing (for version compatibility analysis)
+luanext-parser = { git = "https://github.com/forge18/luanext-parser.git", default-features = false }
 
 # Package management
 # (serde and serde_yaml already included above)

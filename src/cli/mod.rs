@@ -1,6 +1,7 @@
 pub mod audit;
 pub mod build;
 pub mod clean;
+pub mod compat;
 pub mod exec;
 pub mod init;
 pub mod install;

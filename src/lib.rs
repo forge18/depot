@@ -1,8 +1,8 @@
 //! Depot (Local Package Manager) for Lua
 //!
 //! This crate provides the main Depot library, re-exporting core functionality
-//! from `depot-core` and organizing additional modules for package management,
-//! LuaRocks integration, and related features.
+//! from `depot-core` and organizing additional modules for package management
+//! and related features.
 
 pub use depot_core::package::manifest::PackageManifest;
 pub use depot_core::path_setup::{LuaRunner, PathSetup, RunOptions};
@@ -59,3 +59,6 @@ pub mod di;
 
 /// Dependency resolution.
 pub mod resolver;
+
+/// Lua source code analysis for version compatibility.
+pub mod lua_analysis;

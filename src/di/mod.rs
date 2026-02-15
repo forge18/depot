@@ -6,12 +6,9 @@
 //! # Example (Production)
 //! ```no_run
 //! use depot::di::ServiceContainer;
-//! use depot::package::installer::PackageInstaller;
-//! use std::path::Path;
 //!
-//! # async fn example() -> depot::core::DepotResult<()> {
+//! # fn example() -> depot::core::DepotResult<()> {
 //! let container = ServiceContainer::new()?;
-//! let installer = PackageInstaller::with_container(Path::new("."), container)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -24,10 +21,9 @@
 //! # fn example() {
 //! let config = Arc::new(MockConfigProvider::default());
 //! let cache = Arc::new(MockCacheProvider::new());
-//! let client = Arc::new(MockPackageClient::new());
-//! let search = Arc::new(MockSearchProvider::new());
+//! let github = Arc::new(MockGitHubProvider::new());
 //!
-//! let container = ServiceContainer::with_providers(config, cache, client, search);
+//! let container = ServiceContainer::with_providers(config, cache, github);
 //! # }
 //! ```
 

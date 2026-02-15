@@ -350,11 +350,11 @@ impl CacheProvider for MockCacheProvider {
 ///
 /// # Example
 ///
-/// ```
+/// ```no_run
 /// use depot::di::mocks::MockGitHubProvider;
 ///
 /// let github = MockGitHubProvider::new();
-/// github.add_release("owner", "repo", release);
+/// // github.add_release("owner", "repo", release);
 /// ```
 #[derive(Clone)]
 pub struct MockGitHubProvider {
