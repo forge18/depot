@@ -6,7 +6,7 @@ pub mod installer;
 pub mod interactive;
 pub mod lockfile;
 pub mod lockfile_builder;
-// manifest moved to lpm-core, re-export for backward compatibility
+// manifest moved to depot-core, re-export for backward compatibility
 pub mod manifest {
     pub use depot_core::package::manifest::*;
 }

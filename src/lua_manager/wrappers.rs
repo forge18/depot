@@ -93,7 +93,7 @@ impl WrapperGenerator {
                         eprintln!("Neither APPDATA nor USERPROFILE environment variables are set");
                         std::process::exit(1);
                     }});
-                format!("{{}}\\\\lpm", home)
+                format!("{{}}\\\\depot", home)
             }}
         }});
     

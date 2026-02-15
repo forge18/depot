@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 /// Plugin metadata stored in plugin directory
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginMetadata {
-    /// Plugin name (without lpm- prefix)
+    /// Plugin name (without depot- prefix)
     pub name: String,
     /// Plugin version
     pub version: String,
@@ -19,13 +19,13 @@ pub struct PluginMetadata {
     /// Plugin dependencies (other plugins this plugin requires)
     pub dependencies: Vec<PluginDependency>,
     /// Minimum Depot version required
-    pub min_lpm_version: Option<String>,
+    pub min_depot_version: Option<String>,
 }
 
 /// Plugin dependency specification
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginDependency {
-    /// Plugin name (without lpm- prefix)
+    /// Plugin name (without depot- prefix)
     pub name: String,
     /// Version constraint (e.g., "^1.0.0", ">=0.5.0")
     pub version: Option<String>,
@@ -100,7 +100,7 @@ impl PluginInfo {
                     author: None,
                     homepage: None,
                     dependencies: vec![],
-                    min_lpm_version: None,
+                    min_depot_version: None,
                 }
             };
 

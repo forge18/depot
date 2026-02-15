@@ -130,7 +130,7 @@ fn list_installed_plugins() -> DepotResult<()> {
 
     if plugins.is_empty() {
         println!("No plugins installed.");
-        println!("\nInstall plugins with: depot install -g lpm-<name>");
+        println!("\nInstall plugins with: depot install -g depot-<name>");
         return Ok(());
     }
 
@@ -286,7 +286,7 @@ fn check_outdated_plugins() -> DepotResult<()> {
 }
 
 fn search_plugins(query: Option<String>) -> DepotResult<()> {
-    let search_query = query.as_deref().unwrap_or("lpm");
+    let search_query = query.as_deref().unwrap_or("depot");
     println!("Searching for plugins matching '{}'...\n", search_query);
 
     let rt = Runtime::new()
@@ -310,7 +310,7 @@ fn search_plugins(query: Option<String>) -> DepotResult<()> {
                     }
                     println!();
                 }
-                println!("Install with: depot install -g lpm-<name>");
+                println!("Install with: depot install -g depot-<name>");
             }
         }
         Err(e) => {

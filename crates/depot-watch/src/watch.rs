@@ -250,7 +250,7 @@ impl DevServer {
             let lua_modules = lua_modules_dir(&self.project_root);
             if !lua_modules.exists() {
                 return Err(DepotError::Package(
-                    "lua_modules directory not found. Run 'lpm install' first.".to_string(),
+                    "lua_modules directory not found. Run 'depot install' first.".to_string(),
                 ));
             }
 
@@ -286,11 +286,11 @@ impl DevServer {
             );
             cmd.env("LUA_CPATH", lua_cpath);
 
-            // Add lpm.loader require
-            let lpm_dir = lua_modules.join("lpm");
+            // Add depot.loader require
+            let depot_dir = lua_modules.join("depot");
             cmd.arg("-e").arg(format!(
-                "package.path = '{}' .. '/?.lua;' .. package.path; require('lpm.loader')",
-                lpm_dir.to_string_lossy()
+                "package.path = '{}' .. '/?.lua;' .. package.path; require('depot.loader')",
+                depot_dir.to_string_lossy()
             ));
 
             if command.len() > 1 {
@@ -530,7 +530,7 @@ pub async fn run(
         vec![cmd]
     } else if let Some(script_name) = script {
         // Run a script from package.yaml
-        vec![vec!["lpm".to_string(), "run".to_string(), script_name]]
+        vec![vec!["depot".to_string(), "run".to_string(), script_name]]
     } else if let Some(cmds) = base_config.commands {
         cmds
     } else {

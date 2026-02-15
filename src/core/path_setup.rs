@@ -19,7 +19,7 @@ pub fn check_path_setup() -> DepotResult<()> {
     // Get DEPOT_HOME bin directory
     let depot_bin = get_depot_bin_dir();
 
-    // Check if we can find 'lpm' in PATH by checking PATH environment variable
+    // Check if we can find 'depot' in PATH by checking PATH environment variable
     // instead of running a subprocess (which would cause infinite recursion)
     let path_env = env::var("PATH").unwrap_or_default();
 

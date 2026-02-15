@@ -11,7 +11,7 @@ impl ErrorHelp for DepotError {
             DepotError::Package(msg) => {
                 if msg.contains("package.yaml not found") {
                     Some(
-                        "💡 Suggestion: Run 'lpm init' to create a new project, or navigate to a directory with package.yaml"
+                        "💡 Suggestion: Run 'depot init' to create a new project, or navigate to a directory with package.yaml"
                             .to_string(),
                     )
                 } else if msg.contains("not found in manifest") {
@@ -21,7 +21,7 @@ impl ErrorHelp for DepotError {
                     )
                 } else if msg.contains("lua_modules directory not found") {
                     Some(
-                        "💡 Suggestion: Run 'lpm install' to install dependencies first"
+                        "💡 Suggestion: Run 'depot install' to install dependencies first"
                             .to_string(),
                     )
                 } else if msg.contains("Circular dependencies") {
@@ -31,7 +31,7 @@ impl ErrorHelp for DepotError {
                     )
                 } else if msg.contains("Version conflict") {
                     Some(
-                        "💡 Suggestion: Update package versions to resolve conflicts, or use 'lpm update' to find compatible versions"
+                        "💡 Suggestion: Update package versions to resolve conflicts, or use 'depot update' to find compatible versions"
                             .to_string(),
                     )
                 } else {
@@ -46,7 +46,7 @@ impl ErrorHelp for DepotError {
                     )
                 } else if msg.contains("no version satisfies") {
                     Some(
-                        "💡 Suggestion: Try a different version constraint, or check available versions with 'lpm list'"
+                        "💡 Suggestion: Try a different version constraint, or check available versions with 'depot list'"
                             .to_string(),
                     )
                 } else {
@@ -56,7 +56,7 @@ impl ErrorHelp for DepotError {
             DepotError::Path(msg) => {
                 if msg.contains("Could not find package.yaml") {
                     Some(
-                        "💡 Suggestion: Run 'lpm init' to create a new project, or navigate to a directory with package.yaml"
+                        "💡 Suggestion: Run 'depot init' to create a new project, or navigate to a directory with package.yaml"
                             .to_string(),
                     )
                 } else if msg.contains("Could not determine") {
@@ -132,7 +132,7 @@ mod tests {
     fn test_error_help_package_not_found() {
         let error = DepotError::Package("package.yaml not found in /path".to_string());
         assert!(error.help().is_some());
-        assert!(error.help().unwrap().contains("lpm init"));
+        assert!(error.help().unwrap().contains("depot init"));
     }
 
     #[test]

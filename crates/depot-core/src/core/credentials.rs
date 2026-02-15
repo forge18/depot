@@ -3,7 +3,7 @@ use keyring::Entry;
 use std::path::Path;
 
 /// Service name for keyring entries
-const KEYRING_SERVICE: &str = "lpm";
+const KEYRING_SERVICE: &str = "depot";
 
 /// Manages credential storage using OS keychain
 ///

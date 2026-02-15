@@ -3,11 +3,11 @@ use crate::core::DepotResult;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Generates the lpm.loader Lua module that sets up package.path and package.cpath
+/// Generates the depot.loader Lua module that sets up package.path and package.cpath
 pub struct PathSetup;
 
 impl PathSetup {
-    /// Generate the lpm.loader module content
+    /// Generate the depot.loader module content
     ///
     /// This generates version-aware loader code that works with both
     /// Lua 5.1 (package.loaders) and Lua 5.2+ (package.searchers)
@@ -82,17 +82,17 @@ local global_lua_modules = [[{}]]
 -- Add lua_modules to package.path
 -- Supports both ?/init.lua and ?.lua patterns
 -- Local packages are checked first, then global packages
-local lpm_path = lua_modules .. [[/?/init.lua;]] ..
+local depot_path = lua_modules .. [[/?/init.lua;]] ..
                  lua_modules .. [[/?.lua;]] ..
                  lua_modules .. [[/?/?.lua]]{}
 
 -- Add lua_modules to package.cpath for native modules
 -- Local packages are checked first, then global packages
-local lpm_cpath = [[{}]]{}
+local depot_cpath = [[{}]]{}
 
 -- Prepend Depot paths to existing paths
-package.path = lpm_path .. package.path
-package.cpath = lpm_cpath .. package.cpath
+package.path = depot_path .. package.path
+package.cpath = depot_cpath .. package.cpath
 
 -- Lua 5.1 compatibility: package.loaders vs package.searchers
 -- Lua 5.1 uses package.loaders, Lua 5.2+ uses package.searchers
@@ -103,8 +103,8 @@ package.cpath = lpm_cpath .. package.cpath
 return {{
     lua_modules = lua_modules,
     global_lua_modules = global_lua_modules,
-    path = lpm_path,
-    cpath = lpm_cpath,
+    path = depot_path,
+    cpath = depot_cpath,
 }}
 "#,
             lua_modules_str,
@@ -115,15 +115,15 @@ return {{
         )
     }
 
-    /// Install the lpm.loader module to lua_modules/lpm/loader.lua
-    /// This allows it to be required as "lpm.loader"
+    /// Install the depot.loader module to lua_modules/depot/loader.lua
+    /// This allows it to be required as "depot.loader"
     pub fn install_loader(project_root: &Path) -> DepotResult<()> {
         let loader_content = Self::generate_loader(project_root);
-        let lpm_dir = lua_modules_dir(project_root).join("lpm");
-        let loader_path = lpm_dir.join("loader.lua");
+        let depot_dir = lua_modules_dir(project_root).join("depot");
+        let loader_path = depot_dir.join("loader.lua");
 
-        // Ensure lpm directory exists
-        fs::create_dir_all(&lpm_dir)?;
+        // Ensure depot directory exists
+        fs::create_dir_all(&depot_dir)?;
 
         fs::write(&loader_path, loader_content)?;
         Ok(())
@@ -131,12 +131,14 @@ return {{
 
     /// Get the path to the installed loader module
     pub fn loader_path(project_root: &Path) -> PathBuf {
-        lua_modules_dir(project_root).join("lpm").join("loader.lua")
+        lua_modules_dir(project_root)
+            .join("depot")
+            .join("loader.lua")
     }
 
-    /// Get the directory containing the lpm module
-    pub fn lpm_module_dir(project_root: &Path) -> PathBuf {
-        lua_modules_dir(project_root).join("lpm")
+    /// Get the directory containing the depot module
+    pub fn depot_module_dir(project_root: &Path) -> PathBuf {
+        lua_modules_dir(project_root).join("depot")
     }
 }
 

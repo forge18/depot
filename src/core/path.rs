@@ -1,7 +1,7 @@
 use crate::core::{DepotError, DepotResult};
 use std::path::{Path, PathBuf};
 
-// Re-export all path functions from lpm-core
+// Re-export all path functions from depot-core
 pub use depot_core::core::path::*;
 
 /// Find the project root by looking for package.yaml or workspace.yaml

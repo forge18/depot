@@ -60,9 +60,9 @@ fn find_plugin_in_paths(
 pub(crate) fn list_plugins() -> DepotResult<Vec<PluginInfo>> {
     let mut plugins = Vec::new();
 
-    // Check lpm_home/bin directory
-    if let Ok(lpm_home) = depot_home() {
-        let bin_dir = lpm_home.join("bin");
+    // Check depot_home/bin directory
+    if let Ok(depot_home) = depot_home() {
+        let bin_dir = depot_home.join("bin");
         if bin_dir.exists() {
             if let Ok(entries) = fs::read_dir(&bin_dir) {
                 for entry in entries.flatten() {
@@ -185,7 +185,7 @@ pub fn run_plugin(plugin_name: &str, args: Vec<String>) -> DepotResult<()> {
                 1 => {
                     error_msg.push_str("\n\n  This usually indicates a plugin error. Check:");
                     error_msg.push_str(&format!(
-                        "\n    - Run 'lpm {} --help' for usage",
+                        "\n    - Run 'depot {} --help' for usage",
                         plugin_name
                     ));
                     error_msg.push_str("\n    - Check plugin documentation");
@@ -199,7 +199,7 @@ pub fn run_plugin(plugin_name: &str, args: Vec<String>) -> DepotResult<()> {
                         "\n\n  This usually indicates invalid arguments or configuration.",
                     );
                     error_msg.push_str(&format!(
-                        "\n    - Run 'lpm {} --help' to see valid options",
+                        "\n    - Run 'depot {} --help' to see valid options",
                         plugin_name
                     ));
                 }
@@ -216,7 +216,7 @@ pub fn run_plugin(plugin_name: &str, args: Vec<String>) -> DepotResult<()> {
                 }
                 _ => {
                     error_msg.push_str("\n\n  Check plugin documentation or try:");
-                    error_msg.push_str(&format!("\n    - lpm {} --help", plugin_name));
+                    error_msg.push_str(&format!("\n    - depot {} --help", plugin_name));
                     error_msg.push_str(&format!(
                         "\n    - Reinstall: depot install -g depot-{}",
                         plugin_name
@@ -332,7 +332,7 @@ mod tests {
 
     #[test]
     fn test_list_plugins_empty() {
-        // Just verify list_plugins doesn't panic - it reads from real lpm_home
+        // Just verify list_plugins doesn't panic - it reads from real depot_home
         let plugins = list_plugins();
         // May succeed or fail depending on environment, just verify no panic
         let _ = plugins;

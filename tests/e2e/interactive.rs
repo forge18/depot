@@ -16,7 +16,7 @@ fn test_interactive_install_basic() {
 
     let lpm_path = env!("CARGO_BIN_EXE_depot");
     let mut session = spawn(&format!("{} install --interactive", lpm_path), Some(10000))
-        .expect("Failed to spawn lpm");
+        .expect("Failed to spawn depot");
 
     // Wait for search prompt
     session
@@ -60,7 +60,7 @@ fn test_init_wizard() {
 
     let lpm_path = env!("CARGO_BIN_EXE_depot");
     let mut session =
-        spawn(&format!("{} init", lpm_path), Some(10000)).expect("Failed to spawn lpm");
+        spawn(&format!("{} init", lpm_path), Some(10000)).expect("Failed to spawn depot");
 
     // Project name
     session

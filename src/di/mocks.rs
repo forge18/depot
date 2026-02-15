@@ -42,7 +42,7 @@ pub struct MockConfigProvider {
 impl Default for MockConfigProvider {
     fn default() -> Self {
         Self {
-            cache_dir: PathBuf::from("/tmp/lpm-test-cache"),
+            cache_dir: PathBuf::from("/tmp/depot-test-cache"),
             verify_checksums: true,
             show_diffs_on_update: true,
             resolution_strategy: "highest".to_string(),

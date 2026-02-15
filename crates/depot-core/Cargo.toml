@@ -5,8 +5,6 @@ edition = "2021"
 authors = ["Depot Contributors"]
 description = "Core utilities for Depot (Lua Package Manager)"
 license = "MIT"
-repository = "https://github.com/yourusername/depot"
-
 [lib]
 name = "depot_core"
 path = "src/lib.rs"

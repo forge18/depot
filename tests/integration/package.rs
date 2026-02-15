@@ -1,4 +1,4 @@
-//! Tests for `lpm package` command
+//! Tests for `depot package` command
 
 use super::common::depot_command;
 use std::fs;

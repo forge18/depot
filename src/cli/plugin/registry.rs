@@ -133,7 +133,7 @@ impl<C: HttpClient> PluginRegistry<C> {
 impl<C: HttpClient> PluginRegistry<C> {
     /// Search for plugins in registry
     ///
-    /// Searches crates.io for packages matching "lpm-*"
+    /// Searches crates.io for packages matching "depot-*"
     pub async fn search(&self, query: &str) -> DepotResult<Vec<RegistryEntry>> {
         // Search crates.io for depot-* packages
         let url = format!(
@@ -157,7 +157,7 @@ impl<C: HttpClient> PluginRegistry<C> {
 
         let response = self
             .client
-            .get(&url, vec![("User-Agent", "lpm/0.1.0")])
+            .get(&url, vec![("User-Agent", "depot/0.1.0")])
             .await?;
 
         if !response.is_success() {
@@ -171,8 +171,8 @@ impl<C: HttpClient> PluginRegistry<C> {
 
         let mut results = Vec::new();
         for crate_info in crates_resp.crates {
-            // Only include packages that start with "lpm-" prefix.
-            if let Some(plugin_name) = crate_info.name.strip_prefix("lpm-") {
+            // Only include packages that start with "depot-" prefix.
+            if let Some(plugin_name) = crate_info.name.strip_prefix("depot-") {
                 let plugin_name = plugin_name.to_string();
                 let version = crate_info.version.clone();
                 results.push(RegistryEntry {
@@ -196,14 +196,14 @@ impl<C: HttpClient> PluginRegistry<C> {
     pub async fn get_plugin(&self, name: &str) -> DepotResult<Option<RegistryEntry>> {
         // Try to find GitHub repository for depot-{name}.
         // Common patterns:
-        // - github.com/{user}/lpm-{name}
+        // - github.com/{user}/depot-{name}
         // - github.com/{user}/{name}
-        // - github.com/lpm-org/lpm-{name}
+        // - github.com/depot-org/depot-{name}
 
         // Attempt to fetch from GitHub releases using common repository patterns.
         let repo_patterns = vec![
-            format!("lpm-org/lpm-{}", name),
-            format!("{}/lpm-{}", name, name), // Username same as plugin name.
+            format!("depot-org/depot-{}", name),
+            format!("{}/depot-{}", name, name), // Username same as plugin name.
         ];
 
         for repo in repo_patterns {
@@ -230,7 +230,7 @@ impl<C: HttpClient> PluginRegistry<C> {
             .get(
                 &url,
                 vec![
-                    ("User-Agent", "lpm/0.1.0"),
+                    ("User-Agent", "depot/0.1.0"),
                     ("Accept", "application/vnd.github.v3+json"),
                 ],
             )
@@ -244,7 +244,7 @@ impl<C: HttpClient> PluginRegistry<C> {
         // Find binary asset matching current platform (look for platform-specific binaries).
         let binary_asset = release.assets.iter().find(|asset| {
             let name = asset.name.to_lowercase();
-            name.contains("lpm-")
+            name.contains("depot-")
                 && (name.ends_with(".exe")
                     || name.ends_with("x86_64")
                     || name.ends_with("aarch64")
@@ -363,15 +363,15 @@ mod tests {
     #[test]
     fn test_github_asset_deserialization() {
         let json = r#"{
-            "name": "lpm-plugin-macos",
-            "browser_download_url": "https://github.com/example/releases/download/v1.0.0/lpm-plugin-macos",
+            "name": "depot-plugin-macos",
+            "browser_download_url": "https://github.com/example/releases/download/v1.0.0/depot-plugin-macos",
             "size": 1234567
         }"#;
 
         let asset: Result<GitHubAsset, _> = serde_json::from_str(json);
         assert!(asset.is_ok());
         let asset = asset.unwrap();
-        assert_eq!(asset.name, "lpm-plugin-macos");
+        assert_eq!(asset.name, "depot-plugin-macos");
         assert!(asset.browser_download_url.contains("github.com"));
     }
 
@@ -399,19 +399,19 @@ mod tests {
         let mock_response = r#"{
             "crates": [
                 {
-                    "name": "lpm-test-plugin",
+                    "name": "depot-test-plugin",
                     "description": "A test plugin",
-                    "repository": "https://github.com/test/lpm-test-plugin",
+                    "repository": "https://github.com/test/depot-test-plugin",
                     "max_version": "1.0.0"
                 },
                 {
-                    "name": "not-lpm-plugin",
-                    "description": "Not an depot plugin",
+                    "name": "not-depot-plugin",
+                    "description": "Not a depot plugin",
                     "repository": null,
                     "max_version": "1.0.0"
                 },
                 {
-                    "name": "lpm-another",
+                    "name": "depot-another",
                     "description": null,
                     "repository": null,
                     "max_version": "2.0.0"
@@ -428,8 +428,8 @@ mod tests {
         let registry = PluginRegistry::_with_client(mock_client);
         let results = registry.search("test").await.unwrap();
 
-        assert_eq!(results.len(), 2); // Only lpm-* packages
-        assert_eq!(results[0].name, "test-plugin"); // Strip lpm- prefix
+        assert_eq!(results.len(), 2); // Only depot-* packages
+        assert_eq!(results[0].name, "test-plugin"); // Strip depot- prefix
         assert_eq!(results[0].version, "1.0.0");
         assert_eq!(results[1].name, "another");
         assert_eq!(results[1].version, "2.0.0");
@@ -462,22 +462,22 @@ mod tests {
             "published_at": "2024-01-01T00:00:00Z",
             "assets": [
                 {
-                    "name": "lpm-test-x86_64",
-                    "browser_download_url": "https://github.com/test/releases/download/v1.2.3/lpm-test-x86_64",
+                    "name": "depot-test-x86_64",
+                    "browser_download_url": "https://github.com/test/releases/download/v1.2.3/depot-test-x86_64",
                     "size": 1234567
                 }
             ]
         }"#;
 
         let mock_client = MockHttpClient::new().with_response(
-            "https://api.github.com/repos/lpm-org/lpm-test/releases/latest",
+            "https://api.github.com/repos/depot-org/depot-test/releases/latest",
             200,
             mock_response.as_bytes().to_vec(),
         );
 
         let registry = PluginRegistry::_with_client(mock_client);
         let result = registry
-            .get_plugin_from_github("lpm-org/lpm-test", "test")
+            .get_plugin_from_github("depot-org/depot-test", "test")
             .await
             .unwrap();
 
@@ -495,7 +495,7 @@ mod tests {
 
         let registry = PluginRegistry::_with_client(mock_client);
         let result = registry
-            .get_plugin_from_github("lpm-org/lpm-nonexistent", "nonexistent")
+            .get_plugin_from_github("depot-org/depot-nonexistent", "nonexistent")
             .await
             .unwrap();
 
@@ -511,14 +511,14 @@ mod tests {
             "body": "Description",
             "published_at": "2024-01-01T00:00:00Z",
             "assets": [{
-                "name": "lpm-plugin-darwin",
+                "name": "depot-plugin-darwin",
                 "browser_download_url": "https://example.com/download",
                 "size": 1000
             }]
         }"#;
 
         let mock_client = MockHttpClient::new().with_response(
-            "https://api.github.com/repos/lpm-org/lpm-plugin/releases/latest",
+            "https://api.github.com/repos/depot-org/depot-plugin/releases/latest",
             200,
             github_response.as_bytes().to_vec(),
         );
@@ -543,7 +543,7 @@ mod tests {
         }"#;
 
         let mock_client = MockHttpClient::new().with_response(
-            "https://api.github.com/repos/lpm-org/lpm-example/releases/latest",
+            "https://api.github.com/repos/depot-org/depot-example/releases/latest",
             200,
             github_response.as_bytes().to_vec(),
         );

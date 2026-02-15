@@ -420,7 +420,9 @@ fn setup_path_unix(depot_bin: &std::path::Path) -> depot::core::DepotResult<()> 
     }
 
     // Add DEPOT_HOME configuration
-    let depot_home = depot_bin.parent().unwrap();
+    let depot_home = depot_bin
+        .parent()
+        .ok_or_else(|| DepotError::Path("Failed to determine depot home directory".to_string()))?;
     let config_lines = format!(
         "\n# Depot environment\nexport DEPOT_HOME=\"{}\"\nexport PATH=\"$DEPOT_HOME/bin:$PATH\"\n",
         depot_home.display()

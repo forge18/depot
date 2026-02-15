@@ -75,7 +75,7 @@ impl PackageManifest {
         manifest.validate()?;
 
         // Note: Additional schema validation (ManifestValidator) is not available in depot-core
-        // Plugins or main lpm crate can add their own validation if needed
+        // Plugins or main depot crate can add their own validation if needed
 
         Ok(manifest)
     }

@@ -27,7 +27,7 @@ impl PluginInstaller {
             author,
             homepage,
             dependencies: vec![],
-            min_lpm_version: None,
+            min_depot_version: None,
         }
     }
 
@@ -67,7 +67,7 @@ impl PluginInstaller {
         let client = reqwest::Client::new();
         let response = client
             .get(&download_url)
-            .header("User-Agent", "lpm/0.1.0")
+            .header("User-Agent", "depot/0.1.0")
             .send()
             .await
             .map_err(DepotError::Http)?;
@@ -186,7 +186,7 @@ mod tests {
         assert_eq!(metadata.author, Some("Test Author".to_string()));
         assert_eq!(metadata.homepage, Some("https://example.com".to_string()));
         assert!(metadata.dependencies.is_empty());
-        assert!(metadata.min_lpm_version.is_none());
+        assert!(metadata.min_depot_version.is_none());
     }
 
     #[test]

@@ -19,7 +19,7 @@ pub struct RunOptions {
 pub struct LuaRunner;
 
 impl LuaRunner {
-    /// Run a Lua script with lpm.loader
+    /// Run a Lua script with depot.loader
     pub fn run_script(script_path: &Path, options: RunOptions) -> DepotResult<i32> {
         let project_root = find_project_root(script_path)?;
         let lua_modules = lua_modules_dir(&project_root);
@@ -27,7 +27,7 @@ impl LuaRunner {
         // Check if lua_modules exists
         if !lua_modules.exists() {
             return Err(DepotError::Package(
-                "lua_modules directory not found. Run 'lpm install' first.".to_string(),
+                "lua_modules directory not found. Run 'depot install' first.".to_string(),
             ));
         }
 
@@ -35,18 +35,18 @@ impl LuaRunner {
         PathSetup::install_loader(&project_root)?;
 
         // Try to use Depot-managed Lua, fall back to system PATH
-        let lua_binary = get_lpm_lua_binary("lua", &project_root)
+        let lua_binary = get_depot_lua_binary("lua", &project_root)
             .unwrap_or_else(|_| Path::new("lua").to_path_buf());
 
         // Build Lua command
         let mut cmd = Command::new(&lua_binary);
 
-        // Add lpm.loader require before the script
-        // The loader is installed at lua_modules/lpm/loader.lua
-        let lpm_dir = lua_modules.join("lpm");
+        // Add depot.loader require before the script
+        // The loader is installed at lua_modules/depot/loader.lua
+        let depot_dir = lua_modules.join("depot");
         cmd.arg("-e").arg(format!(
-            "package.path = '{}' .. '/?.lua;' .. package.path; require('lpm.loader')",
-            lpm_dir.to_string_lossy()
+            "package.path = '{}' .. '/?.lua;' .. package.path; require('depot.loader')",
+            depot_dir.to_string_lossy()
         ));
 
         // Add script path
@@ -105,7 +105,7 @@ impl LuaRunner {
 
         // If program is "lua" or "luac", try to use Depot-managed version
         let actual_program = if program == "lua" || program == "luac" {
-            match get_lpm_lua_binary(program, &project_root) {
+            match get_depot_lua_binary(program, &project_root) {
                 Ok(path) => {
                     // Use Depot-managed binary
                     path.to_string_lossy().to_string()
@@ -172,7 +172,7 @@ impl LuaRunner {
         Ok(status.code().unwrap_or(1))
     }
 
-    /// Execute arbitrary Lua code with lpm.loader
+    /// Execute arbitrary Lua code with depot.loader
     pub fn exec_lua(lua_code: &str, options: RunOptions) -> DepotResult<i32> {
         // Try to find project root from current directory
         let current_dir = std::env::current_dir()?;
@@ -181,7 +181,7 @@ impl LuaRunner {
 
         if !lua_modules.exists() {
             return Err(DepotError::Package(
-                "lua_modules directory not found. Run 'lpm install' first.".to_string(),
+                "lua_modules directory not found. Run 'depot install' first.".to_string(),
             ));
         }
 
@@ -189,17 +189,17 @@ impl LuaRunner {
         PathSetup::install_loader(&project_root)?;
 
         // Try to use Depot-managed Lua, fall back to system PATH
-        let lua_binary = get_lpm_lua_binary("lua", &project_root)
+        let lua_binary = get_depot_lua_binary("lua", &project_root)
             .unwrap_or_else(|_| Path::new("lua").to_path_buf());
 
         // Build Lua command
         let mut cmd = Command::new(&lua_binary);
 
-        // Add lpm.loader require
-        let lpm_dir = lua_modules.join("lpm");
+        // Add depot.loader require
+        let depot_dir = lua_modules.join("depot");
         cmd.arg("-e").arg(format!(
-            "package.path = '{}' .. '/?.lua;' .. package.path; require('lpm.loader'); {}",
-            lpm_dir.to_string_lossy(),
+            "package.path = '{}' .. '/?.lua;' .. package.path; require('depot.loader'); {}",
+            depot_dir.to_string_lossy(),
             lua_code
         ));
 
@@ -233,8 +233,8 @@ impl LuaRunner {
 ///
 /// Note: In depot-core, this is a simplified version that doesn't use lua_manager.
 /// It will always return an error, causing the code to fall back to system Lua.
-/// For full Depot-managed Lua support, use the main lpm crate.
-fn get_lpm_lua_binary(_binary: &str, _project_root: &Path) -> DepotResult<std::path::PathBuf> {
+/// For full Depot-managed Lua support, use the main depot crate.
+fn get_depot_lua_binary(_binary: &str, _project_root: &Path) -> DepotResult<std::path::PathBuf> {
     // In depot-core, we don't have access to lua_manager, so always return error
     // This causes the code to fall back to system PATH Lua
     Err(DepotError::Package(
