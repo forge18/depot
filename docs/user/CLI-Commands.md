@@ -12,15 +12,9 @@ Create a new Depot project in a new directory.
 # Create new project
 depot new my-project
 
-# Create with template
-depot new my-project --template love2d
-
 # Non-interactive mode
 depot new my-project --yes
 depot new my-project -y
-
-# Non-interactive with template
-depot new my-project --template cli-tool --yes
 ```
 
 This command:
@@ -41,12 +35,6 @@ depot init
 # Non-interactive mode (use defaults)
 depot init --yes
 depot init -y
-
-# Use a specific template
-depot init --template <template-name>
-
-# Non-interactive with template
-depot init --template <template-name> --yes
 ```
 
 **Interactive Wizard Mode**: When run without flags, `depot init` starts an interactive wizard that guides you through project setup:
@@ -77,16 +65,7 @@ depot init --template <template-name> --yes
    - 5.4 (default)
    - latest
 
-6. **Template selection**: Optionally select a project template:
-   - None (empty project)
-   - basic-lua - Basic Lua project structure
-   - love2d - Love2D game development template
-   - neovim-plugin - Neovim plugin template
-   - lapis-web - OpenResty/Lapis web application template
-   - cli-tool - CLI tool template
-   - Any custom templates you've created
-
-7. **Summary and confirmation**: Review all selections before creating the project
+6. **Summary and confirmation**: Review all selections before creating the project
 
 **Non-Interactive Mode**: Use `--yes` or `-y` to skip the wizard and use default values:
 - Project name: Current directory name
@@ -94,12 +73,6 @@ depot init --template <template-name> --yes
 - Description: None
 - License: None
 - Lua version: `5.4`
-- Template: None (unless `--template` is specified)
-
-**Template Usage**: Use `--template <name>` to directly specify a template:
-- Works in both interactive and non-interactive modes
-- In interactive mode, skips template selection step
-- In non-interactive mode, applies template with default variables
 
 **What Gets Created**:
 - `package.yaml` - Project manifest with all configuration
@@ -107,8 +80,7 @@ depot init --template <template-name> --yes
   - `src/` - Source code directory
   - `lib/` - Library code directory
   - `tests/` - Test files directory
-- Template files (if template selected)
-- Basic `src/main.lua` (if no template used)
+- Basic `src/main.lua`
 
 **Note**: The wizard will not run if you're already in an Depot project (i.e., `package.yaml` exists in the current or parent directory).
 
@@ -211,14 +183,6 @@ depot list --tree
 # List globally installed packages
 depot list -g
 depot list --global
-```
-
-### `depot outdated`
-
-Show packages that have newer versions available.
-
-```bash
-depot outdated
 ```
 
 ### `depot verify`
@@ -332,36 +296,6 @@ Package built binaries for distribution.
 ```bash
 depot package
 depot package --target x86_64-unknown-linux-gnu
-```
-
-## Publishing
-
-### `depot publish [--with-binaries]`
-
-Publish your package to LuaRocks.
-
-```bash
-# Publish Lua-only package
-depot publish
-
-# Publish with pre-built Rust binaries
-depot publish --with-binaries
-```
-
-### `depot login`
-
-Login to LuaRocks (stores credentials securely).
-
-```bash
-depot login
-```
-
-### `depot generate-rockspec`
-
-Generate a rockspec file from `package.yaml`.
-
-```bash
-depot generate-rockspec
 ```
 
 ## Maintenance
@@ -544,12 +478,12 @@ See the [Plugins documentation](Plugins.md) for detailed information about avail
 
 ## Setup
 
-### `depot setup-path`
+### `depot setup`
 
 Automatically configure PATH for Depot (Unix/macOS only).
 
 ```bash
-depot setup-path
+depot setup
 ```
 
 Adds `~/.cargo/bin` to your shell profile.
@@ -561,7 +495,7 @@ Adds `~/.cargo/bin` to your shell profile.
 export PATH="$HOME/.depot/bin:$PATH"
 
 # Or on macOS:
-export PATH="$HOME/Library/Application Support/lpm/bin:$PATH"
+export PATH="$HOME/Library/Application Support/depot/bin:$PATH"
 ```
 
 ## Global Options

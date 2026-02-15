@@ -162,9 +162,9 @@ depot watch --help
 ## Plugin Locations
 
 Plugins are installed to:
-- **macOS**: `~/Library/Application Support/lpm/bin/`
-- **Linux**: `~/.config/lpm/bin/`
-- **Windows**: `%APPDATA%\lpm\bin\`
+- **macOS**: `~/Library/Application Support/depot/bin/`
+- **Linux**: `~/.config/depot/bin/`
+- **Windows**: `%APPDATA%\depot\bin\`
 - **Legacy**: `~/.depot/bin/` (for backwards compatibility)
 
 Plugins can also be installed anywhere in your PATH.

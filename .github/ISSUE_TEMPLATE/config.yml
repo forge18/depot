@@ -1,9 +1,9 @@
 blank_issues_enabled: false
 contact_links:
   - name: Security Vulnerability
-    url: https://github.com/yourusername/lpm/security/advisories/new
-    about: Please report security vulnerabilities privately
+    url: about:blank
+    about: Please report security vulnerabilities privately via the Security tab
   - name: Question / Discussion
-    url: https://github.com/yourusername/lpm/discussions
-    about: Ask questions or start discussions
+    url: about:blank
+    about: Ask questions or start discussions via the Discussions tab
 

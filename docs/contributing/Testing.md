@@ -80,7 +80,7 @@ mod tests {
 ```rust
 // tests/integration_tests.rs
 #[test]
-fn test_lpm_init() {
+fn test_depot_init() {
     let temp_dir = tempfile::tempdir().unwrap();
     let output = Command::new("cargo")
         .args(&["run", "--", "init"])

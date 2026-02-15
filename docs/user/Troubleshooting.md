@@ -4,14 +4,14 @@ Common issues and solutions when using Depot.
 
 ## Installation Issues
 
-### "command not found: lpm"
+### "command not found: depot"
 
 **Problem**: Depot is not in your PATH.
 
 **Solution**:
 ```bash
 # Run setup command
-depot setup-path
+depot setup
 
 # Or manually add to PATH
 export PATH="$HOME/.cargo/bin:$PATH"
@@ -133,7 +133,7 @@ Common targets:
 **Solution**:
 1. Ensure you're using Depot's loader:
    ```lua
-   require("lpm.loader")  -- Sets up package.path
+   require("depot.loader")  -- Sets up package.path
    local mymodule = require("mymodule")
    ```
 
@@ -171,7 +171,7 @@ Common targets:
 **Solution**:
 ```bash
 # Clear cache
-rm -rf ~/.cache/lpm
+rm -rf ~/.cache/depot
 
 # Try again
 depot install
@@ -201,7 +201,7 @@ depot --version
 
 ```bash
 # Check if Depot can find itself
-which lpm
+which depot
 
 # Check PATH
 echo $PATH
@@ -245,10 +245,9 @@ chmod -R u+w lua_modules/
 
 ## Still Having Issues?
 
-1. Check the [GitHub Issues](https://github.com/yourusername/lpm/issues)
-2. Review the [CLI Commands](CLI-Commands) documentation
-3. Check [Security](Security) for security-related issues
-4. Open a new issue with:
+1. Review the [CLI Commands](CLI-Commands) documentation
+2. Check [Security](Security) for security-related issues
+3. Open a new issue with:
    - Depot version (`depot --version`)
    - Error message
    - Steps to reproduce

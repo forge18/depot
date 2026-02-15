@@ -62,8 +62,8 @@ Each release includes versioned files in `releases/v{VERSION}/`:
 - `depot-v{VERSION}-windows-x86_64.zip` (64-bit)
 
 **Example for v0.1.0:**
-- `releases/v0.1.0/lpm-v0.1.0-macos-aarch64.pkg`
-- `releases/v0.1.0/lpm-v0.1.0-linux-x86_64.tar.gz`
+- `releases/v0.1.0/depot-v0.1.0-macos-aarch64.pkg`
+- `releases/v0.1.0/depot-v0.1.0-linux-x86_64.tar.gz`
 - etc.
 
 ## Release Notes
@@ -142,12 +142,10 @@ After the workflow completes:
 
    ```bash
    # Download a binary and checksums file
-   wget https://github.com/USER/REPO/releases/download/v0.1.0/lpm-v0.1.0-linux-x86_64.tar.gz
-   wget https://github.com/USER/REPO/releases/download/v0.1.0/SHA256SUMS
-
+   # Download a binary and checksums file from the GitHub release page
    # Verify integrity
    shasum -c SHA256SUMS
-   # Expected: lpm-v0.1.0-linux-x86_64.tar.gz: OK
+   # Expected: depot-v0.1.0-linux-x86_64.tar.gz: OK
    ```
 
 4. **Verify release notes:**

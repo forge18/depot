@@ -14,8 +14,7 @@ Thank you for your interest in contributing to Depot! This guide will help you g
 
 1. **Fork and clone the repository:**
    ```bash
-   git clone https://github.com/yourusername/lpm.git
-   cd lpm
+   cd depot
    ```
 
 2. **Build the project:**
@@ -88,7 +87,7 @@ Thank you for your interest in contributing to Depot! This guide will help you g
 ## Project Structure
 
 ```
-lpm/
+depot/
 ├── crates/
 │   ├── depot-core/      # Core library (shared with plugins)
 │   │   ├── src/
@@ -218,7 +217,7 @@ use super::*;
 fn my_test() {
     let ctx = TestContext::new(); // Isolated environment
     
-    ctx.lpm()
+    ctx.depot()
         .arg("init")
         .arg("--yes")
         .assert()

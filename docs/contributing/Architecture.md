@@ -79,7 +79,6 @@ CLI command implementations:
 - **`remove.rs`**: Remove dependencies
 - **`list.rs`**: List installed packages
 - **`build.rs`**: Build Rust extensions
-- **`publish.rs`**: Publish to LuaRocks
 - **`audit.rs`**: Security auditing
 - And more...
 
@@ -205,14 +204,14 @@ Rust extensions build in sandboxed environments:
 
 ## Error Handling
 
-Depot uses a custom error type (`LpmError`) with:
+Depot uses a custom error type (`DepotError`) with:
 - Contextual error messages
 - Helpful suggestions
 - Chain of error causes
 
 Example:
 ```rust
-Err(LpmError::Package("Package not found".to_string()))
+Err(DepotError::Package("Package not found".to_string()))
 ```
 
 Automatically formatted with suggestions via `error_help.rs`.
@@ -224,7 +223,7 @@ Depot caches:
 - Rust build artifacts (per Lua version and target)
 - Pre-built binaries
 
-Cache location: OS-specific cache directory (`~/.cache/lpm` on Linux)
+Cache location: OS-specific cache directory (`~/.cache/depot` on Linux)
 
 ## Security Model
 

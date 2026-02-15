@@ -19,7 +19,6 @@ Depot provides local, project-scoped package management for Lua, similar to npm,
 - **[Lua Version Manager](Lua-Version-Manager)** - Managing Lua versions
 - **[Rust Extensions](Rust-Extensions)** - Building native Lua modules
 - **[Plugins](Plugins)** - Available plugins and usage
-- **[Templates](Templates)** - Project templates
 - **[Security](Security)** - Security features and best practices
 - **[Troubleshooting](Troubleshooting)** - Common issues and solutions
 
@@ -47,6 +46,4 @@ Depot provides local, project-scoped package management for Lua, similar to npm,
 ## Documentation
 
 This wiki is automatically synced from the `docs/` directory in the repository. All documentation is version-controlled and updated on every commit.
-
-For the latest source code and issues, visit the [main repository](https://github.com/yourusername/lpm).
 

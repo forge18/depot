@@ -430,7 +430,7 @@ busted
 export PATH="$HOME/.depot/bin:$PATH"
 
 # Or on macOS:
-export PATH="$HOME/Library/Application Support/lpm/bin:$PATH"
+export PATH="$HOME/Library/Application Support/depot/bin:$PATH"
 ```
 
 **Note**: Global tools use Depot-managed Lua versions automatically. Make sure you have a Lua version installed with `depot lua install latest`.
@@ -450,14 +450,6 @@ Updates all dependencies to their latest compatible versions.
 ```bash
 depot update luasocket
 ```
-
-### Check for Updates
-
-```bash
-depot outdated
-```
-
-Shows which packages have newer versions available.
 
 ## Removing Dependencies
 

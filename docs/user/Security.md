@@ -34,17 +34,6 @@ Rust extensions are built in sandboxed environments with restricted access to:
 - Network
 - System resources
 
-### Secure Credential Storage
-
-Depot stores LuaRocks credentials using OS keychains:
-- **macOS**: Keychain
-- **Windows**: Credential Manager
-- **Linux**: Secret Service (libsecret)
-
-```bash
-depot login  # Credentials stored securely
-```
-
 ## Security Audit
 
 Run security audits on your dependencies:
@@ -100,9 +89,6 @@ This ensures:
 Keep dependencies updated:
 
 ```bash
-# Check for updates
-depot outdated
-
 # Update all dependencies
 depot update
 
@@ -183,7 +169,7 @@ depot install --no-dev
 If you discover a vulnerability in Depot:
 
 1. **Do not** open a public issue
-2. Email security@yourusername.github.io (or your security contact)
+2. Report via a private security advisory on the repository
 3. Include:
    - Description of the vulnerability
    - Steps to reproduce

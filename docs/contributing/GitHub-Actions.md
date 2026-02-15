@@ -18,7 +18,7 @@ This document describes all GitHub Actions workflows available in the Depot proj
 - **Security:** Runs security scans (cargo-audit, Semgrep)
 - **Build:** Verifies the project builds on all platforms
 
-**View:** [Actions Tab → CI](https://github.com/yourusername/lpm/actions/workflows/ci.yml)
+**View:** Actions Tab, CI workflow
 
 ---
 
@@ -36,7 +36,7 @@ This document describes all GitHub Actions workflows available in the Depot proj
 3. Creates a GitHub release with binaries attached
 
 **Manual Trigger:**
-1. Go to [Actions Tab → Release](https://github.com/yourusername/lpm/actions/workflows/release.yml)
+1. Go to Actions Tab, select the Release workflow
 2. Click "Run workflow"
 3. Optionally specify a version (if not using a tag)
 
@@ -49,7 +49,7 @@ git push origin v0.1.0
 # Or trigger manually from GitHub Actions UI
 ```
 
-**View:** [Actions Tab → Release](https://github.com/yourusername/lpm/actions/workflows/release.yml)
+**View:** Actions Tab, Release workflow
 
 ---
 
@@ -67,7 +67,7 @@ git push origin v0.1.0
 3. Uploads binaries as release assets
 
 **Manual Trigger:**
-1. Go to [Actions Tab → Plugin Release](https://github.com/yourusername/lpm/actions/workflows/plugins-release.yml)
+1. Go to Actions Tab, select the Plugin Release workflow
 2. Click "Run workflow"
 3. Select plugin (watch, bundle, or all)
 4. Enter version (e.g., v0.1.0)
@@ -83,7 +83,7 @@ git tag -a plugins/v0.1.0 -m "Release all plugins v0.1.0"
 git push origin plugins/v0.1.0
 ```
 
-**View:** [Actions Tab → Plugin Release](https://github.com/yourusername/lpm/actions/workflows/plugins-release.yml)
+**View:** Actions Tab, Plugin Release workflow
 
 ---
 
@@ -100,7 +100,7 @@ git push origin plugins/v0.1.0
 2. Syncs `docs/contributing/` → Wiki (Contributor Documentation)
 
 **Manual Trigger:**
-1. Go to [Actions Tab → Sync Documentation to Wiki](https://github.com/yourusername/lpm/actions/workflows/wiki-sync.yml)
+1. Go to Actions Tab, select the Sync Documentation to Wiki workflow
 2. Click "Run workflow"
 3. Optionally enable "Force sync"
 
@@ -128,7 +128,7 @@ git push origin plugins/v0.1.0
 
 **Note:** If the token is not set, the workflow will skip wiki sync with a helpful message. This is not an error - wiki sync is optional.
 
-**View:** [Actions Tab → Wiki Sync](https://github.com/yourusername/lpm/actions/workflows/wiki-sync.yml)
+**View:** Actions Tab, Wiki Sync workflow
 
 ---
 

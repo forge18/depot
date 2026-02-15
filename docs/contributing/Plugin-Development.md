@@ -10,23 +10,23 @@ Plugins are standalone Rust binaries named `depot-<name>` that can be installed 
 
 Depot discovers plugins in two locations:
 
-1. **Global installation directory**: `~/.depot/bin/lpm-<name>` (when installed via `depot install -g`)
+1. **Global installation directory**: `~/.depot/bin/depot-<name>` (when installed via `depot install -g`)
 2. **System PATH**: Any `depot-<name>` executable found in your PATH
 
 The discovery mechanism is implemented in `src/cli/plugin.rs`:
 
 ```rust
 pub fn find_plugin(plugin_name: &str) -> Option<PathBuf> {
-    // Check ~/.depot/bin/lpm-{name}
-    if let Ok(lpm_home) = lpm_home() {
-        let plugin_path = lpm_home.join("bin").join(format!("lpm-{}", plugin_name));
+    // Check ~/.depot/bin/depot-{name}
+    if let Ok(depot_home) = depot_home() {
+        let plugin_path = depot_home.join("bin").join(format!("depot-{}", plugin_name));
         if plugin_path.exists() {
             return Some(plugin_path);
         }
     }
-    
-    // Check PATH for lpm-{name}
-    which::which(format!("lpm-{}", plugin_name)).ok()
+
+    // Check PATH for depot-{name}
+    which::which(format!("depot-{}", plugin_name)).ok()
 }
 ```
 
@@ -37,8 +37,8 @@ pub fn find_plugin(plugin_name: &str) -> Option<PathBuf> {
 Create a new Rust project for your plugin:
 
 ```bash
-cargo new --bin lpm-myplugin
-cd lpm-myplugin
+cargo new --bin depot-myplugin
+cd depot-myplugin
 ```
 
 ### 2. Cargo.toml
@@ -53,12 +53,12 @@ Example:
 
 ```toml
 [package]
-name = "lpm-myplugin"
+name = "depot-myplugin"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "lpm-myplugin"
+name = "depot-myplugin"
 path = "src/main.rs"
 
 [dependencies]
@@ -77,17 +77,17 @@ clap = { version = "4.4", features = ["derive"] }
 Your plugin's `main.rs` should:
 
 - Use `clap` for CLI argument parsing
-- Return `Result<(), lpm_core::LpmError>`
+- Return `Result<(), depot_core::DepotError>`
 - Handle errors gracefully
 
 Example:
 
 ```rust
 use clap::{Parser, Subcommand};
-use lpm_core::LpmError;
+use depot_core::DepotError;
 
 #[derive(Parser)]
-#[command(name = "lpm-myplugin")]
+#[command(name = "depot-myplugin")]
 #[command(about = "Description of your plugin")]
 struct Cli {
     #[command(subcommand)]
@@ -104,9 +104,9 @@ enum Commands {
     },
 }
 
-fn main() -> Result<(), LpmError> {
+fn main() -> Result<(), DepotError> {
     let cli = Cli::parse();
-    
+
     match cli.command {
         Commands::DoSomething { option } => {
             // Your plugin logic here
@@ -124,18 +124,18 @@ The `depot-core` crate provides utilities that plugins can use:
 ### Error Handling
 
 ```rust
-use lpm_core::{LpmError, LpmResult};
+use depot_core::{DepotError, DepotResult};
 
-fn my_function() -> LpmResult<()> {
-    // Use LpmError for errors
-    Err(LpmError::Package("Something went wrong".to_string()))
+fn my_function() -> DepotResult<()> {
+    // Use DepotError for errors
+    Err(DepotError::Package("Something went wrong".to_string()))
 }
 ```
 
 ### Path Utilities
 
 ```rust
-use lpm_core::core::path::{find_project_root, lua_modules_dir};
+use depot_core::core::path::{find_project_root, lua_modules_dir};
 
 // Find the project root (directory containing package.yaml)
 let project_root = find_project_root(&std::env::current_dir()?)?;
@@ -147,7 +147,7 @@ let lua_modules = lua_modules_dir(&project_root);
 ### Package Manifest
 
 ```rust
-use lpm_core::package::manifest::PackageManifest;
+use depot_core::package::manifest::PackageManifest;
 
 // Load package.yaml
 let manifest = PackageManifest::load(&project_root)?;
@@ -161,7 +161,7 @@ println!("Dependencies: {:?}", manifest.dependencies);
 ### Lua Runner
 
 ```rust
-use lpm_core::path_setup::runner::{LuaRunner, RunOptions};
+use depot_core::path_setup::runner::{LuaRunner, RunOptions};
 
 // Run a Lua script with proper path setup
 let options = RunOptions {
@@ -176,9 +176,9 @@ let exit_code = LuaRunner::run_script(&script_path, options)?;
 ### Path Setup
 
 ```rust
-use lpm_core::path_setup::loader::PathSetup;
+use depot_core::path_setup::loader::PathSetup;
 
-// Ensure lpm.loader is installed in the project
+// Ensure depot.loader is installed in the project
 PathSetup::install_loader(&project_root)?;
 ```
 
@@ -188,11 +188,11 @@ Here's a complete minimal plugin example:
 
 ```rust
 use clap::Parser;
-use lpm_core::{LpmError, LpmResult};
-use lpm_core::core::path::find_project_root;
+use depot_core::{DepotError, DepotResult};
+use depot_core::core::path::find_project_root;
 
 #[derive(Parser)]
-#[command(name = "lpm-hello")]
+#[command(name = "depot-hello")]
 #[command(about = "A simple hello world plugin")]
 struct Cli {
     /// Name to greet
@@ -200,7 +200,7 @@ struct Cli {
     name: String,
 }
 
-fn main() -> Result<(), LpmError> {
+fn main() -> Result<(), DepotError> {
     let cli = Cli::parse();
     
     // Find project root
@@ -222,7 +222,7 @@ Plugins can read configuration from `package.yaml` by parsing the YAML directly:
 use serde_yaml::Value;
 use std::fs;
 
-fn load_plugin_config(project_root: &Path) -> LpmResult<Option<Value>> {
+fn load_plugin_config(project_root: &Path) -> DepotResult<Option<Value>> {
     let package_yaml_path = project_root.join("package.yaml");
     if !package_yaml_path.exists() {
         return Ok(None);
@@ -230,7 +230,7 @@ fn load_plugin_config(project_root: &Path) -> LpmResult<Option<Value>> {
     
     let content = fs::read_to_string(&package_yaml_path)?;
     let yaml: Value = serde_yaml::from_str(&content)
-        .map_err(|e| LpmError::Package(format!("Failed to parse package.yaml: {}", e)))?;
+        .map_err(|e| DepotError::Package(format!("Failed to parse package.yaml: {}", e)))?;
     
     // Access plugin-specific section
     Ok(yaml.get("myplugin").cloned())
@@ -262,12 +262,12 @@ During development, you can test your plugin by:
 
 2. Running it directly:
    ```bash
-   ./target/release/lpm-myplugin
+   ./target/release/depot-myplugin
    ```
 
 3. Or symlinking it to test discovery:
    ```bash
-   ln -s $(pwd)/target/release/lpm-myplugin ~/.depot/bin/lpm-myplugin
+   ln -s $(pwd)/target/release/depot-myplugin ~/.depot/bin/depot-myplugin
    depot myplugin  # Should now work
    ```
 
@@ -278,7 +278,7 @@ Test that your plugin integrates correctly with Depot:
 ```bash
 # Build and install globally
 cargo build --release
-cp target/release/lpm-myplugin ~/.depot/bin/
+cp target/release/depot-myplugin ~/.depot/bin/
 
 # Test discovery
 depot myplugin --help
@@ -304,15 +304,15 @@ Users can install plugins globally:
 
 ```bash
 # If published as a crate
-depot install -g lpm-myplugin
+depot install -g depot-myplugin
 
 # Or manually
-cargo install lpm-myplugin
+cargo install depot-myplugin
 ```
 
 ## Best Practices
 
-1. **Error Handling**: Always return `LpmResult<()>` and use `LpmError` for errors
+1. **Error Handling**: Always return `DepotResult<()>` and use `DepotError` for errors
 2. **Project Root**: Use `find_project_root()` to locate the Depot project
 3. **Path Setup**: Use `LuaRunner` or `PathSetup` when running Lua code
 4. **CLI Design**: Follow Depot's CLI conventions (use `clap`, clear help text)

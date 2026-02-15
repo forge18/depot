@@ -22,8 +22,7 @@ Complete guide to setting up a development environment for Depot.
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/lpm.git
-cd lpm
+cd depot
 ```
 
 ### 2. Install Dependencies
@@ -145,7 +144,7 @@ Command line (gdb/lldb):
 cargo build
 
 # Run with debugger
-lldb target/debug/lpm
+lldb target/debug/depot
 ```
 
 ## Testing Locally

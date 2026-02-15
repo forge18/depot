@@ -13,8 +13,8 @@ The Lua version manager allows you to:
 ## Installation Location
 
 Lua versions are installed to:
-- **Unix/macOS**: `~/.depot/versions/` (or `~/Library/Application Support/lpm/versions/` on macOS)
-- **Windows**: `%APPDATA%\lpm\versions\`
+- **Unix/macOS**: `~/.depot/versions/` (or `~/Library/Application Support/depot/versions/` on macOS)
+- **Windows**: `%APPDATA%\depot\versions\`
 
 Each version is installed in its own directory:
 ```
@@ -97,7 +97,7 @@ Add `~/.depot/bin/` to your PATH to use the `lua` and `luac` wrappers:
 export PATH="$HOME/.depot/bin:$PATH"
 
 # Or on macOS:
-export PATH="$HOME/Library/Application Support/lpm/bin:$PATH"
+export PATH="$HOME/Library/Application Support/depot/bin:$PATH"
 ```
 
 ### How Wrappers Work
@@ -207,7 +207,7 @@ depot lua list
 
 Make sure `~/.depot/bin/` is in your PATH:
 ```bash
-echo $PATH | grep lpm
+echo $PATH | grep depot
 ```
 
 If not, add it to your shell profile.

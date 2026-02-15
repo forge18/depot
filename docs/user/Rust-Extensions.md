@@ -167,20 +167,6 @@ depot package --target x86_64-unknown-linux-gnu
 
 Creates distributable archives with the compiled modules.
 
-## Publishing
-
-Publish packages with Rust extensions:
-
-```bash
-# Include pre-built binaries in published package
-depot publish --with-binaries
-```
-
-Depot will:
-1. Build for all common targets
-2. Package the binaries
-3. Include them in the published package
-
 ## Lua Version Support
 
 Rust extensions must specify which Lua versions they support:

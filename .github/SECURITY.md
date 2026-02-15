@@ -16,7 +16,7 @@ We release patches for security vulnerabilities. Which versions are eligible for
 Instead, please report them via one of the following methods:
 
 1. **GitHub Security Advisories** (preferred):
-   - Go to https://github.com/yourusername/lpm/security/advisories/new
+   - Navigate to the repository's Security tab and create a new advisory
    - Click "New draft security advisory"
    - Fill out the form with details about the vulnerability
 

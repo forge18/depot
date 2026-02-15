@@ -3,11 +3,9 @@
 **Local, project-scoped package management for Lua.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Status: Alpha](https://img.shields.io/badge/Status-Alpha-orange)](https://github.com/yourusername/lpm)
-[![Build Status](https://github.com/forge18/lpm/actions/workflows/ci.yml/badge.svg)](https://github.com/forge18/lpm/actions/workflows/ci.yml)
-[![Code Coverage](https://img.shields.io/badge/Code%20Coverage-60%25-yellow)](https://github.com/forge18/lpm/tree/main/coverage)
+![Status: Alpha](https://img.shields.io/badge/Status-Alpha-orange)
 
-> **⚠️ Alpha Release Disclaimer**
+> **Alpha Release Disclaimer**
 >
 > Depot is currently in **alpha** status. This means:
 >
@@ -30,36 +28,16 @@ Depot provides local, project-scoped package management for Lua, similar to npm,
 - **LuaRocks compatible** - Uses LuaRocks as upstream package source
 - **Rust extensions** - Build native Lua modules with Rust
 - **Supply chain security** - BLAKE3 checksums, no postinstall scripts, sandboxed builds
-- **Interactive CLI** - Fuzzy search, templates, and guided workflows
+- **Lua version compatibility** - Static analysis to detect version-specific features with `depot compat`
+- **Interactive CLI** - Fuzzy search and guided workflows
 
 ## Quick Start
 
 ### Installation
 
-**Pre-built binaries (recommended):**
-
-```bash
-# macOS (Apple Silicon)
-curl -L https://github.com/yourusername/lpm/releases/latest/download/lpm-v0.1.0-macos-aarch64.pkg -o lpm.pkg && open lpm.pkg
-
-# macOS (Intel)
-curl -L https://github.com/yourusername/lpm/releases/latest/download/lpm-v0.1.0-macos-x86_64.pkg -o lpm.pkg && open lpm.pkg
-
-# Linux (x86_64)
-curl -L https://github.com/yourusername/lpm/releases/latest/download/lpm-v0.1.0-linux-x86_64.tar.gz | tar xz && sudo mv depot /usr/local/bin/
-
-# Linux (ARM64)
-curl -L https://github.com/yourusername/lpm/releases/latest/download/lpm-v0.1.0-linux-aarch64.tar.gz | tar xz && sudo mv depot /usr/local/bin/
-
-# Windows
-# Download lpm-v0.1.0-windows-x86_64.zip from GitHub Releases
-```
-
 **From source (requires Rust):**
 
 ```bash
-git clone https://github.com/yourusername/lpm.git
-cd lpm
 cargo build --release
 cp target/release/depot /usr/local/bin/  # or add to PATH
 ```
@@ -91,6 +69,9 @@ depot lua use 5.4.8
 
 # Install global tools
 depot install -g depot-watch
+
+# Check Lua version compatibility
+depot compat
 ```
 
 ## Documentation

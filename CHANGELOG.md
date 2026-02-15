@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Resolution strategy configuration (highest, lowest, exact)
 - Strict conflict detection mode (enabled by default)
 - Workspace support for monorepos with dependency inheritance, package metadata inheritance, default members, exclude patterns, and filtering
+- Lua version compatibility analysis via `depot compat` (static analysis of Lua source for version-specific features)
 
 ### Changed
 - Updated CodeQL Action to v4 (from deprecated v3)
@@ -25,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Enhanced release workflow with manual trigger support
 - Renamed lockfile from `package.lock` to `depot.lock` for clarity
 - Switched to BLAKE3 checksums (from SHA-256) for faster, more secure package verification
-- Code coverage thresholds: 60-70% yellow, ≥70% green (following Google Testing Blog best practices)
+- Code coverage thresholds: 60-70% yellow, >=70% green (following Google Testing Blog best practices)
 
 ### Fixed
 - Fixed git hooks PATH issue for RustyHook
@@ -37,17 +38,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release of Depot
 - Local package installation to `./lua_modules/`
-- Lockfile support (`package.lock`) for reproducible builds
+- Lockfile support (`depot.lock`) for reproducible builds
 - SemVer dependency resolution
 - LuaRocks integration for package downloads
 - Rust extension building with cross-compilation support
 - Security auditing via `depot audit`
 - Supply chain security with checksums
-- CLI commands: init, install, remove, update, list, verify, outdated, clean
+- CLI commands: init, install, remove, update, list, verify, clean
 - Scripts support via `depot run` and `depot exec`
 - Dev dependencies support
 - Workspace/monorepo support
-- Publishing to LuaRocks via `depot publish`
 - Cross-platform installer generation (macOS, Linux, Windows)
 - Plugin system for extensibility
 - `depot-watch` plugin with enhanced features:
@@ -57,10 +57,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Enhanced terminal UI with colored output, timestamps, and status indicators
 - Interactive project initialization wizard
 - Interactive package installation with fuzzy search
-- Project templates system (built-in and user-defined)
 - Plugin management commands (`depot plugin list`, `depot plugin info`, `depot plugin update`, etc.)
 - Plugin configuration system
-
-[Unreleased]: https://github.com/yourusername/lpm/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/yourusername/lpm/releases/tag/v0.1.0
-

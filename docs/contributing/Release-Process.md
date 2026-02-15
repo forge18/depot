@@ -152,7 +152,7 @@ Plugins (`depot-watch`) are released separately from the main Depot binary.
 
 ### Creating a Plugin Release
 
-1. **Update plugin version** in `crates/lpm-<plugin>/Cargo.toml`
+1. **Update plugin version** in `crates/depot-<plugin>/Cargo.toml`
 
 2. **Create release tag**:
    ```bash
