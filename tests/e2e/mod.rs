@@ -8,14 +8,13 @@ use std::process::Command as StdCommand;
 pub mod audit;
 pub mod global;
 pub mod init;
-// pub mod install; // Removed - LuaRocks specific
+// pub mod install;
 pub mod interactive;
 pub mod list;
 pub mod lua_version;
 pub mod plugins;
 pub mod real_packages;
 pub mod remove;
-pub mod templates;
 pub mod update;
 pub mod verify;
 pub mod workflow;
@@ -211,7 +210,7 @@ impl TestContext {
         eprintln!("   Package: {}@{}", package, version);
         eprintln!("   Error: {}", error);
         eprintln!("\n💡 Solutions:");
-        eprintln!("   1. Check if package/version still exists on LuaRocks");
+        eprintln!("   1. Check if package/version still exists in the registry");
         eprintln!("   2. Update version in constants module if newer version available");
         eprintln!("   3. Use alternative stable package for testing");
         eprintln!("   4. Set SKIP_NETWORK_TESTS=1 to skip network tests");
@@ -255,13 +254,6 @@ pub mod constants {
     pub const SRC_DIR: &str = "src";
     pub const LIB_DIR: &str = "lib";
     pub const TESTS_DIR: &str = "tests";
-
-    // Template names
-    pub const TEMPLATE_BASIC_LUA: &str = "basic-lua";
-    pub const TEMPLATE_LOVE2D: &str = "love2d";
-    pub const TEMPLATE_NEOVIM_PLUGIN: &str = "neovim-plugin";
-    pub const TEMPLATE_LAPIS_WEB: &str = "lapis-web";
-    pub const TEMPLATE_CLI_TOOL: &str = "cli-tool";
 
     // Test package names and versions
     pub const PKG_PENLIGHT: &str = "penlight";

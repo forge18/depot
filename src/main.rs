@@ -18,9 +18,6 @@ struct Cli {
 enum Commands {
     /// Initialize a new Depot project
     Init {
-        /// Use a template
-        #[arg(short, long)]
-        template: Option<String>,
         /// Skip interactive wizard (use defaults)
         #[arg(short, long)]
         yes: bool,
@@ -29,9 +26,6 @@ enum Commands {
     New {
         /// Name of the project (creates directory)
         name: String,
-        /// Template to use
-        #[arg(short, long)]
-        template: Option<String>,
         /// Skip interactive prompts
         #[arg(short, long)]
         yes: bool,
@@ -153,9 +147,6 @@ enum Commands {
     /// Manage Lua versions
     #[command(subcommand)]
     Lua(cli::lua::LuaCommands),
-    /// Manage project templates
-    #[command(subcommand)]
-    Template(cli::template::TemplateCommands),
     /// Manage plugins
     #[command(subcommand)]
     Plugin(cli::plugin::commands::PluginSubcommand),
@@ -487,12 +478,8 @@ async fn main() -> ExitCode {
     let cli = Cli::parse();
 
     let result = match cli.command {
-        Commands::Init { template, yes } => cli::init::run(template, yes).await,
-        Commands::New {
-            name,
-            template,
-            yes,
-        } => cli::new::run(name, template, yes).await,
+        Commands::Init { yes } => cli::init::run(yes).await,
+        Commands::New { name, yes } => cli::new::run(name, yes).await,
         Commands::Install {
             package,
             dev,
@@ -546,7 +533,6 @@ async fn main() -> ExitCode {
             ConfigCommands::GetGlobalPath => get_global_path(),
         },
         Commands::Lua(cmd) => cli::lua::run(cmd).await,
-        Commands::Template(cmd) => cli::template::run(cmd),
         Commands::Plugin(cmd) => cli::plugin::commands::run(cmd),
         Commands::Workspace(cmd) => match cmd {
             WorkspaceCommands::List => cli::workspace::list().await,

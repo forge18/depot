@@ -78,7 +78,7 @@ fn benchmark_dependency_resolution(c: &mut Criterion) {
     c.bench_function("resolve_dependencies", |b| {
         b.iter(|| {
             // Note: This requires network access and may be slow
-            // In real benchmarks, we'd mock the LuaRocks client
+            // In real benchmarks, we'd mock the package client
             // For now, this is a placeholder
             black_box(&manifest);
         })

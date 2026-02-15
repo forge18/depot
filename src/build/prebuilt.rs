@@ -28,7 +28,7 @@ impl PrebuiltBinaryManager {
     ///
     /// This checks:
     /// 1. Local cache (already downloaded)
-    /// 2. LuaRocks manifest for binary URLs (future: CDN/registry)
+    /// 2. Package manifest for binary URLs (future: CDN/registry)
     pub fn has_prebuilt(
         &self,
         package: &str,
@@ -116,18 +116,18 @@ impl PrebuiltBinaryManager {
         Ok(cache_path)
     }
 
-    /// Find binary URL from rockspec's binary_urls table
+    /// Find binary URL from a package's binary_urls table
     ///
     /// Looks for a binary URL matching the current Lua version and target.
-    /// Format: `binary_urls = { ["5.4-x86_64-unknown-linux-gnu"] = "https://..." }`
+    /// Format: `binary_urls: { "5.4-x86_64-unknown-linux-gnu": "https://..." }`
     pub fn find_binary_url(
-        rockspec_binary_urls: &std::collections::HashMap<String, String>,
+        binary_urls: &std::collections::HashMap<String, String>,
         target: &Target,
         lua_version: &LuaVersion,
     ) -> Option<String> {
         // The key format is: "{lua_version}-{target_triple}"
         let key = format!("{}-{}", lua_version.major_minor(), target.triple);
-        rockspec_binary_urls.get(&key).cloned()
+        binary_urls.get(&key).cloned()
     }
 
     /// Try to get or download a pre-built binary

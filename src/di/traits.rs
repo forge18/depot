@@ -49,10 +49,10 @@ pub trait ConfigProvider: Send + Sync {
 /// Trait for cache operations
 ///
 /// Provides access to the package cache for storing and retrieving
-/// rockspecs, source archives, and build artifacts.
+/// package metadata, source archives, and build artifacts.
 pub trait CacheProvider: Send + Sync {
-    /// Get the cache path for a rockspec file
-    fn rockspec_path(&self, package: &str, version: &str) -> PathBuf;
+    /// Get the cache path for a package metadata file
+    fn package_metadata_path(&self, package: &str, version: &str) -> PathBuf;
 
     /// Get the cache path for a source archive
     fn source_path(&self, url: &str) -> PathBuf;

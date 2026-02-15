@@ -1,10 +1,8 @@
 use crate::cli::install::run_interactive;
-use crate::cli::template::{TemplateDiscovery, TemplateRenderer};
 use depot::core::path::find_project_root;
 use depot::core::{DepotError, DepotResult};
 use depot::package::manifest::PackageManifest;
 use dialoguer::{Confirm, Input, MultiSelect, Select};
-use std::collections::HashMap;
 use std::env;
 use std::path::Path;
 
@@ -54,13 +52,13 @@ impl UserInput for DialoguerInput {
     }
 }
 
-pub async fn run(template: Option<String>, yes: bool) -> DepotResult<()> {
+pub async fn run(yes: bool) -> DepotResult<()> {
     let current_dir = env::current_dir()
         .map_err(|e| DepotError::Path(format!("Failed to get current directory: {}", e)))?;
-    run_in_dir(&current_dir, template, yes).await
+    run_in_dir(&current_dir, yes).await
 }
 
-pub async fn run_in_dir(dir: &Path, template: Option<String>, yes: bool) -> DepotResult<()> {
+pub async fn run_in_dir(dir: &Path, yes: bool) -> DepotResult<()> {
     // Check if we're already in a project
     if find_project_root(dir).is_ok() {
         return Err(DepotError::Package(
@@ -77,31 +75,20 @@ pub async fn run_in_dir(dir: &Path, template: Option<String>, yes: bool) -> Depo
 
     if yes {
         // Non-interactive mode: use defaults
-        return run_non_interactive(dir, &default_project_name, template);
+        return run_non_interactive(dir, &default_project_name);
     }
 
     // Interactive wizard mode
-    run_wizard(dir, &default_project_name, template).await
+    run_wizard(dir, &default_project_name).await
 }
 
-async fn run_wizard(
-    current_dir: &Path,
-    default_project_name: &str,
-    template_name: Option<String>,
-) -> DepotResult<()> {
-    run_wizard_with_input(
-        current_dir,
-        default_project_name,
-        template_name,
-        &DialoguerInput,
-    )
-    .await
+async fn run_wizard(current_dir: &Path, default_project_name: &str) -> DepotResult<()> {
+    run_wizard_with_input(current_dir, default_project_name, &DialoguerInput).await
 }
 
 async fn run_wizard_with_input(
     current_dir: &Path,
     default_project_name: &str,
-    template_name: Option<String>,
     input: &dyn UserInput,
 ) -> DepotResult<()> {
     println!("🚀 Depot Project Initialization Wizard\n");
@@ -174,32 +161,6 @@ async fn run_wizard_with_input(
     let lua_selection = input.prompt_select("Lua version", &lua_versions, default_index)?;
     let lua_version = lua_versions[lua_selection].clone();
 
-    // Select or use specified template
-    let selected_template = if let Some(template_name) = template_name {
-        Some(TemplateDiscovery::find_template(&template_name)?)
-    } else {
-        // Present template selection menu
-        let templates = TemplateDiscovery::list_templates()?;
-        if !templates.is_empty() {
-            let template_names: Vec<String> = templates
-                .iter()
-                .map(|t| format!("{} - {}", t.name, t.description))
-                .collect();
-            let mut all_items = vec!["None (empty project)".to_string()];
-            all_items.extend(template_names);
-            let template_selection =
-                input.prompt_select("Use a template? (optional)", &all_items, 0)?;
-
-            if template_selection > 0 {
-                Some(templates[template_selection - 1].clone())
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    };
-
     // Prompt for initial dependency setup
     let add_dependencies = input.prompt_confirm("Add initial dependencies?", false)?;
 
@@ -221,7 +182,7 @@ async fn run_wizard_with_input(
         &script_options,
     )?;
 
-    // Step 9: Show summary
+    // Show summary
     println!("\n📋 Project Summary:");
     println!("  Name: {}", project_name);
     println!("  Version: {}", project_version);
@@ -230,9 +191,6 @@ async fn run_wizard_with_input(
     }
     println!("  License: {}", license);
     println!("  Lua Version: {}", lua_version);
-    if let Some(ref template) = selected_template {
-        println!("  Template: {}", template.name);
-    }
     if add_dependencies {
         println!("  Initial dependencies: Yes (will be added after project creation)");
     }
@@ -296,41 +254,25 @@ async fn run_wizard_with_input(
     // Save package.yaml
     manifest.save(current_dir)?;
 
-    // If template is selected, render it
-    let template_used = if let Some(ref template) = selected_template {
-        let mut variables = HashMap::new();
-        variables.insert("project_name".to_string(), project_name.clone());
-        variables.insert("project_version".to_string(), project_version.clone());
-        variables.insert("lua_version".to_string(), lua_version.clone());
+    // Create basic directory structure
+    std::fs::create_dir_all(current_dir.join("src"))?;
+    std::fs::create_dir_all(current_dir.join("lib"))?;
+    std::fs::create_dir_all(current_dir.join("tests"))?;
 
-        let renderer = TemplateRenderer::new(template.path.clone())?;
-        renderer.render(current_dir, &variables)?;
-        true
-    } else {
-        // Create basic directory structure
-        std::fs::create_dir_all(current_dir.join("src"))?;
-        std::fs::create_dir_all(current_dir.join("lib"))?;
-        std::fs::create_dir_all(current_dir.join("tests"))?;
-
-        // Create a basic main.lua if it doesn't exist
-        let main_lua = current_dir.join("src").join("main.lua");
-        if !main_lua.exists() {
-            std::fs::write(
-                &main_lua,
-                format!(
-                    "-- {}\n-- Version: {}\n\nprint(\"Hello from {}\")\n",
-                    project_name, project_version, project_name
-                ),
-            )?;
-        }
-        false
-    };
+    // Create a basic main.lua if it doesn't exist
+    let main_lua = current_dir.join("src").join("main.lua");
+    if !main_lua.exists() {
+        std::fs::write(
+            &main_lua,
+            format!(
+                "-- {}\n-- Version: {}\n\nprint(\"Hello from {}\")\n",
+                project_name, project_version, project_name
+            ),
+        )?;
+    }
 
     println!("\n✓ Initialized Depot project: {}", project_name);
     println!("  Created package.yaml");
-    if template_used {
-        println!("  Applied template");
-    }
     if !script_selections.is_empty() {
         println!("  Added {} script(s)", script_selections.len());
     }
@@ -353,39 +295,20 @@ async fn run_wizard_with_input(
     Ok(())
 }
 
-fn run_non_interactive(
-    current_dir: &Path,
-    project_name: &str,
-    template_name: Option<String>,
-) -> DepotResult<()> {
+fn run_non_interactive(current_dir: &Path, project_name: &str) -> DepotResult<()> {
     // Create default manifest
     let manifest = PackageManifest::default(project_name.to_string());
 
     // Save package.yaml
     manifest.save(current_dir)?;
 
-    // If template is specified, render it
-    if let Some(ref template_name) = template_name {
-        let template = TemplateDiscovery::find_template(template_name)?;
-        let mut variables = HashMap::new();
-        variables.insert("project_name".to_string(), project_name.to_string());
-        variables.insert("project_version".to_string(), "1.0.0".to_string());
-        variables.insert("lua_version".to_string(), "5.4".to_string());
-
-        let renderer = TemplateRenderer::new(template.path)?;
-        renderer.render(current_dir, &variables)?;
-    } else {
-        // Create basic directory structure
-        std::fs::create_dir_all(current_dir.join("src"))?;
-        std::fs::create_dir_all(current_dir.join("lib"))?;
-        std::fs::create_dir_all(current_dir.join("tests"))?;
-    }
+    // Create basic directory structure
+    std::fs::create_dir_all(current_dir.join("src"))?;
+    std::fs::create_dir_all(current_dir.join("lib"))?;
+    std::fs::create_dir_all(current_dir.join("tests"))?;
 
     println!("✓ Initialized Depot project: {}", project_name);
     println!("  Created package.yaml");
-    if template_name.is_some() {
-        println!("  Applied template");
-    }
 
     Ok(())
 }
@@ -393,22 +316,16 @@ fn run_non_interactive(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
     use std::fs;
     use tempfile::TempDir;
 
     #[test]
     fn test_run_non_interactive() {
         let temp = TempDir::new().unwrap();
-        let result = run_non_interactive(temp.path(), "test-project", None);
+        let result = run_non_interactive(temp.path(), "test-project");
         assert!(result.is_ok());
         assert!(temp.path().join("package.yaml").exists());
-    }
-
-    #[test]
-    fn test_run_non_interactive_with_template() {
-        let temp = TempDir::new().unwrap();
-        // Template discovery might fail, but that's ok
-        let _ = run_non_interactive(temp.path(), "test-project", Some("nonexistent".to_string()));
     }
 
     #[tokio::test]
@@ -416,7 +333,7 @@ mod tests {
         let temp = TempDir::new().unwrap();
         fs::write(temp.path().join("package.yaml"), "name: test").unwrap();
 
-        let result = run_in_dir(temp.path(), None, false).await;
+        let result = run_in_dir(temp.path(), false).await;
 
         // This will fail because we're in a project
         assert!(result.is_err());
@@ -429,7 +346,7 @@ mod tests {
     #[test]
     fn test_run_non_interactive_creates_directories() {
         let temp = TempDir::new().unwrap();
-        run_non_interactive(temp.path(), "test-project", None).unwrap();
+        run_non_interactive(temp.path(), "test-project").unwrap();
 
         // Should create src, lib, tests directories
         assert!(temp.path().join("src").exists());
@@ -440,7 +357,7 @@ mod tests {
     #[test]
     fn test_run_non_interactive_manifest_content() {
         let temp = TempDir::new().unwrap();
-        run_non_interactive(temp.path(), "my-cool-project", None).unwrap();
+        run_non_interactive(temp.path(), "my-cool-project").unwrap();
 
         let manifest_content = fs::read_to_string(temp.path().join("package.yaml")).unwrap();
         assert!(manifest_content.contains("my-cool-project"));
@@ -449,7 +366,7 @@ mod tests {
     #[tokio::test]
     async fn test_run_in_dir_with_yes_flag() {
         let temp = TempDir::new().unwrap();
-        let result = run_in_dir(temp.path(), None, true).await;
+        let result = run_in_dir(temp.path(), true).await;
 
         assert!(result.is_ok());
         assert!(temp.path().join("package.yaml").exists());
@@ -458,7 +375,7 @@ mod tests {
     #[test]
     fn test_run_non_interactive_special_characters_in_name() {
         let temp = TempDir::new().unwrap();
-        let result = run_non_interactive(temp.path(), "test-project_123", None);
+        let result = run_non_interactive(temp.path(), "test-project_123");
         assert!(result.is_ok());
 
         let manifest_content = fs::read_to_string(temp.path().join("package.yaml")).unwrap();
@@ -470,7 +387,7 @@ mod tests {
         let temp = TempDir::new().unwrap();
 
         // First run
-        run_non_interactive(temp.path(), "project1", None).unwrap();
+        run_non_interactive(temp.path(), "project1").unwrap();
 
         // Second run with different name - will fail because project already exists
         // but the test verifies the path is checked
@@ -503,7 +420,7 @@ mod tests {
         env::set_current_dir(temp.path()).unwrap();
 
         // Run init with yes flag to avoid interactive prompts
-        let result = run(None, true).await;
+        let result = run(true).await;
 
         // Restore original directory
         if let Some(dir) = original_dir {
@@ -514,20 +431,10 @@ mod tests {
         assert!(temp.path().join("package.yaml").exists());
     }
 
-    #[tokio::test]
-    async fn test_run_in_dir_with_template_name() {
-        let temp = TempDir::new().unwrap();
-        // Try with a template name - will likely fail to find template, but exercises the code path
-        let result = run_in_dir(temp.path(), Some("nonexistent-template".to_string()), true).await;
-
-        // May fail due to template not found, but that's ok - we're testing the code path
-        let _ = result;
-    }
-
     #[test]
     fn test_run_non_interactive_directory_structure() {
         let temp = TempDir::new().unwrap();
-        run_non_interactive(temp.path(), "test-project", None).unwrap();
+        run_non_interactive(temp.path(), "test-project").unwrap();
 
         // Verify all three directories were created
         assert!(temp.path().join("src").is_dir());
@@ -538,7 +445,7 @@ mod tests {
     #[tokio::test]
     async fn test_run_in_dir_default_project_name_fallback() {
         let temp = TempDir::new().unwrap();
-        let result = run_in_dir(temp.path(), None, true).await;
+        let result = run_in_dir(temp.path(), true).await;
 
         assert!(result.is_ok());
 
@@ -553,17 +460,17 @@ mod tests {
         let temp = TempDir::new().unwrap();
 
         // Test with hyphens
-        let result1 = run_non_interactive(temp.path(), "my-test-project", None);
+        let result1 = run_non_interactive(temp.path(), "my-test-project");
         assert!(result1.is_ok());
 
         let temp2 = TempDir::new().unwrap();
         // Test with underscores
-        let result2 = run_non_interactive(temp2.path(), "my_test_project", None);
+        let result2 = run_non_interactive(temp2.path(), "my_test_project");
         assert!(result2.is_ok());
 
         let temp3 = TempDir::new().unwrap();
         // Test with mixed
-        let result3 = run_non_interactive(temp3.path(), "my-test_project123", None);
+        let result3 = run_non_interactive(temp3.path(), "my-test_project123");
         assert!(result3.is_ok());
     }
 
@@ -572,7 +479,7 @@ mod tests {
         let temp = TempDir::new().unwrap();
 
         // Call with yes=true should use non-interactive mode
-        let result = run_in_dir(temp.path(), None, true).await;
+        let result = run_in_dir(temp.path(), true).await;
 
         assert!(result.is_ok());
         assert!(temp.path().join("package.yaml").exists());
@@ -662,7 +569,7 @@ mod tests {
             )
             .with_confirm("Create project?", true);
 
-        let result = run_wizard_with_input(temp.path(), "test-wizard", None, &mock).await;
+        let result = run_wizard_with_input(temp.path(), "test-wizard", &mock).await;
 
         assert!(result.is_ok());
         assert!(temp.path().join("package.yaml").exists());
@@ -685,7 +592,7 @@ mod tests {
             )
             .with_confirm("Create project?", false); // Cancel
 
-        let result = run_wizard_with_input(temp.path(), "test-cancel", None, &mock).await;
+        let result = run_wizard_with_input(temp.path(), "test-cancel", &mock).await;
 
         // Should succeed but not create project
         assert!(result.is_ok());
@@ -698,7 +605,7 @@ mod tests {
 
         let mock = MockInput::new().with_string("Project name", "invalid project!".to_string()); // Invalid characters
 
-        let result = run_wizard_with_input(temp.path(), "default", None, &mock).await;
+        let result = run_wizard_with_input(temp.path(), "default", &mock).await;
 
         // Should fail validation
         assert!(result.is_err());
@@ -711,7 +618,7 @@ mod tests {
 
         let mock = MockInput::new().with_string("Project name", "".to_string()); // Empty name
 
-        let result = run_wizard_with_input(temp.path(), "default", None, &mock).await;
+        let result = run_wizard_with_input(temp.path(), "default", &mock).await;
 
         // Should fail validation
         assert!(result.is_err());
@@ -735,7 +642,7 @@ mod tests {
             ) // Select dev and build
             .with_confirm("Create project?", true);
 
-        let result = run_wizard_with_input(temp.path(), "test-scripts", None, &mock).await;
+        let result = run_wizard_with_input(temp.path(), "test-scripts", &mock).await;
 
         assert!(result.is_ok());
         assert!(temp.path().join("package.yaml").exists());

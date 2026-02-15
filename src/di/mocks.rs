@@ -200,8 +200,8 @@ impl Default for MockCacheProvider {
 }
 
 impl CacheProvider for MockCacheProvider {
-    fn rockspec_path(&self, package: &str, version: &str) -> PathBuf {
-        PathBuf::from(format!("/tmp/rockspecs/{}-{}.rockspec", package, version))
+    fn package_metadata_path(&self, package: &str, version: &str) -> PathBuf {
+        PathBuf::from(format!("/tmp/packages/{}/{}/.metadata", package, version))
     }
 
     fn source_path(&self, url: &str) -> PathBuf {
@@ -767,13 +767,13 @@ mod tests {
     }
 
     #[test]
-    fn test_mock_cache_provider_rockspec_path() {
+    fn test_mock_cache_provider_package_metadata_path() {
         let cache = MockCacheProvider::new();
-        let path = cache.rockspec_path("test-package", "1.0.0");
+        let path = cache.package_metadata_path("test-package", "1.0.0");
 
         assert_eq!(
             path,
-            PathBuf::from("/tmp/rockspecs/test-package-1.0.0.rockspec")
+            PathBuf::from("/tmp/packages/test-package/1.0.0/.metadata")
         );
     }
 
@@ -922,8 +922,6 @@ mod tests {
         let cache = MockCacheProvider::default();
         assert!(cache.get_files().is_empty());
     }
-
-    // MockPackageClient and MockSearchProvider tests removed - LuaRocks support removed
 
     #[test]
     fn test_mock_cache_builder_chaining() {

@@ -74,36 +74,6 @@ print("Package works!")
 }
 
 #[test]
-#[ignore = "requires Lua runtime to verify template functionality"]
-fn test_template_to_working_project_love2d() {
-    if !TestContext::has_lua() {
-        TestContext::skip_test("Lua not available");
-    }
-
-    let ctx = TestContext::new();
-
-    // Initialize with love2d template
-    ctx.depot()
-        .arg("init")
-        .arg("--template")
-        .arg(constants::TEMPLATE_LOVE2D)
-        .arg("--yes")
-        .assert()
-        .success();
-
-    // Verify Love2D structure
-    ctx.temp.child("main.lua").assert(predicate::path::exists());
-    ctx.temp.child("conf.lua").assert(predicate::path::exists());
-
-    // Verify main.lua has Love2D callbacks
-    let main_content = std::fs::read_to_string(ctx.temp.child("main.lua").path()).unwrap();
-
-    assert!(main_content.contains("love.load"), "Missing love.load");
-    assert!(main_content.contains("love.update"), "Missing love.update");
-    assert!(main_content.contains("love.draw"), "Missing love.draw");
-}
-
-#[test]
 #[ignore = "requires network access for dev dependencies"]
 fn test_dev_workflow() {
     TestContext::require_network();

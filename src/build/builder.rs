@@ -89,8 +89,6 @@ impl RustBuilder {
                 m.binary_urls.get(&target_key).cloned()
             });
 
-            // Fall back to rockspec binary_urls if available
-            // (This would need to be passed in, but for now we check manifest first)
             url_from_manifest
         };
 

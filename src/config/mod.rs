@@ -451,7 +451,6 @@ resolution_strategy: lowest
     #[test]
     fn test_config_deserialization_with_supported_lua_versions() {
         let yaml = r#"
-luarocks_manifest_url: https://custom.luarocks.org/manifest
 supported_lua_versions:
   - "5.1"
   - "5.3"
@@ -495,7 +494,6 @@ supported_lua_versions:
     #[test]
     fn test_config_deserialization_with_strict_conflicts() {
         let yaml = r#"
-luarocks_manifest_url: https://custom.luarocks.org/manifest
 strict_conflicts: true
 "#;
         let config: Config = serde_yaml::from_str(yaml).unwrap();

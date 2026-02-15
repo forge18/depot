@@ -100,7 +100,7 @@ impl OsvApi {
     ) -> DepotResult<Vec<Vulnerability>> {
         let query = OsvQuery {
             package: OsvPackage {
-                ecosystem: "LuaRocks".to_string(),
+                ecosystem: "Lua".to_string(),
                 name: name.to_string(),
             },
             version: version.to_string(),
@@ -122,7 +122,7 @@ impl OsvApi {
         let osv_response: OsvResponse = response
             .json()
             .await
-            .map_err(|e| DepotError::LuaRocks(format!("OSV parse error: {}", e)))?;
+            .map_err(|e| DepotError::Package(format!("OSV parse error: {}", e)))?;
 
         Ok(osv_response
             .vulns
@@ -294,7 +294,7 @@ mod tests {
     fn test_osv_query_serialization() {
         let query = OsvQuery {
             package: OsvPackage {
-                ecosystem: "LuaRocks".to_string(),
+                ecosystem: "Lua".to_string(),
                 name: "test-package".to_string(),
             },
             version: "1.0.0".to_string(),
@@ -303,7 +303,7 @@ mod tests {
         let json = serde_json::to_string(&query).unwrap();
         assert!(json.contains("test-package"));
         assert!(json.contains("1.0.0"));
-        assert!(json.contains("LuaRocks"));
+        assert!(json.contains("Lua"));
     }
 
     #[tokio::test]

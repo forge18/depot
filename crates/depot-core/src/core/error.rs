@@ -31,9 +31,6 @@ pub enum DepotError {
     #[error("Not implemented: {0}")]
     NotImplemented(String),
 
-    #[error("LuaRocks error: {0}")]
-    LuaRocks(String),
-
     #[error("Lua error: {0}")]
     Lua(String),
 

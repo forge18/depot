@@ -148,34 +148,6 @@ fn test_non_interactive_mode_handles_missing_stdin() {
 }
 
 #[test]
-fn test_init_template_non_interactive() {
-    let temp = TempDir::new().unwrap();
-    let project_root = temp.path();
-
-    // Using template with --yes should bypass all interactive prompts
-    let output = depot_command()
-        .arg("init")
-        .arg("--template")
-        .arg("basic-lua")
-        .arg("--yes")
-        .current_dir(project_root)
-        .output()
-        .unwrap();
-
-    // May succeed or fail depending on template availability,
-    // but should not show interactive prompts
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        !stdout.contains("Project name")
-            && !stderr.contains("Project name")
-            && !stdout.contains("License")
-            && !stderr.contains("License"),
-        "Should not show interactive prompts when using template with --yes"
-    );
-}
-
-#[test]
 fn test_commands_respect_non_interactive_environment() {
     let temp = TempDir::new().unwrap();
     let project_root = temp.path();

@@ -70,9 +70,8 @@ impl Version {
             (s, None)
         };
 
-        // Split by '-' to separate pre-release (but handle LuaRocks format too)
+        // Split by '-' to separate pre-release (but handle dash-separated versions too)
         let (version_part, prerelease) = if let Some(pos) = version_prerelease.rfind('-') {
-            // Check if this looks like a pre-release or LuaRocks version
             let potential_prerelease = &version_prerelease[pos + 1..];
             let version_before_dash = &version_prerelease[..pos];
 
@@ -84,13 +83,13 @@ impl Version {
             } else {
                 // Check if version_before_dash already has 3 parts (major.minor.patch)
                 // If so, treat the numeric suffix as a prerelease per SemVer
-                // Otherwise, treat it as LuaRocks format: "3.0-1" -> "3.0.1"
+                // Otherwise, treat "3.0-1" as "3.0.1" (dash as patch separator)
                 let parts_count = version_before_dash.split('.').count();
                 if parts_count >= 3 {
                     // Already has major.minor.patch, so "-1" is a prerelease
                     (version_before_dash, Some(potential_prerelease.to_string()))
                 } else {
-                    // LuaRocks format: "3.0-1" -> treat as patch version
+                    // Dash-separated format: "3.0-1" -> treat as patch version
                     (version_prerelease, None)
                 }
             }
@@ -98,7 +97,7 @@ impl Version {
             (version_prerelease, None)
         };
 
-        // Handle LuaRocks format: "3.0-1" -> "3.0.1" (when not a pre-release)
+        // Handle dash-separated format: "3.0-1" -> "3.0.1" (when not a pre-release)
         let normalized = if prerelease.is_none() {
             version_part.replace('-', ".")
         } else {
@@ -301,7 +300,7 @@ mod tests {
     }
 
     #[test]
-    fn test_version_parse_luarocks() {
+    fn test_version_parse_dash_separated() {
         let v = Version::parse("3.0-1").unwrap();
         assert_eq!(v.major, 3);
         assert_eq!(v.minor, 0);
@@ -432,8 +431,8 @@ mod tests {
     }
 
     #[test]
-    fn test_version_luarocks_format_still_works() {
-        // Ensure backward compatibility with LuaRocks format
+    fn test_version_dash_separated_format_still_works() {
+        // Ensure backward compatibility with dash-separated format (e.g., "3.0-1")
         let v = Version::parse("3.0-1").unwrap();
         assert_eq!(v.major, 3);
         assert_eq!(v.minor, 0);

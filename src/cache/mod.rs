@@ -49,19 +49,14 @@ impl Cache {
         Self::new(cache_dir()?)
     }
 
-    /// Get the LuaRocks cache directory
-    pub fn luarocks_dir(&self) -> PathBuf {
-        self.root.join("luarocks")
-    }
-
-    /// Get the rockspecs cache directory
-    pub fn rockspecs_dir(&self) -> PathBuf {
-        self.luarocks_dir().join("rockspecs")
+    /// Get the packages cache directory
+    pub fn packages_dir(&self) -> PathBuf {
+        self.root.join("packages")
     }
 
     /// Get the sources cache directory
     pub fn sources_dir(&self) -> PathBuf {
-        self.luarocks_dir().join("sources")
+        self.packages_dir().join("sources")
     }
 
     /// Get the Rust builds cache directory
@@ -71,17 +66,18 @@ impl Cache {
 
     /// Initialize cache directory structure
     pub fn init(&self) -> DepotResult<()> {
-        ensure_dir(&self.luarocks_dir())?;
-        ensure_dir(&self.rockspecs_dir())?;
+        ensure_dir(&self.packages_dir())?;
         ensure_dir(&self.sources_dir())?;
         ensure_dir(&self.rust_builds_dir())?;
         Ok(())
     }
 
-    /// Get the cached path for a rockspec file
-    pub fn rockspec_path(&self, package: &str, version: &str) -> PathBuf {
-        let filename = format!("{}-{}.rockspec", package, version);
-        self.rockspecs_dir().join(filename)
+    /// Get the cached path for a package metadata file
+    pub fn package_metadata_path(&self, package: &str, version: &str) -> PathBuf {
+        self.packages_dir()
+            .join(package)
+            .join(version)
+            .join(".metadata")
     }
 
     /// Get the cached path for a source archive
@@ -271,8 +267,8 @@ impl Cache {
             bytes_freed: 0,
         };
 
-        // Clean rockspecs
-        result += self.clean_directory(&self.rockspecs_dir(), &now, max_age, max_size_bytes)?;
+        // Clean packages
+        result += self.clean_directory(&self.packages_dir(), &now, max_age, max_size_bytes)?;
 
         // Clean sources
         result += self.clean_directory(&self.sources_dir(), &now, max_age, max_size_bytes)?;
@@ -366,8 +362,8 @@ impl Cache {
 
 // Implement CacheProvider trait
 impl CacheProvider for Cache {
-    fn rockspec_path(&self, package: &str, version: &str) -> PathBuf {
-        self.rockspec_path(package, version)
+    fn package_metadata_path(&self, package: &str, version: &str) -> PathBuf {
+        self.package_metadata_path(package, version)
     }
 
     fn source_path(&self, url: &str) -> PathBuf {
@@ -461,8 +457,7 @@ mod tests {
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
         cache.init().unwrap();
 
-        assert!(cache.luarocks_dir().exists());
-        assert!(cache.rockspecs_dir().exists());
+        assert!(cache.packages_dir().exists());
         assert!(cache.sources_dir().exists());
         assert!(cache.rust_builds_dir().exists());
     }
@@ -473,7 +468,7 @@ mod tests {
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
         cache.init().unwrap();
 
-        let test_path = cache.rockspecs_dir().join("test.rockspec");
+        let test_path = cache.packages_dir().join("test.dat");
         let data = b"test data";
 
         cache.write(&test_path, data).unwrap();
@@ -495,19 +490,18 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
 
-        assert!(cache.luarocks_dir().ends_with("luarocks"));
-        assert!(cache.rockspecs_dir().ends_with("rockspecs"));
+        assert!(cache.packages_dir().ends_with("packages"));
         assert!(cache.sources_dir().ends_with("sources"));
         assert!(cache.rust_builds_dir().ends_with("rust-builds"));
     }
 
     #[test]
-    fn test_cache_rockspec_path() {
+    fn test_cache_package_metadata_path() {
         let temp = TempDir::new().unwrap();
         let cache = Cache::new(temp.path().to_path_buf()).unwrap();
 
-        let path = cache.rockspec_path("test-package", "1.0.0");
-        assert!(path.ends_with("test-package-1.0.0.rockspec"));
+        let path = cache.package_metadata_path("test-package", "1.0.0");
+        assert!(path.ends_with("packages/test-package/1.0.0/.metadata"));
     }
 
     #[test]
@@ -690,7 +684,7 @@ mod tests {
         cache.init().unwrap();
 
         // Create some files in cache
-        let test_file = cache.rockspecs_dir().join("test.rockspec");
+        let test_file = cache.packages_dir().join("test.dat");
         fs::write(&test_file, b"test content").unwrap();
 
         // Clean with large limits (should keep file)

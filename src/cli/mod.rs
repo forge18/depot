@@ -12,7 +12,6 @@ pub mod package;
 pub mod plugin;
 pub mod remove;
 pub mod run;
-pub mod template;
 pub mod update;
 pub mod verify;
 pub mod workspace;

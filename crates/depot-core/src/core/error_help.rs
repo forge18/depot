@@ -16,7 +16,7 @@ impl ErrorHelp for DepotError {
                     )
                 } else if msg.contains("not found in manifest") {
                     Some(
-                        "💡 Suggestion: Check the package name spelling, or verify the package exists on LuaRocks"
+                        "💡 Suggestion: Check the package name spelling, or verify the package exists in the registry"
                             .to_string(),
                     )
                 } else if msg.contains("lua_modules directory not found") {
@@ -87,7 +87,7 @@ impl ErrorHelp for DepotError {
                     )
                 } else {
                     Some(
-                        "💡 Suggestion: Check your internet connection, or verify the LuaRocks server is accessible"
+                        "💡 Suggestion: Check your internet connection, or verify the package server is accessible"
                             .to_string(),
                     )
                 }
@@ -101,16 +101,6 @@ impl ErrorHelp for DepotError {
                 } else if e.kind() == std::io::ErrorKind::NotFound {
                     Some(
                         "💡 Suggestion: The file or directory may not exist. Check the path and try again"
-                            .to_string(),
-                    )
-                } else {
-                    None
-                }
-            }
-            DepotError::LuaRocks(msg) => {
-                if msg.contains("Failed to fetch") {
-                    Some(
-                        "💡 Suggestion: Check your internet connection, or verify the LuaRocks server is accessible"
                             .to_string(),
                     )
                 } else {
